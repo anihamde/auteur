@@ -1,0 +1,129 @@
+/* auteur color system.
+   Two grounds: INK (the instrument — the app chrome, dark, prussian-cast)
+   and PAPER (the artifact — story prose, exemplars, quotations; warm cream).
+   Prose always sits on paper. Measurement always sits on ink. */
+:root{
+  /* ── Ink ramp: the app ground. Neutral hue 250 (prussian cast), low chroma. */
+  --ink-1000:oklch(0.13 0.014 250);
+  --ink-950:oklch(0.158 0.015 250);
+  --ink-900:oklch(0.188 0.016 250);
+  --ink-850:oklch(0.222 0.017 250);
+  --ink-800:oklch(0.262 0.018 250);
+  --ink-700:oklch(0.318 0.018 250);
+  --ink-600:oklch(0.395 0.017 252);
+  --ink-500:oklch(0.492 0.015 252);
+  --ink-400:oklch(0.605 0.013 254);
+  --ink-300:oklch(0.712 0.011 256);
+  --ink-200:oklch(0.822 0.009 80);
+  --ink-100:oklch(0.905 0.010 80);
+  --ink-050:oklch(0.955 0.011 82);
+
+  /* ── Paper ramp: warm, slightly yellow. The printed artifact. */
+  --paper-500:oklch(0.795 0.021 84);
+  --paper-400:oklch(0.855 0.019 84);
+  --paper-300:oklch(0.902 0.018 84);
+  --paper-200:oklch(0.936 0.016 85);
+  --paper-100:oklch(0.958 0.014 85);
+  --paper-050:oklch(0.975 0.011 86);
+
+  /* ── Prussian: the single interactive accent. */
+  --prussian-900:oklch(0.245 0.058 254);
+  --prussian-800:oklch(0.315 0.082 254);
+  --prussian-700:oklch(0.395 0.102 254);
+  --prussian-600:oklch(0.472 0.113 254);
+  --prussian-500:oklch(0.552 0.118 253);
+  --prussian-400:oklch(0.645 0.108 251);
+  --prussian-300:oklch(0.745 0.083 249);
+  --prussian-200:oklch(0.852 0.050 247);
+
+  /* ── Semantics. Amber = user-edited (unverified). Laurel = measured/pass.
+        Oxblood = failure. Each has an ink-ground tint and a legible face. */
+  --amber-600:oklch(0.585 0.128 72);
+  --amber-500:oklch(0.700 0.135 74);
+  --amber-400:oklch(0.790 0.118 78);
+  --amber-tint:oklch(0.262 0.048 72);
+  --laurel-600:oklch(0.520 0.084 146);
+  --laurel-500:oklch(0.635 0.092 146);
+  --laurel-400:oklch(0.748 0.082 146);
+  --laurel-tint:oklch(0.258 0.038 148);
+  --oxblood-600:oklch(0.505 0.130 22);
+  --oxblood-500:oklch(0.588 0.146 24);
+  --oxblood-400:oklch(0.700 0.128 26);
+  --oxblood-tint:oklch(0.262 0.056 22);
+
+  /* ─────────────── Semantic aliases: use these, not the ramps ─────────────── */
+
+  /* Surfaces — ink ground */
+  --surface-app:var(--ink-1000);
+  --surface-panel:var(--ink-950);
+  --surface-card:var(--ink-900);
+  --surface-raised:var(--ink-850);
+  --surface-input:var(--ink-950);
+  --surface-hover:var(--ink-850);
+  --surface-active:var(--ink-800);
+  --surface-selected:var(--prussian-900);
+  --surface-scrim:oklch(0.13 0.014 250 / 0.72);
+
+  /* Surfaces — paper ground (prose, quotations, exports) */
+  --surface-paper:var(--paper-100);
+  --surface-paper-sunk:var(--paper-200);
+  --surface-paper-edge:var(--paper-400);
+
+  /* Text on ink */
+  --text-strong:var(--ink-050);
+  --text-body:var(--ink-100);
+  --text-muted:var(--ink-300);
+  --text-faint:var(--ink-400);
+  --text-accent:var(--prussian-300);
+  --text-on-accent:var(--paper-050);
+
+  /* Text on paper */
+  --text-paper:var(--ink-1000);
+  --text-paper-muted:var(--ink-600);
+  --text-paper-faint:var(--ink-500);
+
+  /* Lines */
+  --border-hairline:oklch(0.905 0.010 80 / 0.10);
+  --border-subtle:oklch(0.905 0.010 80 / 0.16);
+  --border-strong:oklch(0.905 0.010 80 / 0.28);
+  --border-accent:var(--prussian-500);
+  --border-paper:oklch(0.13 0.014 250 / 0.14);
+  --border-focus:var(--prussian-400);
+  --border-danger:var(--oxblood-500);
+  --link-underline:oklch(0.745 0.083 249 / 0.35);
+
+  /* Interactive */
+  --accent:var(--prussian-500);
+  --accent-hover:var(--prussian-400);
+  --accent-press:var(--prussian-600);
+  --accent-quiet:var(--prussian-900);
+  --link:var(--prussian-300);
+  --link-hover:var(--prussian-200);
+  --accent-quiet-hover:var(--prussian-800);
+  --danger-quiet:var(--oxblood-tint);
+
+  /* Neutral utility: measurement tracks, and dots not yet started */
+  --track:var(--ink-850);
+  --dot-pending:var(--ink-600);
+
+  /* Provenance & status — the product's core semantic pair */
+  --derived:var(--prussian-300);
+  --derived-tint:var(--prussian-900);
+  --edited:var(--amber-400);
+  --edited-tint:var(--amber-tint);
+  --measured:var(--laurel-400);
+  --measured-tint:var(--laurel-tint);
+  --status-pass:var(--laurel-400);
+  --status-drift:var(--amber-400);
+  --status-fail:var(--oxblood-400);
+  --status-running:var(--prussian-300);
+
+  /* Model tiers (cheap / balanced / strong) */
+  --tier-cheap:var(--ink-300);
+  --tier-balanced:var(--prussian-300);
+  --tier-strong:var(--amber-400);
+
+  /* Corpus provenance tiers (full-text / secondary) */
+  --provenance-fulltext:var(--laurel-400);
+  --provenance-secondary:var(--ink-300);
+}

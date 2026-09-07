@@ -1,0 +1,40 @@
+<!-- @dsCard group="Components" viewport="700x330" name="Forms" subtitle="Field, Input, Select, Textarea — with provenance labels" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{padding:20px;display:block}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const { Field, Input, Select, Textarea, Icon } = window.AuteurDesignSystem_11e1bd;
+function Demo(){
+  const [idea,setIdea] = React.useState('A lighthouse keeper stops writing in the log, and the log keeps writing itself.');
+  return (
+  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'20px 24px',alignItems:'start'}}>
+    <Field label="Author" hint="Search-as-you-type against the corpus index.">
+      <Input size="lg" icon={<Icon name="search" size={16}/>} defaultValue="Jorge Luis Borges"/>
+    </Field>
+    <Field label="Length" hint="Selects a draft strategy, not a cap.">
+      <Select size="lg" defaultValue="short" options={[{value:'flash',label:'Flash — ~1k words'},{value:'short',label:'Short — ~4k words'},{value:'long',label:'Long — ~12k words'},{value:'novelette',label:'Novelette — ~20k words'}]}/>
+    </Field>
+    <Field label="Point of view" provenance="derived">
+      <Select options={['first person','third limited','third omniscient']}/>
+    </Field>
+    <Field label="Target median sentence length" provenance="edited" hint="Overrides prosodyTarget, not the measurement.">
+      <Input mono defaultValue="9.0"/>
+    </Field>
+    <div style={{gridColumn:'1 / -1'}}>
+      <Field label="Idea" required hint="One sentence or pages of notes.">
+        <Textarea prose counter rows={3} value={idea} onChange={e=>setIdea(e.target.value)}/>
+      </Field>
+    </div>
+    <Field label="Hard constraint" error="Must name a decision the draft can act on.">
+      <Input invalid defaultValue="make it good"/>
+    </Field>
+    <Field label="Provider" hint="Disabled until a second seam is registered.">
+      <Select disabled options={['Ramp Router']}/>
+    </Field>
+  </div>);}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>
