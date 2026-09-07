@@ -1030,6 +1030,52 @@ The layering is deliberately identical to the card overlay's: canonical
 defaults, per-session overrides, per-field reset, and the UI marks what is
 overridden. One mechanism, learned once.
 
+#### What a tier actually declares
+
+Not a price band. `cheap`, `balanced` and `strong` are price-shaped words for a
+quality-shaped decision, and taking them literally leads to the wrong question
+("is this stage worth paying for?") instead of the right one:
+
+> **A tier declares how much a mistake at this stage costs.**
+
+`corpus-select` choosing two odd works is recoverable — the card is built from
+ten others and the spread is visible in `perWork`. `critique` missing a finding
+costs one revision pass. `draft` is the product: a bad draft is the session.
+That ordering is what the tiers encode, and it is why the candidate lists happen
+to run cheap-to-expensive rather than being defined that way — cheapness falls
+out of asking for less capability, and the list's ordering already carries it.
+
+Two consequences worth stating, because they are what the framing buys:
+
+- **The stage-to-tier assignment is a hypothesis, and it is testable.** `PRD.md`
+  §7 asserts `outline` needs `balanced` and `critique` can be `cheap`, and
+  nothing has tested either. Once the pipeline runs, moving a stage down a tier
+  and reading the style-fit numbers and the discrimination script (§10.3) is a
+  cheap experiment. The tier map is data (§14) precisely so that experiment is a
+  config edit.
+- **A tier is not a substitute for the user choosing.** It answers "which model
+  runs `outline`" before anyone has opened the panel, and that is all. Layer 3
+  is the answer once they have.
+
+#### One model for everything
+
+The design's panel pins stages one at a time, which is right for someone who
+wants `draft` on a particular model and does not care about the rest. It is
+wrong for the commoner case: someone who has one model they trust and wants the
+whole pipeline on it.
+
+So the panel gets one control the design does not have — **"use one model for
+every stage"**, a single `Select` above the table that writes a pin for all
+seven rows at once. It is validated per stage like any other pin, so a model
+that cannot emit `json_schema` is refused for the six typed stages with the
+reason rather than silently applied to `draft` alone. Clearing it returns every
+row to its tier default, which is the "Follow tier defaults" button the design
+already specifies.
+
+This costs one control and no new mechanism — it is seven writes to
+`stage_pins` — and it means the tier vocabulary is something a user can ignore
+entirely rather than something they have to learn to get what they want.
+
 ### 6.4 What `provider-router` needs added
 
 Three additions to `ModelDescriptor` and one to `ModelRequest`. All four are
@@ -1865,6 +1911,8 @@ Three further decisions this document makes that the PRD leaves implicit:
 | Confidence is citation coverage; the other three strength facts are shown, not blended | §4.5 |
 | A tier with no structured-output model is a startup error, not a repair loop | §6.4 |
 | Regenerating a section means regenerating a text selection, as `revise` with a span | §6.9 |
+| A tier declares how much a mistake at that stage costs, not a price band | §6.3 |
+| The model panel gains a "use one model for every stage" control | §6.3 |
 
 ---
 
@@ -1906,7 +1954,9 @@ as a third resolution layer over the tier map* (§6.3). It is the natural surfac
 for `PRD.md` §7's rule that tiers resolve from the catalog at run time, and it
 layers exactly as the card overlay does. It also forces two things the PRD needs
 anyway: pricing in the catalog, and `maxOutputTokens` as the input to the draft
-strategy.
+strategy. One control is added to it that the design does not have — "use one
+model for every stage" (§6.3) — because pinning seven rows one at a time is the
+wrong shape for someone who has one model they trust.
 
 Two things this document adds that neither source asks for:
 
@@ -1935,9 +1985,12 @@ Not settled here, and deliberately:
   (§4.4) and the prompts themselves are the implementation's work. What this
   document fixes is that they are pure, snapshot-tested, and that editing one has
   a visible consequence in the card cache.
-- **The tier candidate lists.** `config/tiers.ts` is data, and which model belongs
-  in which tier is a question the step-2 spike answers with prices and
-  capabilities in hand.
+- **The tier candidate lists, and the stage-to-tier assignment.**
+  `config/tiers.ts` is data. Which models belong in which tier is a question the
+  step-2 spike answers with prices and capabilities in hand; which *stage*
+  belongs in which tier is a hypothesis inherited from `PRD.md` §7 that wants an
+  experiment once the pipeline runs (§6.3). Both are config edits, which is why
+  neither blocks the build.
 
 ---
 
