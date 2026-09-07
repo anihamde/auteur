@@ -1,0 +1,74 @@
+/* Light theme — the paper ground.
+   Dark is the instrument (ink chrome, prose on inset paper); light is the
+   artifact (the whole surface is paper, and chrome recedes into it).
+   Applied by setting data-theme="light" on <html>; see assets/theme.js.
+   Only semantic aliases are re-pointed here — the ink / paper / prussian
+   ramps never change. */
+:root[data-theme="light"]{
+  --surface-app:var(--paper-100);
+  --surface-panel:var(--paper-200);
+  --surface-card:var(--paper-050);
+  --surface-raised:var(--paper-050);
+  --surface-input:var(--paper-050);
+  --surface-hover:var(--paper-300);
+  --surface-active:var(--paper-400);
+  --surface-selected:var(--prussian-200);
+  --surface-scrim:oklch(0.13 0.014 250 / 0.42);
+  --surface-paper:var(--paper-050);
+  --surface-paper-sunk:var(--paper-200);
+  --surface-paper-edge:var(--paper-400);
+
+  --text-strong:var(--ink-1000);
+  --text-body:var(--ink-900);
+  --text-muted:var(--ink-600);
+  --text-faint:var(--ink-500);
+  --text-accent:var(--prussian-700);
+  --text-on-accent:var(--paper-050);
+
+  --border-hairline:oklch(0.13 0.014 250 / 0.10);
+  --border-subtle:oklch(0.13 0.014 250 / 0.16);
+  --border-strong:oklch(0.13 0.014 250 / 0.30);
+  --border-danger:var(--oxblood-600);
+
+  --accent:var(--prussian-600);
+  --accent-hover:var(--prussian-500);
+  --accent-press:var(--prussian-700);
+  --accent-quiet:oklch(0.930 0.032 250);
+  --accent-quiet-hover:var(--prussian-200);
+  --link:var(--prussian-700);
+  --link-hover:var(--prussian-600);
+  --link-underline:oklch(0.395 0.102 254 / 0.32);
+
+  --derived:var(--prussian-700);
+  --derived-tint:oklch(0.930 0.032 250);
+  --edited:var(--amber-600);
+  --edited-tint:oklch(0.935 0.045 78);
+  --measured:var(--laurel-600);
+  --measured-tint:oklch(0.932 0.038 148);
+  --danger-quiet:oklch(0.932 0.042 22);
+  --status-pass:var(--laurel-600);
+  --status-drift:var(--amber-600);
+  --status-fail:var(--oxblood-600);
+  --status-running:var(--prussian-600);
+
+  --tier-cheap:var(--ink-500);
+  --tier-balanced:var(--prussian-700);
+  --tier-strong:var(--amber-600);
+  --provenance-fulltext:var(--laurel-600);
+  --provenance-secondary:var(--ink-500);
+
+  --track:var(--paper-400);
+  --dot-pending:var(--ink-300);
+
+  --shadow-inset-hairline:inset 0 1px 0 oklch(1 0 0 / 0.7);
+  --shadow-card:0 1px 2px oklch(0.13 0.014 250 / 0.10);
+  --shadow-raised:0 2px 6px oklch(0.13 0.014 250 / 0.12),0 0 0 1px oklch(0.13 0.014 250 / 0.06);
+  --shadow-popover:0 10px 28px oklch(0.13 0.014 250 / 0.16),0 0 0 1px oklch(0.13 0.014 250 / 0.10);
+  --shadow-modal:0 28px 70px oklch(0.13 0.014 250 / 0.22),0 0 0 1px oklch(0.13 0.014 250 / 0.12);
+  --shadow-paper:0 1px 1px oklch(0.13 0.014 250 / 0.10),0 6px 18px oklch(0.13 0.014 250 / 0.10);
+  --ring-focus:0 0 0 2px var(--surface-app),0 0 0 4px var(--prussian-600);
+
+  --fade-ink-top:linear-gradient(to bottom,var(--surface-panel),oklch(0.936 0.016 85 / 0));
+  --fade-ink-bottom:linear-gradient(to top,var(--surface-panel),oklch(0.936 0.016 85 / 0));
+  --fade-paper-bottom:linear-gradient(to top,var(--paper-050),oklch(0.975 0.011 86 / 0));
+}

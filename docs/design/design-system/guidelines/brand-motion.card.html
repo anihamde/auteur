@@ -1,0 +1,10 @@
+<!-- @dsCard group="Brand" viewport="700x150" name="Motion & states" subtitle="130ms controls, 340ms reveals. Hover lightens, press drops 1px. No bounce" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css"><style>body{margin:0;padding:18px 20px;display:block}.r{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.btn{height:34px;padding:0 16px;border-radius:var(--radius-control);font:var(--type-label);display:flex;align-items:center;border:1px solid transparent}.n{font:var(--type-data);font-size:10px;color:var(--text-faint);display:block;margin-top:6px}.pulse{width:6px;height:6px;border-radius:999px;background:var(--status-running);animation:auteur-pulse 1.3s var(--ease-in-out) infinite}.car{display:inline-block;width:7px;height:16px;background:var(--accent);animation:auteur-caret 1s steps(1) infinite;vertical-align:-3px}</style></head><body><div class="r">
+   <div><div class="btn" style="background:var(--accent);color:var(--text-on-accent)">rest</div><span class="n">--accent</span></div>
+   <div><div class="btn" style="background:var(--accent-hover);color:var(--text-on-accent)">hover</div><span class="n">lighten, 130ms</span></div>
+   <div><div class="btn" style="background:var(--accent-press);color:var(--text-on-accent);transform:translateY(1px)">press</div><span class="n">darken + 1px down</span></div>
+   <div><div class="btn" style="background:var(--accent);color:var(--text-on-accent);opacity:.42">disabled</div><span class="n">opacity .42</span></div>
+   <div><div class="btn" style="background:var(--surface-input);border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-quiet);color:var(--text-body)">focus</div><span class="n">border + 3px halo</span></div>
+   <div style="display:flex;align-items:center;gap:8px;padding-left:8px"><span class="pulse"></span><span class="n" style="margin:0">stage running</span></div>
+   <div style="display:flex;align-items:center;gap:8px"><span class="car"></span><span class="n" style="margin:0">prose streaming</span></div>
+   </div></body></html>

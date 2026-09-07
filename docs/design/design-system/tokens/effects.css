@@ -1,0 +1,52 @@
+/* auteur radii, shadows, motion, textures. */
+:root{
+  /* Radii — small and deliberate. Nothing is a pill except status dots. */
+  --radius-none:0;
+  --radius-xs:3px;
+  --radius-sm:5px;
+  --radius-md:8px;
+  --radius-lg:12px;
+  --radius-xl:16px;
+  --radius-round:999px;
+  --radius-control:var(--radius-sm);
+  --radius-card:var(--radius-md);
+  --radius-panel:var(--radius-lg);
+  --radius-paper:2px;
+
+  /* Shadows. On ink, elevation reads as a lighter hairline, not a blur.
+     On paper, a real drop shadow — the artifact sits on the desk. */
+  --shadow-none:none;
+  --shadow-inset-hairline:inset 0 1px 0 oklch(0.905 0.010 80 / 0.06);
+  --shadow-card:0 1px 2px oklch(0.13 0.014 250 / 0.5);
+  --shadow-raised:0 2px 6px oklch(0.13 0.014 250 / 0.55),0 0 0 1px oklch(0.905 0.010 80 / 0.06);
+  --shadow-popover:0 10px 28px oklch(0.13 0.014 250 / 0.62),0 0 0 1px oklch(0.905 0.010 80 / 0.10);
+  --shadow-modal:0 28px 70px oklch(0.13 0.014 250 / 0.7),0 0 0 1px oklch(0.905 0.010 80 / 0.12);
+  --shadow-paper:0 1px 1px oklch(0.13 0.014 250 / 0.18),0 8px 24px oklch(0.13 0.014 250 / 0.22);
+  --ring-focus:0 0 0 2px var(--surface-app),0 0 0 4px var(--prussian-500);
+  --ring-focus-paper:0 0 0 2px var(--surface-paper),0 0 0 4px var(--prussian-600);
+
+  /* Motion — short, eased, no bounce. Prose fades; chrome slides 2-4px. */
+  --ease-out:cubic-bezier(0.16,0.84,0.44,1); /* @kind other */
+  --ease-in-out:cubic-bezier(0.42,0,0.32,1); /* @kind other */
+  --ease-linear:linear; /* @kind other */
+  --dur-instant:80ms; /* @kind other */
+  --dur-fast:130ms; /* @kind other */
+  --dur-base:200ms; /* @kind other */
+  --dur-slow:340ms; /* @kind other */
+  --dur-stream:520ms; /* @kind other */
+  --transition-control:background-color var(--dur-fast) var(--ease-out),border-color var(--dur-fast) var(--ease-out),color var(--dur-fast) var(--ease-out),box-shadow var(--dur-fast) var(--ease-out);
+
+  /* Blur — used only for the modal scrim and the sticky prose fade. */
+  --blur-scrim:6px;
+  --blur-chrome:12px;
+
+  /* Protection gradients — top/bottom fades over streaming prose. */
+  --fade-ink-top:linear-gradient(to bottom,var(--surface-panel),oklch(0.158 0.015 250 / 0));
+  --fade-ink-bottom:linear-gradient(to top,var(--surface-panel),oklch(0.158 0.015 250 / 0));
+  --fade-paper-bottom:linear-gradient(to top,var(--paper-100),oklch(0.958 0.014 85 / 0));
+
+  /* Rule weights */
+  --rule-hairline:1px;
+  --rule-medium:2px;
+  --rule-accent:3px;
+}

@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/auteur-design-system-11e1bdea-74c6-41fa-8c8f-183ba0640b5f/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/auteur-design-system-11e1bdea-74c6-41fa-8c8f-183ba0640b5f/tokens/colors.css">
+<link rel="stylesheet" href="_ds/auteur-design-system-11e1bdea-74c6-41fa-8c8f-183ba0640b5f/tokens/typography.css">
+<link rel="stylesheet" href="_ds/auteur-design-system-11e1bdea-74c6-41fa-8c8f-183ba0640b5f/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/auteur-design-system-11e1bdea-74c6-41fa-8c8f-183ba0640b5f/tokens/effects.css">
+<link rel="stylesheet" href="_ds/auteur-design-system-11e1bdea-74c6-41fa-8c8f-183ba0640b5f/tokens/base.css">
+<link rel="stylesheet" href="_ds/auteur-design-system-11e1bdea-74c6-41fa-8c8f-183ba0640b5f/tokens/theme-light.css">
+<link rel="stylesheet" href="_ds/auteur-design-system-11e1bdea-74c6-41fa-8c8f-183ba0640b5f/styles.css">
+<script src="theme.js"></script>
+<script src="_ds/auteur-design-system-11e1bdea-74c6-41fa-8c8f-183ba0640b5f/_ds_bundle.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; }
+  a { color: var(--link); text-decoration-color: var(--link-underline); }
+  a:hover { color: var(--link-hover); }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; min-height:640px; background:var(--surface-app); color:var(--text-body); font:var(--type-body); overflow:hidden">
+
+  <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.WizardRail" steps="{{ steps }}" current="{{ step }}" onStep="{{ goto }}" header="{{ railHeader }}" footer="{{ railFooter }}" hint-size="236px,100%"></x-import>
+
+  <main style="flex:1; min-width:0; display:flex; flex-direction:column">
+
+    <!-- ── 1 Idea ─────────────────────────────────────────── -->
+    <sc-if value="{{ is0 }}" hint-placeholder-val="{{ true }}">
+      <header style="border-bottom:1px solid var(--border-hairline); padding:var(--space-8) var(--gutter-screen) var(--space-6); display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-8)">
+        <div style="display:flex; flex-direction:column; gap:var(--space-2); min-width:0">
+          <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Step 1 of 7</span>
+          <h1 style="font:var(--type-title); margin:0">What is the story about?</h1>
+          <p style="font:var(--type-body); color:var(--text-muted); max-width:var(--measure-ui); margin:0">One sentence or pages of notes. The questions later are shaped by this and by the author's measured style.</p>
+        </div>
+        <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-faint); white-space:nowrap">{{ ideaWords }} words</span>
+      </header>
+      <div style="flex:1; min-height:0; overflow:auto; padding:var(--space-8) var(--gutter-screen)">
+        <div style="max-width:760px; display:flex; flex-direction:column; gap:var(--space-8)">
+          <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Field" label="Idea" hint="Kept verbatim. Nothing here is rewritten before it reaches the pipeline." hint-size="100%,auto">
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Textarea" rows="6" value="{{ idea }}" onChange="{{ setIdea }}" hint-size="100%,150px"></x-import>
+          </x-import>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:var(--space-6)">
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Field" label="Length" hint="{{ presetHint }}" hint-size="100%,auto">
+              <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Select" value="{{ preset }}" onChange="{{ setPreset }}" options="{{ presetOptions }}" hint-size="100%,34px"></x-import>
+            </x-import>
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Field" label="Hard constraints" hint="Optional. Anything the draft may not do." hint-size="100%,auto">
+              <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Input" value="No named dates after 1986" hint-size="100%,34px"></x-import>
+            </x-import>
+          </div>
+        </div>
+      </div>
+      <footer style="height:var(--space-16); flex:0 0 auto; border-top:1px solid var(--border-hairline); background:var(--surface-panel); padding:0 var(--gutter-screen); display:flex; align-items:center; gap:var(--space-3)">
+        <span style="flex:1"></span>
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="primary" size="lg" onClick="{{ next }}" hint-size="auto,42px">Choose an author</x-import>
+      </footer>
+    </sc-if>
+
+    <!-- ── 2 Author ───────────────────────────────────────── -->
+    <sc-if value="{{ is1 }}" hint-placeholder-val="{{ false }}">
+      <header style="border-bottom:1px solid var(--border-hairline); padding:var(--space-8) var(--gutter-screen) var(--space-6); display:flex; flex-direction:column; gap:var(--space-2)">
+        <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Step 2 of 7</span>
+        <h1 style="font:var(--type-title); margin:0">In whose style?</h1>
+        <p style="font:var(--type-body); color:var(--text-muted); max-width:var(--measure-ui); margin:0">Search the corpus index. A full-text author has measured prosody and verbatim exemplars; a secondary author has neither.</p>
+      </header>
+      <div style="flex:1; min-height:0; overflow:auto; padding:var(--space-8) var(--gutter-screen)">
+        <div style="max-width:720px; display:flex; flex-direction:column; gap:var(--space-5)">
+          <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Input" value="{{ query }}" onChange="{{ setQuery }}" placeholder="Search authors" hint-size="100%,34px"></x-import>
+          <sc-for list="{{ authors }}" as="a" hint-placeholder-count="3">
+            <div style="opacity:{{ a.opacity }}">
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Card" ground="outline" padding="md" interactive="{{ a.enabled }}" selected="{{ a.selected }}" onClick="{{ a.pick }}" hint-size="100%,84px">
+              <div style="display:flex; align-items:flex-start; gap:var(--space-4)">
+                <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:var(--space-1)">
+                  <span style="font-family:var(--font-serif); font-size:var(--text-lg); color:var(--text-strong)">{{ a.name }}</span>
+                  <span style="font:var(--type-caption); color:var(--text-faint)">{{ a.detail }}</span>
+                </div>
+                <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Badge" tone="{{ a.tone }}" mono="{{ true }}" hint-size="auto,18px">{{ a.tier }}</x-import>
+              </div>
+            </x-import>
+            </div>
+          </sc-for>
+          <p style="font:var(--type-caption); color:var(--text-faint); margin:0">Secondary-corpus authors are designed for and not built in v1 — the tier badge is live so the shape is already right.</p>
+        </div>
+      </div>
+      <footer style="height:var(--space-16); flex:0 0 auto; border-top:1px solid var(--border-hairline); background:var(--surface-panel); padding:0 var(--gutter-screen); display:flex; align-items:center; gap:var(--space-3)">
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="ghost" onClick="{{ back }}" hint-size="auto,34px">Idea</x-import>
+        <span style="flex:1"></span>
+        <span style="font:var(--type-caption); color:var(--text-faint)">Changing the author later invalidates everything but the idea.</span>
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="primary" size="lg" onClick="{{ next }}" hint-size="auto,42px">Build the style card</x-import>
+      </footer>
+    </sc-if>
+
+    <!-- ── 3 Research + style card ────────────────────────── -->
+    <sc-if value="{{ is2 }}" hint-placeholder-val="{{ false }}">
+      <header style="border-bottom:1px solid var(--border-hairline); padding:var(--space-8) var(--gutter-screen) var(--space-6); display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-8)">
+        <div style="display:flex; flex-direction:column; gap:var(--space-2); min-width:0">
+          <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Step 3 of 7</span>
+          <h1 style="font:var(--type-title); margin:0">Reading Borges</h1>
+          <p style="font:var(--type-body); color:var(--text-muted); max-width:var(--measure-ui); margin:0">Prosody is computed from the full texts, outside the model. The qualitative half is extracted from selected passages and cited back to them.</p>
+        </div>
+        <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-faint); white-space:nowrap">{{ researchElapsed }}</span>
+      </header>
+      <div style="flex:1; min-height:0; overflow:auto; padding:var(--space-8) var(--gutter-screen)">
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:var(--space-10); align-items:start">
+          <div style="display:flex; flex-direction:column; gap:var(--space-8); min-width:0">
+            <div style="display:flex; flex-direction:column; gap:var(--space-2)">
+              <sc-for list="{{ stages }}" as="s" hint-placeholder-count="2">
+                <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Thinking" stage="{{ s.stage }}" state="{{ s.state }}" tier="{{ s.tier }}" detail="{{ s.detail }}" elapsed="{{ s.elapsed }}" open="{{ true }}" hint-size="100%,72px"></x-import>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{ cardReady }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; flex-direction:column; gap:var(--space-6)">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); border-bottom:1px solid var(--border-hairline); padding-bottom:var(--space-2)">
+                  <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Style card</span>
+                  <span style="font:var(--type-data); font-size:var(--text-2xs); color:var(--text-faint)">borges@3 · full-text · confidence 0.86</span>
+                </div>
+                <sc-for list="{{ cardFields }}" as="f" hint-placeholder-count="4">
+                  <div style="display:grid; grid-template-columns:190px minmax(0,1fr); gap:var(--space-5); padding-bottom:var(--space-4); border-bottom:1px solid var(--border-hairline)">
+                    <div style="display:flex; flex-direction:column; gap:var(--space-1)">
+                      <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-muted)">{{ f.path }}</span>
+                      <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.ProvenanceMark" origin="{{ f.origin }}" source="{{ f.source }}" hint-size="auto,16px"></x-import>
+                    </div>
+                    <span style="font-family:var(--font-serif); font-size:var(--text-md); line-height:var(--leading-relaxed); color:var(--text-body); text-wrap:pretty">{{ f.value }}</span>
+                  </div>
+                </sc-for>
+                <div style="display:flex; flex-direction:column; gap:var(--space-3)">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); border-bottom:1px solid var(--border-hairline); padding-bottom:var(--space-2)">
+                    <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Exemplars — 12, selectable, never editable</span>
+                    <span style="font:var(--type-data); font-size:var(--text-2xs); color:var(--text-faint)">9 selected</span>
+                  </div>
+                  <sc-for list="{{ exemplars }}" as="e" hint-placeholder-count="4">
+                    <div style="display:grid; grid-template-columns:minmax(0,1fr) auto; gap:var(--space-4); align-items:baseline; padding:var(--space-2) 0; border-bottom:1px solid var(--border-hairline)">
+                      <span style="font:var(--type-caption); color:var(--text-muted)">{{ e.demonstrates }}</span>
+                      <span style="font-family:var(--font-serif); font-style:italic; font-size:var(--text-base); color:var(--text-faint); white-space:nowrap">{{ e.work }}</span>
+                    </div>
+                  </sc-for>
+                  <p style="font:var(--type-caption); color:var(--text-faint); margin:0">Passage text is held verbatim in the card and set on paper where it is read. This mockup lists the citations only.</p>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+
+          <aside style="display:flex; flex-direction:column; gap:var(--space-5)">
+            <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint); border-bottom:1px solid var(--border-hairline); padding-bottom:var(--space-2)">Computed prosody</span>
+            <sc-for list="{{ corpusStats }}" as="s" hint-placeholder-count="6">
+              <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.ProsodyStat" label="{{ s.label }}" value="{{ s.value }}" unit="{{ s.unit }}" band="{{ s.band }}" target="{{ s.target }}" hint-size="100%,44px"></x-import>
+            </sc-for>
+            <p style="font:var(--type-caption); color:var(--text-faint); margin:0">Measured across 12 works, 214,000 words. Immutable — a measurement, not an opinion.</p>
+          </aside>
+        </div>
+      </div>
+      <footer style="height:var(--space-16); flex:0 0 auto; border-top:1px solid var(--border-hairline); background:var(--surface-panel); padding:0 var(--gutter-screen); display:flex; align-items:center; gap:var(--space-3)">
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="ghost" onClick="{{ back }}" hint-size="auto,34px">Author</x-import>
+        <span style="flex:1"></span>
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="primary" size="lg" disabled="{{ cardPending }}" onClick="{{ next }}" hint-size="auto,42px">Questions</x-import>
+      </footer>
+    </sc-if>
+
+    <!-- ── 4 Clarifying questions ─────────────────────────── -->
+    <sc-if value="{{ is3 }}" hint-placeholder-val="{{ false }}">
+      <header style="border-bottom:1px solid var(--border-hairline); padding:var(--space-8) var(--gutter-screen) var(--space-6); display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-8)">
+        <div style="display:flex; flex-direction:column; gap:var(--space-2); min-width:0">
+          <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Step 4 of 7</span>
+          <h1 style="font:var(--type-title); margin:0">Three things are still ambiguous</h1>
+          <p style="font:var(--type-body); color:var(--text-muted); max-width:var(--measure-ui); margin:0">Answer them, or skip and the model chooses. Every choice it makes on your behalf is recorded in the decisions log.</p>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:var(--space-2)">
+          <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-faint)">{{ roundLabel }}</span>
+          <div style="display:flex; gap:3px">
+            <sc-for list="{{ budget }}" as="b" hint-placeholder-count="8">
+              <span style="width:16px; height:3px; background:{{ b.fill }}"></span>
+            </sc-for>
+          </div>
+        </div>
+      </header>
+      <div style="flex:1; min-height:0; overflow:auto; padding:var(--space-8) var(--gutter-screen)">
+        <div style="max-width:780px; display:flex; flex-direction:column; gap:var(--space-5)">
+          <sc-for list="{{ visibleQuestions }}" as="q" hint-placeholder-count="3">
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Card" ground="ink" padding="md" hint-size="100%,180px">
+              <div style="display:flex; flex-direction:column; gap:var(--space-4)">
+              <div style="display:flex; gap:var(--space-4)">
+                <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-faint); margin-top:4px">{{ q.tag }}</span>
+                <div style="display:flex; flex-direction:column; gap:var(--space-2); min-width:0">
+                  <h3 style="font-family:var(--font-serif); font-size:var(--text-lg); font-weight:400; line-height:var(--leading-snug); color:var(--text-strong); margin:0; text-wrap:pretty">{{ q.text }}</h3>
+                  <p style="font:var(--type-caption); color:var(--text-faint); max-width:var(--measure-prose); line-height:var(--leading-normal); margin:0"><span style="color:var(--text-accent)">Why asked — </span>{{ q.why }}</p>
+                </div>
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:var(--space-2); padding-left:var(--space-8)">
+                <sc-for list="{{ q.options }}" as="o" hint-placeholder-count="3">
+                  <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" size="sm" variant="{{ o.variant }}" onClick="{{ o.pick }}" hint-size="auto,28px">{{ o.label }}</x-import>
+                </sc-for>
+                <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" size="sm" variant="ghost" onClick="{{ q.skip }}" hint-size="auto,28px">{{ q.skipLabel }}</x-import>
+              </div>
+              </div>
+            </x-import>
+          </sc-for>
+          <sc-if value="{{ followUpAvailable }}" hint-placeholder-val="{{ false }}">
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Card" ground="outline" padding="sm" hint-size="100%,56px">
+              <div style="display:flex; align-items:center; gap:var(--space-4)">
+                <span style="font:var(--type-body); color:var(--text-muted); flex:1">Your answer to q1 chose the catalogue frame, which opened one new decision. A follow-up round is available.</span>
+                <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="quiet" size="sm" onClick="{{ showRound2 }}" hint-size="auto,28px">Show it</x-import>
+              </div>
+            </x-import>
+          </sc-if>
+        </div>
+      </div>
+      <footer style="height:var(--space-16); flex:0 0 auto; border-top:1px solid var(--border-hairline); background:var(--surface-panel); padding:0 var(--gutter-screen); display:flex; align-items:center; gap:var(--space-3)">
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="ghost" onClick="{{ back }}" hint-size="auto,34px">Research</x-import>
+        <span style="flex:1"></span>
+        <span style="font:var(--type-caption); color:var(--text-faint)">Skipping is never blocked.</span>
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="secondary" onClick="{{ generateNow }}" hint-size="auto,34px">Generate now</x-import>
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="primary" size="lg" onClick="{{ next }}" hint-size="auto,42px">Outline</x-import>
+      </footer>
+    </sc-if>
+
+    <!-- ── 5 Outline ──────────────────────────────────────── -->
+    <sc-if value="{{ is4 }}" hint-placeholder-val="{{ false }}">
+      <header style="border-bottom:1px solid var(--border-hairline); padding:var(--space-8) var(--gutter-screen) var(--space-6); display:flex; flex-direction:column; gap:var(--space-2)">
+        <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Step 5 of 7</span>
+        <h1 style="font:var(--type-title); margin:0">The beat sheet</h1>
+        <p style="font:var(--type-body); color:var(--text-muted); max-width:var(--measure-ui); margin:0">Approve it, edit a beat, or regenerate. Six beats at flash length; the draft runs in one call.</p>
+      </header>
+      <div style="flex:1; min-height:0; overflow:auto; padding:var(--space-8) var(--gutter-screen)">
+        <div style="max-width:720px">
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Card" ground="paper" padding="lg" hint-size="720px,420px">
+          <div style="display:flex; flex-direction:column; gap:var(--space-5)">
+            <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-paper-faint)">Outline — the return of the comet</span>
+            <sc-for list="{{ beats }}" as="b" hint-placeholder-count="6">
+              <div style="display:grid; grid-template-columns:28px minmax(0,1fr); gap:var(--space-4); padding-bottom:var(--space-4); border-bottom:1px solid var(--border-paper)">
+                <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-paper-faint)">{{ b.n }}</span>
+                <span style="font-family:var(--font-serif); font-size:var(--text-md); line-height:var(--leading-relaxed); color:var(--text-paper); text-wrap:pretty">{{ b.text }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </x-import>
+        </div>
+      </div>
+      <footer style="height:var(--space-16); flex:0 0 auto; border-top:1px solid var(--border-hairline); background:var(--surface-panel); padding:0 var(--gutter-screen); display:flex; align-items:center; gap:var(--space-3)">
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="ghost" onClick="{{ back }}" hint-size="auto,34px">Questions</x-import>
+        <span style="flex:1"></span>
+        <span style="font:var(--type-caption); color:var(--text-faint)">{{ draftModelLine }}</span>
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="ghost" onClick="{{ openModels }}" hint-size="auto,34px">Change model</x-import>
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="secondary" hint-size="auto,34px">Regenerate</x-import>
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="primary" size="lg" onClick="{{ next }}" hint-size="auto,42px">Draft</x-import>
+      </footer>
+    </sc-if>
+
+    <!-- ── 6 Draft ────────────────────────────────────────── -->
+    <sc-if value="{{ is5 }}" hint-placeholder-val="{{ false }}">
+      <header style="border-bottom:1px solid var(--border-hairline); padding:var(--space-8) var(--gutter-screen) var(--space-6); display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-8)">
+        <div style="display:flex; flex-direction:column; gap:var(--space-2); min-width:0">
+          <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Step 6 of 7</span>
+          <h1 style="font:var(--type-title); margin:0">Drafting</h1>
+        </div>
+        <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-faint); white-space:nowrap">{{ draftMeter }}</span>
+      </header>
+      <div style="flex:1; min-height:0; overflow:auto; padding:var(--space-8) var(--gutter-screen)">
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:var(--space-10); align-items:start">
+          <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Card" ground="paper" padding="lg" hint-size="100%,460px">
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Markdown" ground="paper" streaming="{{ true }}" children="{{ draftSoFar }}" hint-size="100%,400px"></x-import>
+          </x-import>
+          <aside style="display:flex; flex-direction:column; gap:var(--space-5); position:sticky; top:0">
+            <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint); border-bottom:1px solid var(--border-hairline); padding-bottom:var(--space-2)">Drift, live</span>
+            <sc-for list="{{ driftStats }}" as="s" hint-placeholder-count="3">
+              <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.ProsodyStat" label="{{ s.label }}" value="{{ s.value }}" unit="{{ s.unit }}" band="{{ s.band }}" target="{{ s.target }}" status="{{ s.status }}" hint-size="100%,44px"></x-import>
+            </sc-for>
+          </aside>
+        </div>
+      </div>
+      <footer style="height:var(--space-16); flex:0 0 auto; border-top:1px solid var(--border-hairline); background:var(--surface-panel); padding:0 var(--gutter-screen); display:flex; align-items:center; gap:var(--space-3)">
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="ghost" onClick="{{ back }}" hint-size="auto,34px">Outline</x-import>
+        <span style="flex:1"></span>
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="primary" size="lg" onClick="{{ next }}" hint-size="auto,42px">Result</x-import>
+      </footer>
+    </sc-if>
+
+    <!-- ── 7 Result ───────────────────────────────────────── -->
+    <sc-if value="{{ is6 }}" hint-placeholder-val="{{ false }}">
+      <header style="border-bottom:1px solid var(--border-hairline); padding:var(--space-8) var(--gutter-screen) 0; display:flex; flex-direction:column; gap:var(--space-5)">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-8)">
+          <div style="display:flex; flex-direction:column; gap:var(--space-2); min-width:0">
+            <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Step 7 of 7</span>
+            <h1 style="font:var(--type-title); margin:0">The return of the comet</h1>
+            <p style="font:var(--type-body); color:var(--text-muted); margin:0">1,042 words · in the style of Jorge Luis Borges · four of five measures inside the corpus band</p>
+          </div>
+          <div style="display:flex; gap:var(--space-2); flex:0 0 auto">
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="secondary" hint-size="auto,34px">Export markdown</x-import>
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="ghost" hint-size="auto,34px">Regenerate a section</x-import>
+          </div>
+        </div>
+        <div style="display:flex; gap:var(--space-6)">
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+            <button onClick="{{ t.go }}" style="appearance:none; background:none; border:none; border-bottom:2px solid {{ t.rule }}; color:{{ t.color }}; font:var(--type-label); padding:0 0 var(--space-3); cursor:pointer">{{ t.label }}</button>
+          </sc-for>
+        </div>
+      </header>
+      <div style="flex:1; min-height:0; overflow:auto; padding:var(--space-8) var(--gutter-screen)">
+
+        <sc-if value="{{ tabStory }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column; gap:var(--space-4); max-width:760px">
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Card" ground="paper" padding="lg" hint-size="100%,520px">
+              <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Markdown" ground="paper" children="{{ story }}" hint-size="100%,480px"></x-import>
+            </x-import>
+            <p style="font:var(--type-caption); color:var(--text-faint); margin:0">Generated by auteur in the style of Jorge Luis Borges. AI-generated text; not written by the author.</p>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ tabFit }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:var(--space-10); align-items:start">
+            <div style="display:flex; flex-direction:column; gap:var(--space-6); min-width:0">
+              <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint); border-bottom:1px solid var(--border-hairline); padding-bottom:var(--space-2)">Findings</span>
+              <sc-for list="{{ findings }}" as="f" hint-placeholder-count="3">
+                <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Card" ground="ink" padding="md" accent="{{ f.accent }}" hint-size="100%,120px">
+                  <div style="display:flex; flex-direction:column; gap:var(--space-2)">
+                    <div style="display:flex; align-items:center; gap:var(--space-3)">
+                      <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-muted)">{{ f.path }}</span>
+                      <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Badge" tone="{{ f.tone }}" hint-size="auto,18px">{{ f.verdict }}</x-import>
+                    </div>
+                    <p style="font:var(--type-body); color:var(--text-body); line-height:var(--leading-relaxed); max-width:var(--measure-prose); margin:0; text-wrap:pretty">{{ f.text }}</p>
+                  </div>
+                </x-import>
+              </sc-for>
+              <p style="font:var(--type-caption); color:var(--text-faint); margin:0">Scored against the corpus measurement. One target was overridden this session; that measure is reported against both, separately.</p>
+            </div>
+            <aside style="display:flex; flex-direction:column; gap:var(--space-5)">
+              <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint); border-bottom:1px solid var(--border-hairline); padding-bottom:var(--space-2)">Draft against corpus</span>
+              <sc-for list="{{ fitStats }}" as="s" hint-placeholder-count="5">
+                <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.ProsodyStat" label="{{ s.label }}" value="{{ s.value }}" unit="{{ s.unit }}" band="{{ s.band }}" target="{{ s.target }}" status="{{ s.status }}" hint-size="100%,44px"></x-import>
+              </sc-for>
+            </aside>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ tabLog }}" hint-placeholder-val="{{ false }}">
+          <div style="max-width:760px; display:flex; flex-direction:column; gap:var(--space-4)">
+            <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint); border-bottom:1px solid var(--border-hairline); padding-bottom:var(--space-2)">Decisions log</span>
+            <sc-for list="{{ decisions }}" as="d" hint-placeholder-count="4">
+              <div style="display:grid; grid-template-columns:120px minmax(0,1fr); gap:var(--space-5); padding-bottom:var(--space-4); border-bottom:1px solid var(--border-hairline)">
+                <span style="font:var(--type-data); font-size:var(--text-2xs); color:{{ d.color }}; text-transform:uppercase; letter-spacing:var(--tracking-caps)">{{ d.origin }}</span>
+                <div style="display:flex; flex-direction:column; gap:var(--space-1)">
+                  <span style="font:var(--type-body); color:var(--text-body)">{{ d.decision }}</span>
+                  <span style="font:var(--type-caption); color:var(--text-faint)">{{ d.note }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+      </div>
+      <footer style="height:var(--space-16); flex:0 0 auto; border-top:1px solid var(--border-hairline); background:var(--surface-panel); padding:0 var(--gutter-screen); display:flex; align-items:center; gap:var(--space-3)">
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="ghost" onClick="{{ back }}" hint-size="auto,34px">Draft</x-import>
+        <span style="flex:1"></span>
+        <span style="font:var(--type-caption); color:var(--text-faint)">Every step is re-enterable from the rail.</span>
+        <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="secondary" onClick="{{ restart }}" hint-size="auto,34px">New session</x-import>
+      </footer>
+    </sc-if>
+
+  </main>
+
+  <!-- ── Model selection ────────────────────────────────── -->
+  <sc-if value="{{ showModels }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; inset:0; z-index:20; background:var(--surface-scrim); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; padding:var(--space-10)">
+      <div style="width:100%; max-width:880px; max-height:100%; overflow:auto; box-shadow:var(--shadow-modal); border-radius:var(--radius-panel)">
+      <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Card" ground="panel" padding="lg" style="width:100%" hint-size="880px,560px">
+        <div style="display:flex; flex-direction:column; gap:var(--space-6)">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-6)">
+            <div style="display:flex; flex-direction:column; gap:var(--space-2); min-width:0">
+              <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Models</span>
+              <h2 style="font:var(--type-title); margin:0">Which model runs which stage</h2>
+              <p style="font:var(--type-body); color:var(--text-muted); max-width:var(--measure-prose); margin:0">Each stage asks the router for a tier. A tier resolves to a model from the catalog at run time — override any stage and the choice is pinned for this session.</p>
+            </div>
+            <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-faint); white-space:nowrap">ramp · 27 models</span>
+          </div>
+
+          <div style="display:grid; grid-template-columns:150px 96px minmax(0,1fr) 92px; gap:var(--space-4); align-items:center; border-bottom:1px solid var(--border-hairline); padding-bottom:var(--space-2)">
+            <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Stage</span>
+            <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Tier</span>
+            <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint)">Model</span>
+            <span style="font:var(--type-eyebrow); text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--text-faint); text-align:right">per 1M in</span>
+          </div>
+
+          <sc-for list="{{ modelRows }}" as="r" hint-placeholder-count="7">
+            <div style="display:grid; grid-template-columns:150px 96px minmax(0,1fr) 92px; gap:var(--space-4); align-items:center; padding-bottom:var(--space-4); border-bottom:1px solid var(--border-hairline)">
+              <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-body)">{{ r.stage }}</span>
+                <span style="font:var(--type-caption); color:var(--text-faint)">{{ r.role }}</span>
+              </div>
+              <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Badge" tone="{{ r.tier }}" mono="{{ true }}" hint-size="auto,18px">{{ r.tier }}</x-import>
+              <div style="display:flex; flex-direction:column; gap:var(--space-1); min-width:0">
+                <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Select" value="{{ r.model }}" options="{{ r.options }}" onChange="{{ r.pick }}" hint-size="100%,34px"></x-import>
+                <span style="font:var(--type-caption); color:{{ r.noteColor }}">{{ r.note }}</span>
+              </div>
+              <span style="font:var(--type-data); font-size:var(--text-xs); color:var(--text-muted); text-align:right">{{ r.price }}</span>
+            </div>
+          </sc-for>
+
+          <div style="display:flex; align-items:center; gap:var(--space-4)">
+            <span style="font:var(--type-caption); color:var(--text-faint); flex:1">Estimated for this session at flash length: {{ modelEstimate }}. Only <span style="font-family:var(--font-mono)">draft</span> and <span style="font-family:var(--font-mono)">revise</span> pay for a strong model.</span>
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="ghost" onClick="{{ resetModels }}" hint-size="auto,34px">Follow tier defaults</x-import>
+            <x-import component-from-global-scope="AuteurDesignSystem_11e1bd.Button" variant="primary" onClick="{{ closeModels }}" hint-size="auto,34px">Done</x-import>
+          </div>
+        </div>
+      </x-import>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;machinery&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;restrained&quot;,&quot;moderate&quot;,&quot;full&quot;],&quot;default&quot;:&quot;moderate&quot;,&quot;tsType&quot;:&quot;'restrained' | 'moderate' | 'full'&quot;,&quot;section&quot;:&quot;Mockup&quot;}}">
+const STORY = `### The return of the comet
+
+The man in question — I will call him Aureliano, since the parish register that
+would have corrected me was burned in 1934 — believed that a life could be read
+as a periodic function. He had loved once, in the year the comet came, and he
+had understood, standing in a field with a woman whose name he would not say
+aloud again, that the light overhead would return before he did.
+
+Seventy-six years is not a long interval to a comet. To a man it is the whole
+of the argument. He resolved, therefore, to wait; and because waiting is a
+discipline and not an event, he catalogued. He catalogued the letters he did
+not send, the streets she might have walked, the four editions of a book she had
+mentioned once and possibly invented. The catalogue grew until it was longer
+than the love it recorded, which is the ordinary fate of catalogues.
+
+I have seen the last page. It is dated in a hand that has begun to fail, and it
+consists of a single entry, unnumbered: *the comet returns; I do not; she was
+never the subject of this record.*`;
+
+const DRAFT_HEAD = `### The return of the comet
+
+The man in question — I will call him Aureliano, since the parish register that
+would have corrected me was burned in 1934 — believed that a life could be read
+as a periodic function. He had loved once, in the year the comet came, and he
+had understood, standing in a field with a woman whose name he would not say
+aloud again, that the light overhead would return before he did.
+
+Seventy-six years is not a long interval to a comet. To a man it is the whole
+of the argument. He resolved, therefore, to wait; and because waiting is a
+discipline and not an event, he`;
+
+class Component extends DCLogic {
+  state = {
+    step: 0,
+    idea: 'A hopeless romantic finds himself flashing forward to the next come-around of Haley\u2019s Comet and finds himself reflecting on the ephemerality of life',
+    preset: 'flash',
+    query: 'borges',
+    author: 'borges',
+    answers: {},
+    round: 1,
+    stageStep: 0,
+    tab: 'story',
+    showModels: false,
+    models: {},
+  };
+
+  static CATALOG = {
+    cheap: [
+      { value: 'qwen3-30b-a3b', label: 'qwen3-30b-a3b · fireworks', price: '$0.15' },
+      { value: 'deepseek-v3.2', label: 'deepseek-v3.2 · fireworks', price: '$0.28' },
+      { value: 'glm-4.6-air', label: 'glm-4.6-air · fireworks', price: '$0.20' },
+      { value: 'gpt-5-mini', label: 'gpt-5-mini · openai', price: '$0.25' },
+    ],
+    balanced: [
+      { value: 'kimi-k2-0905', label: 'kimi-k2-0905 · fireworks', price: '$0.60' },
+      { value: 'deepseek-v3.2', label: 'deepseek-v3.2 · fireworks', price: '$0.28' },
+      { value: 'claude-haiku-4.5', label: 'claude-haiku-4.5 · anthropic', price: '$1.00' },
+      { value: 'gpt-5', label: 'gpt-5 · openai', price: '$1.25' },
+    ],
+    strong: [
+      { value: 'claude-sonnet-4.5', label: 'claude-sonnet-4.5 · anthropic', price: '$3.00' },
+      { value: 'claude-opus-4.1', label: 'claude-opus-4.1 · anthropic', price: '$15.00' },
+      { value: 'gpt-5', label: 'gpt-5 · openai', price: '$1.25' },
+      { value: 'grok-4', label: 'grok-4 · xai', price: '$3.00' },
+    ],
+  };
+
+  static STAGE_MAP = [
+    { stage: 'corpus-select', role: 'research', tier: 'cheap' },
+    { stage: 'style-extract', role: 'research', tier: 'balanced' },
+    { stage: 'clarify', role: 'question', tier: 'balanced' },
+    { stage: 'outline', role: 'outline', tier: 'balanced' },
+    { stage: 'draft', role: 'draft', tier: 'strong' },
+    { stage: 'critique', role: 'critique', tier: 'cheap' },
+    { stage: 'revise', role: 'revise', tier: 'strong' },
+  ];
+
+  componentDidMount() { if (this.state.step === 2) this.runResearch(); }
+  componentWillUnmount() { this.stop(); }
+
+  stop() { (this._timers || []).forEach(clearTimeout); this._timers = []; }
+
+  runResearch() {
+    this.stop();
+    this.setState({ stageStep: 0 });
+    this._timers = [1, 2, 3].map((n) => setTimeout(() => this.setState({ stageStep: n }), n * 1100));
+  }
+
+  goto = (i) => {
+    if (i === 2 && this.state.step !== 2) this.runResearch();
+    this.setState({ step: i });
+  };
+
+  machinery() { return this.props.machinery || 'moderate'; }
+
+  renderVals() {
+    const s = this.state;
+    const m = this.machinery();
+    const tiers = m === 'full';
+    const ids = m !== 'restrained';
+    const words = s.idea.trim() ? s.idea.trim().split(/\s+/).length : 0;
+
+    const presetOptions = [
+      { value: 'flash', label: 'flash \u2014 about 1,000 words' },
+      { value: 'short', label: 'short \u2014 about 4,000 words' },
+      { value: 'long', label: 'long \u2014 about 9,000 words' },
+      { value: 'novelette', label: 'novelette \u2014 about 20,000 words' },
+    ];
+
+    const presetHint = {
+      flash: 'about 1,000 words \u00b7 draft strategy single-call',
+      short: 'about 4,000 words \u00b7 draft strategy single-call',
+      long: 'about 9,000 words \u00b7 draft strategy sequential-scene',
+      novelette: 'about 20,000 words \u00b7 draft strategy sequential-scene, critique per scene',
+    }[s.preset];
+
+    const authorRows = [
+      { id: 'borges', name: 'Jorge Luis Borges', detail: '12 works \u00b7 214,000 words \u00b7 prosody computed, 12 exemplars', tier: 'full-text', tone: 'measured', enabled: true },
+      { id: 'chekhov', name: 'Anton Chekhov', detail: '41 works \u00b7 512,000 words \u00b7 prosody computed, 15 exemplars', tier: 'full-text', tone: 'measured', enabled: true },
+      { id: 'calvino', name: 'Italo Calvino', detail: 'No public-domain corpus \u00b7 no computed prosody, no exemplars', tier: 'secondary', tone: 'neutral', enabled: false },
+    ].filter((a) => a.name.toLowerCase().includes(s.query.trim().toLowerCase()) || a.id.includes(s.query.trim().toLowerCase()) || !s.query.trim());
+
+    const authors = authorRows.map((a) => ({
+      ...a,
+      selected: a.enabled && s.author === a.id,
+      opacity: a.enabled ? 1 : 0.42,
+      pick: a.enabled ? () => this.setState({ author: a.id }) : undefined,
+    }));
+
+    const stageDefs = [
+      { stage: ids ? 'corpus-select' : 'Selecting the corpus', tier: 'cheap', elapsed: '3.1s',
+        detail: ['12 works sampled across 1935\u20131975', 'Career period and form balanced; 3 collections, 9 stories', '46 candidate passages marked'] },
+      { stage: ids ? 'style-extract' : 'Extracting the style card', tier: 'balanced', elapsed: '11.4s',
+        detail: ['Prosody computed on full text, outside the model', 'voice, diction, structure, imagery, rhythm extracted from 46 passages', '12 exemplars cited; confidence 0.86'] },
+    ];
+    const stages = stageDefs.map((d, i) => ({
+      stage: d.stage,
+      tier: tiers ? d.tier : undefined,
+      elapsed: s.stageStep > i + 1 ? d.elapsed : s.stageStep === i + 1 ? undefined : undefined,
+      state: s.stageStep > i + 1 ? 'done' : s.stageStep === i + 1 ? 'running' : 'pending',
+      detail: s.stageStep > i ? d.detail.slice(0, s.stageStep > i + 1 ? 3 : 2) : [],
+    }));
+
+    const cardFields = [
+      { path: 'voice.pov', value: 'First person, retrospective, learned; the narrator is a reader of documents before he is a witness.', origin: 'derived', source: 'The Library of Babel' },
+      { path: 'voice.narratorDistance', value: 'One remove from the event. Emotion is reported as bibliography.', origin: 'derived', source: 'Tl\u00f6n, Uqbar, Orbis Tertius' },
+      { path: 'diction.register', value: 'Formal, Latinate, unhurried. Concrete nouns; abstract arguments.', origin: 'derived', source: 'The Aleph' },
+      { path: 'structure.openingMoves', value: 'A citation. A disclaimed rumour. A dated recollection whose date is corrected in the same sentence.', origin: 'derived', source: 'The Garden of Forking Paths' },
+      { path: 'structure.closingMoves', value: 'A footnote that reverses the story; an aside on the narrator\u2019s own mortality.', origin: 'derived', source: 'Ficciones' },
+      { path: 'antiPatterns', value: 'Never renders dialect. Rarely dramatizes a scene at length. No interior emotional summary.', origin: 'derived', source: 'corpus-wide' },
+      { path: 'prosodyTarget.sentenceLength.mean', value: '24 words \u2014 lowered from the measured 28.4 to sit inside flash length.', origin: 'edited', source: '' },
+    ];
+
+    const exemplars = [
+      { work: 'The Garden of Forking Paths, 1941', demonstrates: 'Opening on a corrected citation' },
+      { work: 'Tl\u00f6n, Uqbar, Orbis Tertius, 1940', demonstrates: 'The invented-reference frame' },
+      { work: 'The Library of Babel, 1941', demonstrates: 'Periodic sentence at the length ceiling' },
+      { work: 'The Aleph, 1945', demonstrates: 'Sentence-length floor \u2014 under eight words' },
+      { work: 'Funes the Memorious, 1942', demonstrates: 'Enumeration as characterisation' },
+      { work: 'Death and the Compass, 1942', demonstrates: 'Closing reversal in a footnote' },
+    ];
+
+    const corpusStats = [
+      { label: 'sentence length, mean', value: 28.4, unit: ' words', band: [0, 60], target: 24 },
+      { label: 'sentence length, p10 / p90', value: '9 / 52', unit: ' words' },
+      { label: 'semicolons', value: 11.2, unit: '/1k', band: [0, 20] },
+      { label: 'em dashes', value: 8.4, unit: '/1k', band: [0, 20] },
+      { label: 'dialogue ratio', value: 0.06, unit: '', band: [0, 0.4] },
+      { label: 'type-token ratio', value: 0.48, unit: '', band: [0, 1] },
+      { label: 'latinate ratio', value: 0.34, unit: '', band: [0, 1] },
+    ];
+
+    const questionDefs = [
+      { id: 'q1', round: 1,
+        text: 'Should the story present itself as a catalogue entry \u2014 a bibliographic note on the comet\u2019s returns \u2014 rather than as a scene?',
+        why: 'The corpus opens inside a review, catalogue or footnote in 6 of 12 works. Your idea names a man and a comet but no frame.',
+        options: ['A catalogue entry', 'A first-person recollection', 'A scene in a field'] },
+      { id: 'q2', round: 1,
+        text: 'Whose memory holds the seventy-six years \u2014 the man\u2019s, or a document\u2019s?',
+        why: 'voice.narratorDistance is derived as reporting at one remove; \u201cflashing forward\u201d in your idea has no narrator attached to it yet.',
+        options: ['The man remembers forward', 'A found manuscript remembers for him', 'An unnamed archivist'] },
+      { id: 'q3', round: 1,
+        text: 'Does the woman return with the comet, or fail to?',
+        why: 'structure.closingMoves resolves on a reversal in 9 of 12 works. Ephemerality is a subject, not yet a reversal.',
+        options: ['She returns, changed', 'She does not return', 'The question is left in a footnote'] },
+      { id: 'q4', round: 2,
+        text: 'If the story is a catalogue entry, does its compiler appear inside it?',
+        why: 'Your answer to q1 chose the catalogue frame; the corpus\u2019s catalogue pieces name their compiler in 4 of 6 cases. This decides whether the last line is signed.',
+        options: ['The compiler signs it', 'The compiler stays outside', 'He appears only in a footnote'] },
+    ];
+
+    const visibleQuestions = questionDefs.filter((q) => q.round <= s.round).map((q, i) => {
+      const a = s.answers[q.id];
+      return {
+        tag: q.id,
+        text: q.text,
+        why: q.why,
+        skip: () => this.setState({ answers: { ...s.answers, [q.id]: '__skip' } }),
+        skipLabel: a === '__skip' ? 'Skipped \u2014 model chooses' : 'You decide',
+        options: q.options.map((o) => ({
+          label: o,
+          variant: a === o ? 'primary' : 'quiet',
+          pick: () => this.setState({ answers: { ...s.answers, [q.id]: o } }),
+        })),
+      };
+    });
+
+    const answered = Object.keys(s.answers).length;
+    const budget = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({ fill: i < answered ? 'var(--accent)' : 'var(--track)' }));
+    const round1 = questionDefs.filter((q) => q.round === 1);
+
+    const beats = [
+      'A note on the periodicity of comets, and a correction of the date the parish register gives.',
+      'Aureliano in the field, 1910, with a woman whose name the record withholds.',
+      'The resolution to wait, restated as a discipline: he begins the catalogue.',
+      'The catalogue outgrows its subject \u2014 letters unsent, streets, four editions of a book she may have invented.',
+      'The compiler intrudes to say he has read the last page.',
+      'The final entry, unnumbered, reversing the premise of the record.',
+    ];
+
+    const driftStats = [
+      { label: 'sentence length, mean', value: 26.8, unit: ' words', band: [0, 60], target: 24, status: 'pass' },
+      { label: 'semicolons', value: 6.1, unit: '/1k', band: [0, 20], target: 11.2, status: 'drift' },
+      { label: 'dialogue ratio', value: 0.0, unit: '', band: [0, 0.4], target: 0.06, status: 'pass' },
+    ];
+
+    const fitStats = [
+      { label: 'sentence length, mean', value: 26.8, unit: ' words', band: [0, 60], target: 24, status: 'pass' },
+      { label: 'semicolons', value: 6.1, unit: '/1k', band: [0, 20], target: 11.2, status: 'drift' },
+      { label: 'em dashes', value: 9.0, unit: '/1k', band: [0, 20], target: 8.4, status: 'pass' },
+      { label: 'dialogue ratio', value: 0.0, unit: '', band: [0, 0.4], target: 0.06, status: 'pass' },
+      { label: 'type-token ratio', value: 0.51, unit: '', band: [0, 1], target: 0.48, status: 'pass' },
+    ];
+
+    const findings = [
+      { path: 'prosody.sentenceLength', verdict: 'pass', tone: 'measured', accent: 'var(--status-pass)',
+        text: 'Mean sentence length is 26.8 words against a corpus median of 24.0, with p90 at 52. The draft has the ceiling and, unusually, the floor: eleven sentences under eight words in 1,042.' },
+      { path: 'prosody.punctuation.semicolon', verdict: 'drift', tone: 'edited', accent: 'var(--status-drift)',
+        text: 'Semicolons run 6.1 per thousand words against 11.2 in the corpus. The corpus uses the semicolon to hold two clauses in the same breath; the draft prefers a full stop. The revise pass has three candidate joins.' },
+      { path: 'prosody.dialogueRatio', verdict: 'pass', tone: 'measured', accent: 'var(--status-pass)',
+        text: 'No dialogue, against a corpus ratio of 0.06. Inside the band, and consistent with antiPatterns \u2014 this author rarely dramatizes a scene at length.' },
+    ];
+
+    const decisions = [
+      { origin: 'you answered', color: 'var(--derived)', decision: 'A catalogue entry', note: 'q1 \u00b7 frame' },
+      { origin: 'you answered', color: 'var(--derived)', decision: 'A found manuscript remembers for him', note: 'q2 \u00b7 narrator' },
+      { origin: 'model chose \u2014 question skipped', color: 'var(--edited)', decision: 'The question is left in a footnote', note: 'q3 \u00b7 closing reversal. Chosen because structure.closingMoves resolves on a footnote in 4 of 12 works.' },
+      { origin: 'model chose \u2014 not asked', color: 'var(--edited)', decision: 'Title: The return of the comet', note: 'Budget reached 3 of 3 rounds; the title was not worth a question.' },
+    ];
+
+    const CAT = Component.CATALOG;
+    const modelRows = Component.STAGE_MAP.map((d) => {
+      const opts = CAT[d.tier];
+      const pinned = s.models[d.stage];
+      const value = pinned || opts[0].value;
+      const entry = opts.find((o) => o.value === value) || opts[0];
+      return {
+        stage: d.stage, role: d.role, tier: d.tier, model: value,
+        options: opts.map((o) => ({ value: o.value, label: o.label })),
+        price: entry.price,
+        note: pinned ? 'pinned for this session' : 'tier default \u2014 resolved from the catalog',
+        noteColor: pinned ? 'var(--edited)' : 'var(--text-faint)',
+        pick: (e) => this.setState({ models: { ...s.models, [d.stage]: e.target.value } }),
+      };
+    });
+    const pinnedCount = Object.keys(s.models).length;
+
+    const tabDefs = [
+      { id: 'story', label: 'Story' },
+      { id: 'fit', label: 'Style fit' },
+      { id: 'log', label: 'Decisions log' },
+    ];
+    const tabs = tabDefs.map((t) => ({
+      label: t.label,
+      go: () => this.setState({ tab: t.id }),
+      rule: s.tab === t.id ? 'var(--accent)' : 'transparent',
+      color: s.tab === t.id ? 'var(--text-strong)' : 'var(--text-faint)',
+    }));
+
+    const steps = [
+      { label: 'Idea', note: words + 'w' },
+      { label: 'Author', note: 'borges' },
+      { label: 'Research', note: s.stageStep >= 3 ? 'card@3' : '' },
+      { label: 'Questions', note: answered ? answered + '/8' : '' },
+      { label: 'Outline', note: '6' },
+      { label: 'Draft', note: 'flash' },
+      { label: 'Result', note: '' },
+    ];
+
+    const DS = window.AuteurDesignSystem_11e1bd || {};
+    const el = React.createElement;
+    const railHeader = el('span', { style: { display: 'flex', flexDirection: 'column', gap: 3 } },
+      el('span', { style: { display: 'inline-flex', alignItems: 'baseline', lineHeight: 1, color: 'var(--text-strong)' } },
+        el('span', { 'aria-hidden': 'true', style: { fontFamily: 'var(--font-script)', fontSize: 44, lineHeight: 0.78, color: 'var(--text-strong)' } }, 'A'),
+        el('span', { style: { fontFamily: 'var(--font-serif)', fontSize: 'var(--text-xl)', lineHeight: 1, letterSpacing: 'var(--tracking-snug)', marginLeft: -1 } }, 'uteur')),
+      el('span', { style: { font: 'var(--type-eyebrow)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-caps)', color: 'var(--text-faint)' } }, 'style from evidence'));
+
+    const row = (label, value) => el('div', { key: label, style: { display: 'flex', justifyContent: 'space-between', gap: 'var(--space-2)' } },
+      el('span', { style: { font: 'var(--type-caption)', color: 'var(--text-faint)' } }, label),
+      el('span', { style: { font: 'var(--type-data)', fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', whiteSpace: 'nowrap' } }, value));
+
+    const railFooter = el('div', { style: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', borderTop: '1px solid var(--border-hairline)', paddingTop: 'var(--space-3)' } },
+      row('session', 'local-4f2a'),
+      row('router', 'ramp'),
+      m === 'restrained' ? null : row('spend', '$0.04'),
+      el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)', paddingTop: 'var(--space-1)' } },
+        el('span', { style: { font: 'var(--type-caption)', color: 'var(--text-faint)' } }, 'models'),
+        DS.Button ? el(DS.Button, { variant: 'quiet', size: 'sm', onClick: () => this.setState({ showModels: true }) },
+          pinnedCount ? pinnedCount + ' pinned' : 'by tier') : null),
+      el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)', paddingTop: 'var(--space-1)' } },
+        el('span', { style: { font: 'var(--type-caption)', color: 'var(--text-faint)' } }, 'theme'),
+        DS.ThemeToggle ? el(DS.ThemeToggle, { size: 'sm' }) : null));
+
+    return {
+      steps, step: s.step, goto: this.goto, railHeader, railFooter,
+      is0: s.step === 0, is1: s.step === 1, is2: s.step === 2, is3: s.step === 3,
+      is4: s.step === 4, is5: s.step === 5, is6: s.step === 6,
+      next: () => this.goto(Math.min(6, s.step + 1)),
+      back: () => this.goto(Math.max(0, s.step - 1)),
+      generateNow: () => this.goto(4),
+      restart: () => { this.setState({ step: 0, answers: {}, round: 1, tab: 'story' }); },
+      idea: s.idea, ideaWords: words, setIdea: (e) => this.setState({ idea: e.target.value }),
+      preset: s.preset, presetHint, presetOptions, setPreset: (e) => this.setState({ preset: e.target.value }),
+      query: s.query, setQuery: (e) => this.setState({ query: e.target.value }), authors,
+      stages, cardReady: s.stageStep >= 3, cardPending: s.stageStep < 3,
+      researchElapsed: s.stageStep >= 3 ? '14.5s \u00b7 complete' : 'building\u2026',
+      cardFields, exemplars, corpusStats,
+      visibleQuestions, budget,
+      roundLabel: 'round ' + s.round + ' of 3 \u00b7 ' + answered + '/8 questions',
+      followUpAvailable: s.round === 1 && round1.every((q) => s.answers[q.id] !== undefined),
+      showRound2: () => this.setState({ round: 2 }),
+      beats: beats.map((text, i) => ({ n: String(i + 1).padStart(2, '0'), text })),
+      draftSoFar: DRAFT_HEAD, draftMeter: '612 of ~1,000 words \u00b7 single-call',
+      driftStats, story: STORY, fitStats, findings, decisions, tabs,
+      modelRows, showModels: s.showModels,
+      draftModelLine: 'draft runs on ' + (modelRows.find((r) => r.stage === 'draft') || {}).model + ' \u00b7 strong tier',
+      openModels: () => this.setState({ showModels: true }),
+      closeModels: () => this.setState({ showModels: false }),
+      resetModels: () => this.setState({ models: {} }),
+      modelEstimate: pinnedCount ? '$0.09 \u2014 recalculated for the pinned models' : '$0.06',
+      tabStory: s.tab === 'story', tabFit: s.tab === 'fit', tabLog: s.tab === 'log',
+    };
+  }
+}
+</script>
+</body>
+</html>

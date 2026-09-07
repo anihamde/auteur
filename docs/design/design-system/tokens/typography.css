@@ -1,0 +1,68 @@
+/* auteur typography.
+   EB Garamond   — prose, story text, exemplars, display headings.
+   Archivo       — UI chrome, labels, buttons, everything functional.
+   IBM Plex Mono — measurements, tokens, counts, IDs, style-card paths. */
+:root{
+  --font-serif:'EB Garamond',ui-serif,Georgia,'Times New Roman',serif;
+  --font-sans:'Archivo','Helvetica Neue',Helvetica,system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  /* The mark only — a copperplate script. Never set copy in this face. */
+  --font-script:'Great Vibes',cursive;
+  --font-display:var(--font-serif);
+  --font-prose:var(--font-serif);
+  --font-ui:var(--font-sans);
+  --font-data:var(--font-mono);
+
+  --weight-light:300;
+  --weight-regular:400;
+  --weight-medium:500;
+  --weight-semibold:600;
+  --weight-bold:700;
+
+  /* Size scale — 1.2 ratio, rounded to whole px, base 15px UI / 18px prose */
+  --text-3xs:10px;
+  --text-2xs:11px;
+  --text-xs:12px;
+  --text-sm:13px;
+  --text-base:15px;
+  --text-md:17px;
+  /* EB Garamond sets optically small; prose gets its own step up so the
+     measured 66ch line still reads at book size. Serif prose only. */
+  --text-prose:19px;
+  --text-lg:20px;
+  --text-xl:24px;
+  --text-2xl:30px;
+  --text-3xl:38px;
+  --text-4xl:48px;
+  --text-5xl:62px;
+  --text-6xl:80px;
+
+  --leading-tight:1.06;
+  --leading-snug:1.22;
+  --leading-normal:1.45;
+  --leading-relaxed:1.62;
+  --leading-prose:1.72;
+
+  --tracking-tight:-0.022em;
+  --tracking-snug:-0.011em;
+  --tracking-normal:0;
+  --tracking-wide:0.02em;
+  --tracking-caps:0.11em;
+
+  /* Composed roles */
+  --type-display:var(--weight-regular) var(--text-4xl)/var(--leading-tight) var(--font-serif);
+  --type-title:var(--weight-regular) var(--text-2xl)/var(--leading-snug) var(--font-serif);
+  --type-heading:var(--weight-semibold) var(--text-md)/var(--leading-snug) var(--font-sans);
+  --type-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--font-sans);
+  --type-body-prose:var(--weight-regular) var(--text-prose)/var(--leading-prose) var(--font-serif);
+  --type-label:var(--weight-medium) var(--text-sm)/1.3 var(--font-sans);
+  --type-caption:var(--weight-regular) var(--text-xs)/1.4 var(--font-sans);
+  --type-eyebrow:var(--weight-semibold) var(--text-2xs)/1.2 var(--font-sans);
+  --type-data:var(--weight-regular) var(--text-sm)/1.4 var(--font-mono);
+  --type-data-lg:var(--weight-regular) var(--text-xl)/1.1 var(--font-mono);
+
+  /* Prose measure */
+  --measure-prose:66ch;
+  --measure-ui:52ch;
+  --measure-narrow:38ch;
+}

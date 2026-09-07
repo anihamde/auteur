@@ -1,0 +1,6 @@
+/* auteur typefaces — Google Fonts.
+   SUBSTITUTION NOTE: no font binaries were provided with the PRD. These are
+   Google Fonts served from the Google CDN; swap for local @font-face + binaries
+   when real files exist. See readme.md → Visual Foundations → Typography.
+   Great Vibes is loaded for the mark alone — one glyph, one weight. */
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..600&family=Archivo:ital,wght@0,400..700;1,400..700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&family=Great+Vibes&display=swap');
