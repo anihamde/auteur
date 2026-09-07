@@ -261,7 +261,7 @@ CREATE TABLE style_cards (
   version       INTEGER NOT NULL,           -- 1, 2, 3 … per author. "borges@3"
   build_key     TEXT NOT NULL,              -- §4.4. Identity of the inputs
   provenance    TEXT NOT NULL CHECK (provenance IN ('full-text','secondary')),
-  confidence    REAL NOT NULL,
+  confidence    REAL NOT NULL,              -- citation coverage. §4.5
   card          TEXT NOT NULL,              -- the whole StyleCard, JSON
   built_at      INTEGER NOT NULL,
   UNIQUE (author_id, version),
@@ -440,7 +440,17 @@ type StyleCard = {
   author: AuthorRef;
   version: number;                    // "borges@3"
   provenance: "full-text" | "secondary";
-  confidence: number;                 // §4.5
+  /** Citation coverage: cited derived fields over derived fields. §4.5 */
+  confidence: number;
+  /** The four facts the UI shows beside it, unblended. §4.5 */
+  cardStrength: {
+    measuredWords: number;
+    workCount: number;
+    /** The largest single work's share of measured words, 0 to 1. */
+    largestWorkShare: number;
+    citedDerivedFields: number;
+    derivedFields: number;
+  };
   sources: WorkRef[];
   measuredWords: number;
 
@@ -519,8 +529,9 @@ targets to score twice (§9.3).
 
 **Editability ships as schema only in v1**, as `PRD.md` §5 decides. The overlay
 table exists, `resolveCard` applies it, `ProvenanceMark` renders `edited`, and
-the report handles an edited target. No route writes an overlay. The one
-`edited` field in the design's step-3 mockup is the system's own: §4.6.
+the report handles an edited target. **No code path writes an overlay in v1** — not a route and
+not a stage. The `edited` field in the design's step-3 mockup is the mechanism
+being demonstrated, not a behaviour the pipeline has: §4.6.
 
 ### 4.2 `text` — segmentation, and why it is versioned
 
@@ -608,15 +619,41 @@ the report marks the measure `insufficient-length` rather than comparing it.
 Flash length is about 1,000 words, so this is the common case rather than an
 edge one.
 
-**Latinate ratio is a declared heuristic, not etymology.** No etymological
-dictionary ships here, so the measure is a suffix-and-prefix classifier: a
-shipped list of Latinate suffixes (`-tion`, `-sion`, `-ment`, `-ity`, `-ance`,
-`-ence`, `-ous`, `-ate`, `-ify`, `-ive`, `-able`) plus an exception list for the
-common Germanic words those suffixes catch. It is a proxy for register and it is
-labelled as one — the UI reads `latinate ratio (suffix proxy)` — and the lists
-are part of `prosody`'s version. A deterministic proxy applied identically to
-corpus and draft is what the comparison needs; an accurate one is not available,
-and presenting the proxy as etymology would be the dishonest choice.
+**Latinate ratio is a declared heuristic, and it has to earn its place.** No
+etymological dictionary ships here, so the measure is a suffix-and-prefix
+classifier: a shipped list of Latinate suffixes (`-tion`, `-sion`, `-ment`,
+`-ity`, `-ance`, `-ence`, `-ous`, `-ate`, `-ify`, `-ive`, `-able`) plus an
+exception list for the common Germanic words those suffixes catch — `table`,
+`late`, `gate`, `give`, `live`, `hive`, `went`, and the rest of a closed set of
+short high-frequency words. It is labelled a proxy wherever it appears — the UI
+reads `latinate ratio (suffix proxy)` — and both lists are part of `prosody`'s
+version.
+
+**The measurement is exhaustive, not sampled.** Every token in the corpus is
+classified in one pass; it is a set lookup per word, so a million words is
+milliseconds and there is no sampling error to reason about. Sampling would buy
+nothing and cost reproducibility.
+
+**The classifier is the open question, and it is settled by measurement rather
+than by argument.** Build step 3 (§15) includes a hand-labelled validation set:
+around 500 word *types* drawn by frequency from a real corpus, each tagged
+Latinate or not, checked in as a fixture. The classifier's precision and recall
+against that set are a test output, and they decide where the measure lands:
+
+| Precision on the validation set | What ships |
+|---|---|
+| At or above 0.85 | One of the five scored measures (§9.1), reported with a band and a verdict |
+| Below 0.85 | Evidence only: it goes into the drafting prompt as a register hint and out of the report entirely |
+
+Two properties make that gate honest. The validation set is drawn by frequency,
+so it weights the words that actually occur rather than the dictionary's tail.
+And it is checked in, so tuning the suffix list against it is a visible diff
+rather than a quiet fit — and a suffix list tuned until it passes is a fit to
+500 labels, which the fixture's own comment says.
+
+A deterministic proxy applied identically to corpus and draft is what the
+comparison needs. What it does not need is a proxy nobody measured, presented
+next to four measures that mean something.
 
 `commonBigrams` are the 25 most frequent adjacent-word pairs after dropping
 pairs where both words are stopwords. They are the one measure here that is more
@@ -625,7 +662,8 @@ not scored.
 
 `perWork` exists for `PRD.md` §13's second risk, a card overfitting to one work.
 A card drawing 60% of its measured words from one novel is then visible in the
-UI as a spread rather than as a single number, and §4.5's confidence reads it.
+UI as a spread rather than as a single number, and §4.5's `cardStrength` shows
+that share beside the card's confidence.
 
 ### 4.4 Cache key and versioning
 
@@ -653,46 +691,100 @@ buildKey = sha256([
   do not produce the same card, and a card that does not record which model
   wrote its qualitative half cannot be compared with another.
 
-### 4.5 Confidence
+### 4.5 Confidence is citation coverage, and nothing else
 
-`confidence` is not a model's self-report. It is computed, so it is checkable:
+`confidence` exists for exactly one purpose: telling the reader how much of the
+card is backed by evidence. It appears in the three places the design specifies
+— the author row, the research header's `borges@3 · full-text · confidence
+0.86`, and the prosody caption — and **nothing in the system branches on it.**
+No stage reads it, no tier resolution consults it, no route refuses on it.
+
+Given that, it is one ratio with a stateable meaning:
 
 ```
-confidence = clamp01(
-    0.35 * saturate(measuredWords / 250_000)
-  + 0.25 * saturate(workCount / 8)
-  + 0.20 * (1 - herfindahl(wordsPerWork))       // corpus concentration
-  + 0.20 * (citedDerivedFields / derivedFields) // how much was cited back
-)
+confidence = citedDerivedFields / derivedFields
 ```
 
-The four terms are the four ways a card is weak: too little text, too few works,
-too much of it from one work, and too many qualitative fields the extraction
-could not cite. A `secondary` card (§5.5) scores the first three at zero by
-construction, which is how it lands lower with no special case. The weights live
-in `style-card`, not in a prompt, and the number is shown to two decimals
-because pretending to three would be a claim about the weights that is not true.
+The fraction of qualitative fields whose `Claim` carries a `citation` (§4.1).
+`0.86` reads as "twelve of fourteen fields cited", and the UI says exactly that
+on hover. A `secondary` card (§5.5) has no verbatim passages to cite, so it
+scores zero on the same definition rather than through a special case.
 
-### 4.6 The one thing the system writes to the overlay
+**An earlier draft of this section blended four terms** — measured words, work
+count, corpus concentration and citation coverage — at weights of 0.35, 0.25,
+0.20 and 0.20. The four *facts* are the four ways a card is thin and they are
+worth showing. The weights were invented, and a two-decimal number produced from
+invented weights claims a precision it does not have. It also breaks the design
+system's own content rule: numbers carry their own argument, and the app says
+the thing itself rather than a summary of it.
+
+**So the other three facts are shown as themselves**, beside it in the research
+header and the author row:
+
+```
+12 works · 214,000 words · 61% from one collection · confidence 0.86
+```
+
+That line is more informative than any scalar, needs no weights to defend, and
+lets a reader who cares about corpus concentration see it rather than have it
+averaged into invisibility. `style-card` returns all four as `cardStrength`, and
+the third is rendered as the largest single work's share of measured words —
+which is what `perWork` (§4.3) is stored for, and the number a person can act
+on.
+
+**What counts as too low is deliberately unanswered**, because nothing branches
+on it. If the discrimination script (§10.3) shows a relationship between
+coverage and output quality, that is when a threshold has evidence behind it.
+
+### 4.6 Nothing edits a target. The conflict is stated in the prompt.
 
 The design's step 3 shows `prosodyTarget.sentenceLength.mean` as `edited`,
-lowered from a measured 28.4 to 24 "to fit flash length". That is not a user
-edit — v1 has no editing UI — and it is not decoration. It is the pipeline
-writing an overlay itself, and it needs a rule.
+lowered from a measured 28.4 to 24 "to fit flash length". The mockup is
+demonstrating the provenance mechanism, and the temptation is to make the
+pipeline the thing that produces it — to have `draft` quietly lower a target
+when the preset and the measurement conflict.
 
-**Rule: the pipeline may lower a `prosodyTarget` only where the length preset
-and the measured value are in genuine conflict, and it records the reason.** The
-single case in v1: at `flash` length a corpus mean sentence length above 26
-words leaves a 1,000-word story with fewer than forty sentences, which cannot
-carry a beat sheet. `pipeline` writes `{ value, origin: "edited", reason }` to
-the overlay before the `draft` stage, the UI renders it amber with the reason as
-the `ProvenanceMark` source, and the report scores that measure against both the
-target and the measurement (§9.3). No other stage writes an overlay, and
-`provenance-suite` asserts it (§11.2).
+**Decision: it does not. In v1 nothing writes an overlay at all.**
+`prosodyTarget` equals `prosody`, field for field, for every card the product
+builds.
 
-This is the honest version of what the design shows. The alternative — quietly
-drafting against a target the card does not admit to — is exactly the behaviour
-invariant 2 exists to forbid.
+The conflict the mockup is pointing at is real: at flash length a corpus mean of
+28.4 words leaves a 1,000-word story about thirty-five sentences, which is thin
+ground for six beats. But lowering the target is the wrong instrument for it.
+It substitutes a number the product invented for a number it measured, three
+stages before anyone can see whether the substitution was necessary, and it
+makes the style-fit report argue with itself (§9.3). The measurement stops
+being the thing the draft is compared against, which is invariant 1 in
+everything but name.
+
+**The draft prompt carries a precedence clause instead.** The targets are given
+as what the prose should aim at, followed by an explicit instruction that they
+describe a corpus and not a quota: where hitting a target would cost the story
+its coherence at the requested length — not enough words to carry sentences of
+that length, a beat that cannot be told in the sentence count available — the
+story wins, and the drift is expected and will be reported. One clause in
+`prompt`, versioned with the rest of it (§4.4).
+
+Three things follow, all of them better than the overlay version:
+
+- **The drift is visible rather than hidden.** A flash Borges story comes in at
+  a mean of 22 against a measured 28.4, `style-fit` reports it as drift against
+  the real corpus number, and the report's prose says why — which is a true
+  statement about a real tension. The overlay version reports `pass` against a
+  target the product moved, and tells the reader nothing.
+- **The report keeps one basis.** Every measure is scored against the
+  measurement. §9.3's two-verdict path stays in the code for v1.1's editing UI
+  and has no v1 producer.
+- **It is falsifiable.** If flash-length drafts drift badly on sentence length
+  across many authors, that is evidence in `stories.prosody` that the clause is
+  too weak, and the fix is the prompt or the preset's word target. The overlay
+  version would have made the same drafts look fine.
+
+`provenance-suite` asserts the strong form: **no code path writes
+`card_overlays` in v1** (§11.2). The table, `resolveCard`, the `Claim` origin
+and the amber `ProvenanceMark` all exist and are exercised by tests with a
+hand-built overlay, because `PRD.md` §5 is right that deferring the schema is
+the expensive mistake. Deferring the *writer* costs nothing.
 
 ---
 
@@ -760,14 +852,22 @@ reason.
 > parses rather than casts (invariant 4), so a wrong guess is a loud parse
 > failure on the first search rather than a silent `undefined`.
 
-**English only, and it is a limitation, not a filter.** The segmenter's
-abbreviation list, the Latinate suffix list and the dialogue-marker detector are
+**English texts, whichever translation Gutenberg has.** The segmenter's
+abbreviation list, the suffix classifier and the dialogue-marker detector are
 all English-shaped, so measuring a Spanish original with them produces numbers
-that look fine and mean nothing. Borges and Chekhov therefore enter this product
-through their translators, and **the card says so**: `sources[].translator` is
-recorded when gutendex reports one, and the UI's author detail line names it
-("Constance Garnett translations", as the design's own sample data does). A
-future non-English tier is a `text` package per language, not a flag.
+that look fine and mean nothing. Borges and Chekhov therefore enter through
+their translators, and the product does not treat that as a defect to apologise
+for: a translation is the prose an English reader has, and it is the prose the
+draft is measured against.
+
+`sources[].translator` is recorded when gutendex reports one, and the author
+detail line names it ("Constance Garnett translations", as the design's own
+sample data does) — not as a caveat but because it is a fact about which text
+was read, the same as the work title. `corpus-select` prefers a single
+translator across a corpus where the choice exists, since mixing translators
+mixes two prose styles into one set of numbers; where it does not, it takes what
+is available and the card lists them. A future non-English tier is a `text`
+package per language, not a flag.
 
 **Text fetch** takes the plain-text format from the book's `formats` map,
 preferring UTF-8. A book offering no plain-text format is dropped from
@@ -805,7 +905,7 @@ populated from local tables, so the detail line has three forms:
 |---|---|
 | Never fetched | `12 works · not yet measured` |
 | Corpus cached, no card | `12 works · 214,000 words measured · no card yet` |
-| Card cached | `12 works · 214,000 words · card@3, 12 exemplars, confidence 0.86` |
+| Card cached | `12 works · 214,000 words · 61% from one collection · card@3, confidence 0.86` |
 
 The design's row is the third form and is correct for the author it shows, which
 in the mockup is the one already built. This is a deviation from the handoff
@@ -822,16 +922,16 @@ source url plus `cleaner_version`.
 
 A work that fails to fetch is dropped from the corpus with a stage detail line
 naming it, and the card is built from the rest. A card built from fewer works
-than `corpus-select` chose records both counts, and `confidence` falls out of
-§4.5 without a special case. **The author screen refuses only when zero works
+than `corpus-select` chose records both counts, and `cardStrength` shows the
+shortfall (§4.5) without a special case. **The author screen refuses only when zero works
 fetch**, which is an error, not a low-confidence card.
 
 ### 5.5 The secondary tier, designed and not built
 
 `PRD.md` §8 is the design and this document adds nothing to it except where it
 lands in the schema: `authors.kind = 'secondary'`, `style_cards.provenance =
-'secondary'`, `prosody` absent, `exemplars` empty, `confidence` from §4.5's last
-term alone. The design shows the row disabled with the reason stated, which is
+'secondary'`, `prosody` absent, `exemplars` empty, and `confidence` zero on
+§4.5's definition, since a card with no verbatim passages has nothing to cite. The design shows the row disabled with the reason stated, which is
 right, and the type system already carries the distinction, which is the part
 that matters now.
 
@@ -1477,14 +1577,15 @@ type FitMeasure = {
   bandBasis: "iqr" | "range";
   corpusValue: number;            // the measurement
   targetValue: number;            // what the draft aimed at
-  targetOrigin: Origin;           // "measured" unless overlaid (§4.6)
+  targetOrigin: Origin;           // always "measured" in v1 (§4.6)
   status: "pass" | "drift" | "fail" | "insufficient-length";
 };
 ```
 
 **Five measures are scored**, which is `PRD.md` §10's list with §4.3's
 substitution: mean sentence length, punctuation rate (semicolon, em dash and
-colon, each separately), dialogue ratio, MATTR and latinate ratio. The rest of
+colon, each separately), dialogue ratio, MATTR and — subject to §4.3's
+precision gate — latinate ratio. The rest of
 `ProsodyBlock` is evidence for the drafting prompt and is not scored —
 `commonBigrams` because it is a lexicon rather than a measure (§4.3), and
 `paragraphLength` because a beat sheet decides it more than a voice does.
@@ -1526,7 +1627,7 @@ breaks dialogue ratio is visible.
 
 `PRD.md` §5 is explicit: the report must not score a story against user-invented
 targets as if they were the author's real statistics. So for any measure whose
-`targetOrigin` is `edited` (§4.6 is the only v1 producer), the report carries
+`targetOrigin` is `edited`, the report carries
 **both** verdicts — against the target and against the corpus measurement — and
 the UI shows both with the edited one marked amber. The design's step-7 closing
 caption already says this: "one target was overridden this session and is
@@ -1536,6 +1637,12 @@ The rule in code: `style-fit` returns `FitMeasure[]` where an edited measure
 appears twice, once with `targetOrigin: "edited"` and once with
 `targetOrigin: "measured"`. There is no single-verdict path for an edited
 measure, so nothing downstream can render only the flattering one.
+
+**No v1 code path produces one** (§4.6): every target equals its measurement,
+so this branch is exercised only by tests with a hand-built overlay. It is in
+v1 because the schema decision `PRD.md` §5 makes is worthless if the report
+cannot honour it, and because a report that has never been asked to carry two
+verdicts is a report that will not when the editing UI lands.
 
 ---
 
@@ -1661,8 +1768,10 @@ saying so. It enumerates the exported functions of `style-card`, `style-fit`,
   what `prosody` computes from the same works. Invariant 1, as a property.
 - Every `Claim` with `origin: "derived"` carries a `citation` whose `passageId`
   exists in `passages`. A derived field with no evidence fails the build.
-- The only writer of `card_overlays` is §4.6's target-lowering path, identified
-  by its `reason` being present. Any other overlay write fails.
+- **Nothing writes `card_overlays`.** The suite greps the workspace for a write
+  to that table outside its own fixtures and fails on one (§4.6). This is the
+  v1 form of the rule; when the v1.1 editing UI lands it becomes "only the
+  overlay route writes it".
 - Every measure with `targetOrigin: "edited"` appears twice in the report
   (§9.3).
 - Every export fixture contains the §7.6 label verbatim.
@@ -1705,6 +1814,9 @@ Three further decisions this document makes that the PRD leaves implicit:
 |---|---|
 | A second `ModelClient` for direct Anthropic is deferred, not built | §2, "Not taken" |
 | Type-token ratio is replaced by MATTR | §4.3 |
+| The latinate proxy is scored only if it passes a hand-labelled precision gate | §4.3 |
+| Nothing writes a card overlay in v1; the draft prompt states the conflict | §4.6 |
+| Confidence is citation coverage; the other three strength facts are shown, not blended | §4.5 |
 | A tier with no structured-output model is a startup error, not a repair loop | §6.4 |
 
 ---
@@ -1735,9 +1847,12 @@ runs per scene only under `sequential-scene`. They are describing two different
 things and both ship.
 
 **4. An `edited` provenance mark in v1, which has no editing UI.** *Resolved:
-the pipeline is the editor, in exactly one case, and it records why* (§4.6). The
-design's mockup is showing the honest version of a real behaviour rather than a
-placeholder.
+the mockup is demonstrating the mechanism, and nothing writes an overlay in v1*
+(§4.6). The tension the mockup points at — a corpus mean sentence length that
+flash length cannot carry — is real, and it is handled in the draft prompt with
+a precedence clause rather than by moving the target. Lowering a measured target
+to make a story fit would report `pass` against a number the product invented,
+which is the one thing the provenance mechanism exists to prevent.
 
 **5. The model-selection overlay is not in the PRD at all.** *Resolved: built,
 as a third resolution layer over the tier map* (§6.3). It is the natural surface
@@ -1764,8 +1879,8 @@ Two things this document adds that neither source asks for:
 |---|---|
 | **The gutendex schema in §5.2 is unverified.** No network access to it from this session. | Build order step 3 begins with a probe that records a real response and pins the schema. Every field is parsed rather than cast, so a wrong guess is a loud failure on the first search. |
 | **`structuredOutput` and `maxOutputTokens` per model are unknown.** Neither is in the gateway's models route. | Build order step 2 is a spike against the live endpoint. If no `cheap`-tier model supports strict schemas, `critique` moves to `balanced` and the cost target in §10 gets worse — that is the outcome to measure, not to design around now. |
-| **A translated corpus measures the translator.** Borges's prosody through Andrew Hurley is Hurley's sentence lengths. | Stated rather than solved: the card records the translator and the UI names them (§5.2). It is a real limit on the product's central claim and the honest response is to say whose prose was measured. |
-| **The Latinate proxy may not correlate with register.** It is a suffix list. | Labelled a proxy everywhere it appears (§4.3), versioned, and excluded from nothing — but if the discrimination script (§10.3) shows it carries no signal, dropping a measure is cheaper than defending it. |
+| **A corpus spanning several translators measures none of them.** Two translators' sentence lengths averaged together are a number no prose has. | `corpus-select` prefers one translator where the choice exists, and the card lists those it drew on (§5.2). Measuring the translation itself is not the risk — that is the prose an English reader has — but blending two is. |
+| **The latinate proxy may not classify well enough to score.** It is a suffix list. | Gated rather than hoped about: a hand-labelled 500-type validation set decides whether it is a scored measure or a prompt hint (§4.3). The gate runs in build step 3, before anything depends on the answer. |
 
 Not settled here, and deliberately:
 
@@ -1803,8 +1918,11 @@ gate and the design port given its own step.
    output round-tripping against a real model.
 3. **`text` and `prosody`.** Before the corpus, because they are pure, they are
    the product's core claim, and they are testable against fixtures with no
-   network. Property tests here (§11.3). Ends with a real Gutenberg file cleaned,
-   unwrapped, segmented and measured, and the numbers eyeballed against the text.
+   network. Property tests here (§11.3), and the latinate classifier's
+   hand-labelled validation set (§4.3) — which is the step that decides whether
+   five measures are scored or four. Ends with a real Gutenberg file cleaned,
+   unwrapped, segmented and measured, and the numbers eyeballed against the
+   text.
 4. **`corpus-gutenberg`.** **Spike first**: one real gutendex response recorded
    as a fixture and the schema pinned to it (§5.2). Then search, fetch, work
    selection, passage selection, and the `works`/`passages` cache.
