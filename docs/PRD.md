@@ -161,10 +161,33 @@ Adaptive, streamed, resumable. Seven steps; only 1, 2 and 4 require input.
 | 1 | **Idea** | Free text, any length — one sentence or pages of notes. Length preset and any hard constraints. |
 | 2 | **Author** | Search-as-you-type against the corpus index. Tier badge shown. Disambiguation when needed. |
 | 3 | **Research** | Watches. Corpus selection and style-card build stream in. Card shown when done. |
-| 4 | **Clarifying questions** | Answers 3–6 model-generated questions, each with suggested answers plus "you decide". Every question skippable. |
+| 4 | **Clarifying questions** | Answers model-generated questions, each with suggested answers plus "you decide". Follow-up rounds appear when answers open new ambiguity. Every question skippable; "generate now" is always live. |
 | 5 | **Outline** | Reviews a beat sheet. Approve, edit, or regenerate. |
 | 6 | **Draft** | Watches prose stream. |
 | 7 | **Result** | Reads the story and its style-fit report. Export, regenerate a section, or restart from any earlier step. |
+
+#### Adaptive questioning
+
+Questions are not a fixed batch. The `clarify` stage re-enters itself: after
+each round it gets one cheap call asking whether any story decision is still
+underdetermined in a way that would make it guess badly. Follow-ups must each
+name the decision they resolve and why the existing answers did not settle it —
+a question that cannot state its purpose is not asked.
+
+Three constraints keep this a wizard rather than an interview:
+
+- **Follow-ups are offered, not imposed.** "Generate now" is live from the end
+  of round one. A new round reads as *"three things are still ambiguous —
+  answer them, or I'll choose"*, never as a gate.
+- **Budget:** 3 rounds, ~8 questions total. The budget is what makes it a
+  wizard. It is a product constraint, not a model limitation.
+- **Answers form a tree, not a list.** Each question carries `dependsOn:
+  questionId[]`. Editing an answer invalidates its descendants, which are
+  dropped and re-asked rather than silently kept. This is in the v1 schema
+  even though the tree is shallow at first — it is expensive to retrofit.
+
+This makes `clarify` the only stage that re-enters itself, and the one place
+argo's `agent-loop` is used as a loop rather than as a type contract.
 
 Two rules the wizard must not break:
 
@@ -193,7 +216,7 @@ Default `multi-pass`:
 |---|---|---|---|
 | `corpus-select` | research | cheap | Which works, which passages |
 | `style-extract` | research | balanced | Qualitative half of the style card |
-| `clarify` | question | balanced | 3–6 questions with suggestions |
+| `clarify` | question | balanced | Questions with suggestions; re-enters itself for follow-up rounds (§6) |
 | `outline` | outline | balanced | Beat sheet |
 | `draft` | draft | **strong** | The prose |
 | `critique` | critique | cheap | Style-fit findings vs card + prosody |
@@ -368,7 +391,8 @@ caching across sessions, and a half-finished wizard should survive a reload.
 | Long corpora blow the context budget | Passage selection, not whole texts. Prosody is computed outside the model, on full text, for free. |
 | Voice drifts over a long draft | `sequential-scene` re-sends the style card every scene and runs `critique` per scene, so drift surfaces early. This is the failure mode a word cap was hiding rather than solving. |
 | Ramp pricing after 2026 | Provider seam; OpenRouter is a config entry away. |
-| Wizard feels like a form | Questions are generated from the style card, not templated. If they read generic, that stage's prompt is the bug. |
+| Wizard feels like a form | Questions are generated from the style card, not templated, and follow up on answers. If they read generic, that stage's prompt is the bug. |
+| Adaptive questioning becomes an interrogation | Hard budget of 3 rounds / ~8 questions, every round skippable, "generate now" live throughout. Completion rate (§10) is the metric that catches this. |
 
 ## 14. Build order
 
