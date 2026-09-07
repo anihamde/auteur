@@ -1190,6 +1190,52 @@ paragraphs is a verdict about nothing.
   later price change does not silently rewrite the history of what a session
   cost.
 
+### 6.9 Regenerate a selection
+
+`PRD.md` §4 puts editing the finished story out of scope "beyond regenerating a
+section", and §6 step 7 offers it. The unit is the question: under
+`sequential-scene` a section is an outline beat with recorded boundaries, and
+under `single-call` — flash and short, the default and where most sessions will
+be — the whole story arrived in one response and nothing recorded where any beat
+ended.
+
+**Decision: the unit is the user's text selection, not a beat.** The result
+screen's prose is selectable; selecting any span turns the ghost button into
+"Regenerate selection". The addressable unit is a character range into
+`stories.markdown`, which exists identically under both strategies, so there is
+no beat-to-offset mapping to build and no stage to align one.
+
+It is also the better unit. A reader who wants a paragraph fixed wants *that
+paragraph*, not the structural division it happens to sit in — and beats are
+something the user saw once, on the outline screen, two steps earlier.
+
+**It is the `revise` stage with a span instead of findings.** Same role, same
+tier, same model, same prompt package; where the post-critique path passes
+findings and their remedies, this path passes a character range and the
+instruction to replace it. Everything else is already built:
+
+- The prompt gets the resolved card, the full outline, the whole story with the
+  span marked, and the verbatim 300 words either side for voice continuity —
+  which is `sequential-scene`'s continuity context under a different name.
+- The replacement is spliced by offset, and `stories.markdown` is rewritten with
+  its `prosody` recomputed.
+- **Staleness handles the consequences for free** (§7.5). A rewritten draft
+  artifact is a changed input, so `critique`, `revise` and `style-fit` restale
+  and the report is recomputed rather than left describing prose that no longer
+  exists. Nothing new to invalidate.
+- A `decision` event records it, so the decisions log shows the regeneration
+  the same way it shows a skipped question.
+
+Two constraints, both from the same reasoning:
+
+- **A selection may not span the whole story.** That is not a regeneration, it
+  is a re-draft, and the rail already offers re-entering step 6. The route
+  refuses above 60% of the word count with `invalid_input`.
+- **A selection is snapped outward to sentence boundaries** by `text` before it
+  reaches the prompt. Regenerating half a sentence produces a splice that reads
+  as a splice, and the segmenter that decides where a sentence ends is already
+  the one measuring the result.
+
 ---
 
 ## 7. The server
@@ -1219,7 +1265,7 @@ POST   /api/sessions/:id/author                     { authorId } — starts rese
 
 POST   /api/sessions/:id/answers                    { questionId, answer | skip }
 POST   /api/sessions/:id/advance                    { to: Step } — runs what is stale
-POST   /api/sessions/:id/regenerate                 { kind: 'outline' | 'section', ... }
+POST   /api/sessions/:id/regenerate                 { kind: 'outline' } | { kind: 'selection', from, to }
 POST   /api/sessions/:id/cancel
 
 PUT    /api/sessions/:id/pins                       { [stageId]: modelId }
@@ -1818,6 +1864,7 @@ Three further decisions this document makes that the PRD leaves implicit:
 | Nothing writes a card overlay in v1; the draft prompt states the conflict | §4.6 |
 | Confidence is citation coverage; the other three strength facts are shown, not blended | §4.5 |
 | A tier with no structured-output model is a startup error, not a repair loop | §6.4 |
+| Regenerating a section means regenerating a text selection, as `revise` with a span | §6.9 |
 
 ---
 
@@ -1891,13 +1938,6 @@ Not settled here, and deliberately:
 - **The tier candidate lists.** `config/tiers.ts` is data, and which model belongs
   in which tier is a question the step-2 spike answers with prices and
   capabilities in hand.
-- **Regenerate-a-section.** `PRD.md` §4 includes it and §6 step 7 offers it. It
-  is a `draft` stage scoped to one outline beat with the surrounding text as
-  context, which the `sequential-scene` strategy already implements — but which
-  beats are addressable in a `single-call` draft, and how a section boundary is
-  identified in prose that was generated in one shot, is unresolved. It is the
-  one v1 scope item this document cannot fully specify, and it should be settled
-  in the implementation plan rather than guessed at here.
 
 ---
 
