@@ -87,6 +87,7 @@ StyleCard {
   sources:     Work[]                       // what it was built from
 
   // Computed deterministically from the corpus. No model involved.
+  // Immutable: a measurement of real text, not an opinion.
   prosody: {
     sentenceLength:    { mean, median, p10, p90, stdev }
     paragraphLength:   { mean, median }
@@ -96,6 +97,10 @@ StyleCard {
     latinateRatio:     number
     commonBigrams:     string[]
   }
+
+  // What the draft aims at. Defaults to `prosody`. This is the field a user
+  // who wants "shorter sentences" is actually reaching for.
+  prosodyTarget: ProsodyTarget
 
   // Extracted by a model reading selected passages, cited back to them.
   voice:       { pov, tense, narratorDistance, freeIndirect, reliability }
@@ -107,6 +112,14 @@ StyleCard {
   antiPatterns: string[]     // what this author never does
 
   exemplars:   { text, work, demonstrates }[]   // 8-15 short verbatim passages
+                                                // selectable, never editable —
+                                                // an edited quote is not a citation
+}
+
+// Per-session, never merged into the cached canonical card.
+StyleCardOverlay {
+  authorId, cardVersion
+  fields: { [path]: { value, origin: "derived" | "edited" } }
 }
 ```
 
@@ -116,9 +129,28 @@ Why the computed half matters: it is cheap, deterministic, and *checkable*.
 variance but not the floor" is an instruction a revision pass can act on and a
 report the user can read.
 
-**[open]** Is the style card user-editable in v1, or read-only with a
-regenerate button? Editable is better product and roughly a day more work.
-Proposed: read-only in v1, editable in v1.1.
+### Editability
+
+The editing *UI* is small — a form over a nested schema, mostly string-array
+editors and enum selects. The cost is not there. Editability forces three
+schema decisions, and those are cheap now and expensive to retrofit:
+
+1. **Measured vs. target.** `prosody` is computed from real text and is
+   immutable. `prosodyTarget` is what the draft aims at and defaults to it.
+   Someone asking for shorter sentences is overriding a target, not correcting
+   a measurement.
+2. **Canonical vs. overlay.** Cards are cached per author and shared across
+   sessions. Edits live in a per-session `StyleCardOverlay` with per-field
+   reset, never written back to the canonical card.
+3. **Per-field provenance.** The card's claim is that it is evidence-derived
+   and cited. Once edited, part of it is not. Every field carries
+   `derived | edited`, the UI marks edited fields, and the style-fit report
+   (§10) must not score a story against user-invented targets as if they were
+   the author's real statistics — it reports against both, separately.
+
+**Decision:** build all three into the schema in v1. Ship v1 with the overlay
+writable only by the system, and add the editing UI in v1.1, where it is then
+genuinely just UI. Deferring the feature is fine; deferring the schema is not.
 
 ## 6. The wizard
 
