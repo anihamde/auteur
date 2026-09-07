@@ -58,14 +58,17 @@ artifact. Some users will care about it more than the story.
   style revision → result.
 - Multi-pass generation with per-stage model routing.
 - Ramp Router as the model gateway; provider seam that accepts others.
-- Story length up to ~5,000 words.
+- Story length from flash (~1k words) to novelette (~20k). Length is a
+  pipeline capability, not a product cap — see §7.
 - Local persistence of sessions, style cards, and stories. Markdown export.
 - Style-fit report on the finished story.
 
 ### Out (v1)
 
 - Living / in-copyright authors. Designed for (§8), not built.
-- Novels and novellas. 5,000 words is the cap.
+- Novel length (80k+). Not a length problem: it needs persistent character
+  and world state, chapter-level revision, and consistency checking across a
+  draft nobody can hold in context. That is a different product.
 - Accounts, sharing, multi-user, hosting. Single-user, runs locally.
 - Fine-tuning or embedding-based retrieval. Style cards + selected exemplars
   fit in context; a vector store is unnecessary complexity at this size.
@@ -123,7 +126,7 @@ Adaptive, streamed, resumable. Seven steps; only 1, 2 and 4 require input.
 
 | # | Step | User does |
 |---|---|---|
-| 1 | **Idea** | Free text. Optional target length and any hard constraints. |
+| 1 | **Idea** | Free text, any length — one sentence or pages of notes. Length preset and any hard constraints. |
 | 2 | **Author** | Search-as-you-type against the corpus index. Tier badge shown. Disambiguation when needed. |
 | 3 | **Research** | Watches. Corpus selection and style-card build stream in. Card shown when done. |
 | 4 | **Clarifying questions** | Answers 3–6 model-generated questions, each with suggested answers plus "you decide". Every question skippable. |
@@ -172,7 +175,32 @@ plus a config map, so the catalog is not hardcoded. The cost argument for
 multi-provider lives here: research, question generation and critique run on
 cheap open-weight models; only `draft` and `revise` pay for a strong model.
 
-Target: **median story under $0.15** at default tiers.
+### Length and draft strategy
+
+Length is not a product limit. It selects a draft strategy, and the strategies
+are two implementations of the same `draft` stage:
+
+| Strategy | Range | How |
+|---|---|---|
+| `single-call` | up to the model's max output tokens, ~5–8k words | One call. Best global coherence — the model holds the whole shape at once. Default. |
+| `sequential-scene` | above that, no fixed ceiling | One call per outline beat, each given the style card, the full outline, a running story-state summary, and the verbatim last ~500 words for voice continuity. |
+
+The user picks a preset — flash / short / long / novelette — and the strategy
+follows from it and from the drafting model's actual max-output-tokens, read
+from the router catalog rather than hardcoded.
+
+What actually degrades with length is not the model's ability to emit tokens.
+It is **style persistence** and **continuity**. Both are addressed better by
+scene-wise generation than by a cap: `sequential-scene` runs the `critique`
+stage per scene against the style card's prosody targets, so drift is caught
+at scene 3 instead of at 12,000 words. Long output is a reason to generate in
+pieces, not a reason to refuse it.
+
+Cost and estimated time are shown before the draft stage runs, since a
+novelette is roughly 5× a short story and the user should choose that
+knowingly.
+
+Target: **median short story (~4k words) under $0.15** at default tiers.
 
 ## 8. Extensibility to living authors
 
@@ -306,6 +334,7 @@ caching across sessions, and a half-finished wizard should survive a reload.
 | Output is competent but not *identifiably* the author | The style-fit measure catches drift automatically. The exemplar passages in-context are the main lever if it does. |
 | Style card overfits to one work | Corpus selection samples across career period and form; the card records which works it drew on. |
 | Long corpora blow the context budget | Passage selection, not whole texts. Prosody is computed outside the model, on full text, for free. |
+| Voice drifts over a long draft | `sequential-scene` re-sends the style card every scene and runs `critique` per scene, so drift surfaces early. This is the failure mode a word cap was hiding rather than solving. |
 | Ramp pricing after 2026 | Provider seam; OpenRouter is a config entry away. |
 | Wizard feels like a form | Questions are generated from the style card, not templated. If they read generic, that stage's prompt is the bug. |
 
