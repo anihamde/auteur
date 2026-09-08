@@ -12,6 +12,9 @@ import {
 import { type AdvanceDeps, advanceRoutes } from "./_routes/advance.ts";
 import { answerRoutes } from "./_routes/answers.ts";
 import { authorRoutes } from "./_routes/authors.ts";
+import { cancelRoutes } from "./_routes/cancel.ts";
+import { type EventRoutesDeps, eventRoutes } from "./_routes/events.ts";
+import { exportRoutes } from "./_routes/export.ts";
 import { healthRoutes } from "./_routes/health.ts";
 import { modelRoutes } from "./_routes/models.ts";
 import { pinRoutes } from "./_routes/pins.ts";
@@ -47,6 +50,13 @@ export type AppDeps = {
    * which is stricter than mounting it with an empty secret.
    */
   readonly internalStage?: Omit<InternalStageDeps, "db" | "invokeStage">;
+  /**
+   * The SSE route's **direct** connection. Absent in a test that does not
+   * stream, and the route is then not mounted — which is stricter than mounting
+   * it against the pooled handle, where `LISTEN` is accepted and never
+   * delivers.
+   */
+  readonly events?: EventRoutesDeps;
 };
 
 /**
@@ -129,6 +139,11 @@ export const createApp = (deps: AppDeps): Hono => {
     }),
   );
   app.route("/", answerRoutes({ db: deps.db }));
+  app.route("/", cancelRoutes({ db: deps.db }));
+  if (deps.events !== undefined) {
+    app.route("/", eventRoutes(deps.events));
+  }
+  app.route("/", exportRoutes({ db: deps.db }));
   app.route("/", healthRoutes());
   app.route("/", modelRoutes());
   if (deps.internalStage !== undefined) {

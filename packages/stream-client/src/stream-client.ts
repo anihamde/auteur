@@ -25,6 +25,15 @@ export type StreamConfig = {
   /** Injected so a test does not wait through the backoff. */
   readonly sleep?: (ms: number) => Promise<void>;
   readonly maxEmptyReconnects?: number;
+  /**
+   * Where to resume from. Defaults to 0 — the beginning.
+   *
+   * A reload knows its cursor: the session view it just fetched carries the
+   * events it already has. Without this the client would replay the whole log
+   * on every reload and then drop most of it as at-or-below-cursor, which
+   * works and costs a session's entire event history on the wire.
+   */
+  readonly startCursor?: number;
 };
 
 /**
@@ -101,7 +110,7 @@ export const connectStream = (config: StreamConfig): Stream => {
   const sleep = config.sleep ?? ((ms: number) => Bun.sleep(ms));
   const maxEmpty = config.maxEmptyReconnects ?? MAX_EMPTY_RECONNECTS;
 
-  let cursor = 0;
+  let cursor = config.startCursor ?? 0;
   let closed = false;
   let controller = new AbortController();
 

@@ -214,3 +214,41 @@ describe("frames split across reads", () => {
     expect(rest).toBe("data: par");
   });
 });
+
+describe("a reload resumes from the cursor it already has", () => {
+  test("the first connection asks for the given cursor, not for zero", async () => {
+    // Without this the client replays the whole log on every reload and then
+    // drops most of it as at-or-below-cursor: correct, and the cost is a
+    // session's entire event history on the wire.
+    const transport = replaying([frame(8), ""]);
+    const events: number[] = [];
+    const stream = connectStream({
+      fetch: transport.fetch,
+      maxEmptyReconnects: 0,
+      onEvent: (event) => events.push(event.seq),
+      onFatal: () => undefined,
+      sleep: async () => undefined,
+      startCursor: 7,
+      url: `https://auteur.test/api/sessions/${SESSION}/events`,
+    });
+    await stream.done;
+    expect(transport.cursors[0]).toBe(7);
+    expect(events).toEqual([8]);
+  });
+
+  test("an event at or below the starting cursor is still dropped", async () => {
+    const transport = replaying([frame(5) + frame(9), ""]);
+    const events: number[] = [];
+    const stream = connectStream({
+      fetch: transport.fetch,
+      maxEmptyReconnects: 0,
+      onEvent: (event) => events.push(event.seq),
+      onFatal: () => undefined,
+      sleep: async () => undefined,
+      startCursor: 7,
+      url: `https://auteur.test/api/sessions/${SESSION}/events`,
+    });
+    await stream.done;
+    expect(events).toEqual([9]);
+  });
+});
