@@ -1,0 +1,29 @@
+{
+  "dependencies": {
+    "@auteur/db": "workspace:*",
+    "@auteur/ids": "workspace:*",
+    "@auteur/migrations": "workspace:*",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./seed-session": "./src/seed-session.ts",
+    "./test-db": "./src/test-db.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/test-db",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

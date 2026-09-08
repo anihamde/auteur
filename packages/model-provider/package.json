@@ -1,0 +1,29 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./descriptor": "./src/descriptor.ts",
+    "./provider": "./src/provider.ts",
+    "./registry": "./src/registry.ts",
+    "./request": "./src/request.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/model-provider",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

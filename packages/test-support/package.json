@@ -1,0 +1,32 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*",
+    "@auteur/model-provider": "workspace:*",
+    "@auteur/tokens": "workspace:*",
+    "@happy-dom/global-registrator": "catalog:",
+    "@testing-library/react": "catalog:",
+    "axe-core": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./audit": "./src/audit.ts",
+    "./happy-dom": "./src/happy-dom.ts",
+    "./render": "./src/render.tsx",
+    "./scripted-provider": "./src/scripted-provider.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/test-support",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

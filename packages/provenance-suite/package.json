@@ -1,0 +1,29 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*",
+    "@auteur/export": "workspace:*",
+    "@auteur/pipeline": "workspace:*",
+    "@auteur/style-card": "workspace:*",
+    "@auteur/style-fit": "workspace:*"
+  },
+  "devDependencies": {
+    "@auteur/test-db": "workspace:*",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./suite": "./src/suite.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/provenance-suite",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

@@ -1,0 +1,45 @@
+{
+  "dependencies": {
+    "@auteur/config": "workspace:*",
+    "@auteur/core": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/event-store": "workspace:*",
+    "@auteur/ids": "workspace:*",
+    "@auteur/logger": "workspace:*",
+    "@auteur/model-provider": "workspace:*",
+    "@auteur/prompt": "workspace:*",
+    "@auteur/prosody": "workspace:*",
+    "@auteur/session-store": "workspace:*",
+    "@auteur/stage-queue": "workspace:*",
+    "@auteur/style-card": "workspace:*",
+    "@auteur/style-fit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./drift": "./src/drift.ts",
+    "./engine": "./src/engine.ts",
+    "./extract": "./src/extract.ts",
+    "./flush": "./src/flush.ts",
+    "./pins": "./src/pins.ts",
+    "./pipeline": "./src/pipeline.ts",
+    "./resolve-tier": "./src/resolve-tier.ts",
+    "./sequential": "./src/sequential.ts",
+    "./strategy": "./src/strategy.ts",
+    "./usage": "./src/usage.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/pipeline",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

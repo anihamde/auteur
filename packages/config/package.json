@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./stages": "./src/stages.ts",
+    "./tiers": "./src/tiers.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/config",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

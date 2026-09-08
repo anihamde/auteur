@@ -1,0 +1,49 @@
+{
+  "dependencies": {
+    "@auteur/api-client": "workspace:*",
+    "@auteur/api-contract": "workspace:*",
+    "@auteur/component-library": "workspace:*",
+    "@auteur/copy": "workspace:*",
+    "@auteur/core": "workspace:*",
+    "@auteur/corpus-gutenberg": "workspace:*",
+    "@auteur/env": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/event-store": "workspace:*",
+    "@auteur/export": "workspace:*",
+    "@auteur/formatting": "workspace:*",
+    "@auteur/logger": "workspace:*",
+    "@auteur/migrations": "workspace:*",
+    "@auteur/pipeline": "workspace:*",
+    "@auteur/session-store": "workspace:*",
+    "@auteur/stage-queue": "workspace:*",
+    "@auteur/stream-client": "workspace:*",
+    "@auteur/style-card": "workspace:*",
+    "@auteur/style-fit": "workspace:*",
+    "@auteur/tokens": "workspace:*",
+    "hono": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "vite": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@auteur/test-db": "workspace:*",
+    "@auteur/test-support": "workspace:*",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
+  },
+  "name": "@auteur/app-auteur-web",
+  "private": true,
+  "scripts": {
+    "start:dev": "vite dev",
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

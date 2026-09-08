@@ -1,0 +1,28 @@
+{
+  "dependencies": {},
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "fast-check": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./elapsed": "./src/elapsed.ts",
+    "./meta-row": "./src/meta-row.ts",
+    "./money": "./src/money.ts",
+    "./pluralize": "./src/pluralize.ts",
+    "./prosody-value": "./src/prosody-value.ts",
+    "./relative-time": "./src/relative-time.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/formatting",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

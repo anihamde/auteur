@@ -1,0 +1,29 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*",
+    "@auteur/db": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/ids": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./events": "./src/events.ts",
+    "./listen": "./src/listen.ts",
+    "./session-runs": "./src/session-runs.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/event-store",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

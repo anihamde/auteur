@@ -1,0 +1,35 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*",
+    "@auteur/corpus-store": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/ids": "workspace:*",
+    "@auteur/logger": "workspace:*",
+    "@auteur/text": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./authors": "./src/authors.ts",
+    "./fetch": "./src/fetch.ts",
+    "./gutendex": "./src/gutendex.ts",
+    "./passages": "./src/passages.ts",
+    "./provider": "./src/provider.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/corpus-gutenberg",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

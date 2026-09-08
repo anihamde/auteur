@@ -1,0 +1,34 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*",
+    "@auteur/text": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "fast-check": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./bigrams": "./src/bigrams.ts",
+    "./dialogue": "./src/dialogue.ts",
+    "./latinate": "./src/latinate.ts",
+    "./latinate-gate": "./src/latinate-gate.ts",
+    "./lengths": "./src/lengths.ts",
+    "./mattr": "./src/mattr.ts",
+    "./prosody": "./src/prosody.ts",
+    "./punctuation": "./src/punctuation.ts",
+    "./version": "./src/version.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/prosody",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

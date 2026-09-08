@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["bun"]
+  },
+  "extends": "../../packages/tsconfig/react.json",
+  "include": ["api", "src", "tests"]
+}

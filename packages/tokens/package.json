@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "@pandacss/dev": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./conditions": "./src/conditions.ts",
+    "./preset": "./src/preset.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/tokens",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

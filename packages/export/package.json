@@ -1,0 +1,28 @@
+{
+  "dependencies": {
+    "@auteur/copy": "workspace:*",
+    "@auteur/core": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/formatting": "workspace:*",
+    "@auteur/style-fit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./render-export": "./src/render-export.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/export",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

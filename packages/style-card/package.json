@@ -1,0 +1,32 @@
+{
+  "dependencies": {
+    "@auteur/card-store": "workspace:*",
+    "@auteur/core": "workspace:*",
+    "@auteur/corpus-gutenberg": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/ids": "workspace:*",
+    "@auteur/prosody": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./build": "./src/build.ts",
+    "./build-key": "./src/build-key.ts",
+    "./resolve": "./src/resolve.ts",
+    "./strength": "./src/strength.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/style-card",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

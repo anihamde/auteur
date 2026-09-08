@@ -1,0 +1,28 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*",
+    "@auteur/db": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/ids": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./queue": "./src/queue.ts",
+    "./sweep": "./src/sweep.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/stage-queue",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

@@ -1,0 +1,32 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./clarify": "./src/clarify.ts",
+    "./corpus-select": "./src/corpus-select.ts",
+    "./critique": "./src/critique.ts",
+    "./draft": "./src/draft.ts",
+    "./outline": "./src/outline.ts",
+    "./revise": "./src/revise.ts",
+    "./style-extract": "./src/style-extract.ts",
+    "./summarize-beat": "./src/summarize-beat.ts",
+    "./versions": "./src/versions.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/prompt",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}
