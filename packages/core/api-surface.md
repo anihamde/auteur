@@ -8,35 +8,80 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/core/events`
 
 ```ts
-export const unimplemented = (): never =>
+export const sessionEventSchema = z.discriminatedUnion("type", [
+export const storedEventSchema = z.object(
 ```
 
 ## `@auteur/core/fit`
 
 ```ts
-export const unimplemented = (): never =>
+export const FIT_STATUSES = [
+export const ORIGINS = ["measured", "derived", "edited"] as const
+export const bandBasisSchema = z.enum(["iqr", "range"])
+export const classifierSchema = z.object(
+export const findingSchema = z.object(
+export const fitMeasureSchema = z.object(
+export const fitStatusSchema = z.enum(FIT_STATUSES)
+export const originSchema = z.enum(ORIGINS)
+export const styleFitReportSchema = z.object(
 ```
 
 ## `@auteur/core/pipeline`
 
 ```ts
-export const unimplemented = (): never =>
+export const DRAFT_STRATEGIES = ["single-call", "sequential-scene"] as const
+export const ROLES = [
+export const STAGE_RUN_STATUSES = [
+export const TIERS = ["cheap", "balanced", "strong"] as const
+export const draftStrategySchema = z.enum(DRAFT_STRATEGIES)
+export const pipelineSchema = z.object(
+export const roleSchema = z.enum(ROLES)
+export const stageRunStatusSchema = z.enum(STAGE_RUN_STATUSES)
+export const stageSchema = z.object(
+export const tierSchema = z.enum(TIERS)
+export const usageSchema = z.object(
 ```
 
 ## `@auteur/core/prosody`
 
 ```ts
-export const unimplemented = (): never =>
+export const DIALOGUE_MARKERS = [
+export const dialogueMarkerSchema = z.enum(DIALOGUE_MARKERS)
+export const prosodyBlockSchema = workProsodySchema.extend(
+export const prosodyTargetSchema = z.object(
+export const punctuationRatesSchema = z.object(
+export const workProsodySchema = z.object(
 ```
 
 ## `@auteur/core/session`
 
 ```ts
-export const unimplemented = (): never =>
+export const ANSWER_STATES = [
+export const ARTIFACT_KINDS = [
+export const DECISION_ORIGINS = [
+export const LENGTH_PRESETS = ["flash", "short", "long", "novelette"] as const
+export const STEPS = [
+export const WORD_TARGET: Readonly<Record<LengthPreset, number>> =
+export const answerStateSchema = z.enum(ANSWER_STATES)
+export const artifactKindSchema = z.enum(ARTIFACT_KINDS)
+export const decisionEntrySchema = z.object(
+export const decisionOriginSchema = z.enum(DECISION_ORIGINS)
+export const lengthPresetSchema = z.enum(LENGTH_PRESETS)
+export const outlineSchema = z.object(
+export const questionSchema = z.object(
+export const sessionSchema = z.object(
+export const stepSchema = z.enum(STEPS)
 ```
 
 ## `@auteur/core/style-card`
 
 ```ts
-export const unimplemented = (): never =>
+export const authorRefSchema = z.object(
+export const cardOverlaySchema = z.object(
+export const cardStrengthSchema = z.object(
+export const citationSchema = z.object(
+export const claimSchema = <Value extends z.ZodType>(value: Value) =>
+export const exemplarSchema = z.object(
+export const styleCardSchema = z.object(
+export const workRefSchema = z.object(
 ```
