@@ -8,53 +8,54 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/prompt/clarify`
 
 ```ts
-export const unimplemented = (): never =>
+export const clarify: Prompt<ClarifyInput> =
 ```
 
 ## `@auteur/prompt/corpus-select`
 
 ```ts
-export const unimplemented = (): never =>
+export const corpusSelect: Prompt<CorpusSelectInput> =
 ```
 
 ## `@auteur/prompt/critique`
 
 ```ts
-export const unimplemented = (): never =>
+export const critique: Prompt<CritiqueInput> =
 ```
 
 ## `@auteur/prompt/draft`
 
 ```ts
-export const unimplemented = (): never =>
+export const draft: Prompt<DraftInput> =
 ```
 
 ## `@auteur/prompt/outline`
 
 ```ts
-export const unimplemented = (): never =>
+export const outline: Prompt<OutlineInput> =
 ```
 
 ## `@auteur/prompt/revise`
 
 ```ts
-export const unimplemented = (): never =>
+export const revise: Prompt<ReviseInput> =
 ```
 
 ## `@auteur/prompt/style-extract`
 
 ```ts
-export const unimplemented = (): never =>
+export const styleExtract: Prompt<StyleExtractInput> =
 ```
 
 ## `@auteur/prompt/summarize-beat`
 
 ```ts
-export const unimplemented = (): never =>
+export const summarizeBeat: Prompt<SummarizeBeatInput> =
 ```
 
 ## `@auteur/prompt/versions`
 
 ```ts
-export const unimplemented = (): never =>
+export const PROMPT_VERSIONS =
+export const versionOf = (id: PromptId): PromptVersion => PROMPT_VERSIONS[id]
 ```
