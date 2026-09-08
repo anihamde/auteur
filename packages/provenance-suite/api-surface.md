@@ -8,5 +8,10 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/provenance-suite/suite`
 
 ```ts
-export const unimplemented = (): never =>
+export const EXEMPT_FROM_OVERLAY_SCAN = [
+export const cardProsodyMatches = (
+export const citationsResolve = (
+export const editedMeasuresAppearTwice = (
+export const exportCarriesLabel = (
+export const nothingWritesOverlays = (root: string): Violation[] =>
 ```
