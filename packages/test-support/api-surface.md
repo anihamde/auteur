@@ -11,6 +11,12 @@ change and needs a contract review, per the implementation plan's gate 4.
 export const unimplemented = (): never =>
 ```
 
+## `@auteur/test-support/conformance`
+
+```ts
+export const runConformanceSuite = (target: ConformanceTarget): void =>
+```
+
 ## `@auteur/test-support/happy-dom`
 
 ```ts
@@ -26,5 +32,8 @@ export const unimplemented = (): never =>
 ## `@auteur/test-support/scripted-provider`
 
 ```ts
-export const unimplemented = (): never =>
+export const SCRIPTED_MODELS: readonly ModelDescriptor[] = [
+export const SCRIPTED_PROVIDER_ID = "scripted"
+export const createScriptedProvider = (
+export const respondingWith = (object: unknown): ScriptedTurn => (
 ```

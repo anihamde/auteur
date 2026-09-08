@@ -404,6 +404,7 @@
         "zod": "catalog:",
       },
       "devDependencies": {
+        "@auteur/test-support": "workspace:*",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
@@ -501,6 +502,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@auteur/core": "workspace:*",
+        "@auteur/errors": "workspace:*",
         "@auteur/model-provider": "workspace:*",
         "@auteur/tokens": "workspace:*",
         "@happy-dom/global-registrator": "catalog:",
