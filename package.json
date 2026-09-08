@@ -44,6 +44,8 @@
     "gates": "bun scripts/gates.ts",
     "new:package": "bun scripts/new-package.ts",
     "test:api-surface": "bun scripts/api-surface.ts --check",
+    "test:bun-version": "bun scripts/check-bun-version.ts",
+    "test:catalog": "bun scripts/check-catalog.ts",
     "test:generated": "bun scripts/new-package.ts --check",
     "test:lint": "biome check --max-diagnostics=none",
     "test:types": "tsc --noEmit",

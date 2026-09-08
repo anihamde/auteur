@@ -79,6 +79,17 @@ const addFile = async (
 
 export const CASES: readonly SelfTestCase[] = [
   {
+    breaks: () => patchFile(".bun-version", "1.3.11", "1.3.10"),
+    gate: 12,
+    name: "CI and contributors pinned to different bun versions",
+  },
+  {
+    breaks: () =>
+      patchFile("package.json", '"bun": ">=1.3.11"', '"bun": ">=1.4.0"'),
+    gate: 12,
+    name: "an engines floor that excludes the pinned version",
+  },
+  {
     // The defect gate 6 exists for: `bunfig.toml` carries the coverage floor,
     // so editing it on disk sets a package's floor to zero while the manifest
     // still says 0.9 and every other gate stays green.

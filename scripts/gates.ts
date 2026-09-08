@@ -41,6 +41,12 @@ export const GATES: readonly Gate[] = [
     number: 6,
     script: "scripts/new-package.ts",
   },
+  {
+    args: [],
+    name: "bun version pins agree",
+    number: 12,
+    script: "scripts/check-bun-version.ts",
+  },
 ];
 
 const run = async (gate: Gate): Promise<boolean> => {
