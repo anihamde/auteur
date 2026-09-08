@@ -8,11 +8,16 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/card-store/cards`
 
 ```ts
-export const unimplemented = (): never =>
+export const findCard = async (
+export const findCardByBuildKey = async (
+export const latestCardForAuthor = async (
+export const putCard = async (
 ```
 
 ## `@auteur/card-store/overlays`
 
 ```ts
-export const unimplemented = (): never =>
+export const clearOverlay = async (
+export const findOverlay = async (
+export const putOverlay = async (
 ```

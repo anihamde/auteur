@@ -8,17 +8,27 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/session-store/artifacts`
 
 ```ts
-export const unimplemented = (): never =>
+export const findArtifact = async <Body>(
+export const inputKeyOf = async (
+export const putArtifact = async (
+export const readFresh = async <Body>(
 ```
 
 ## `@auteur/session-store/questions`
 
 ```ts
-export const unimplemented = (): never =>
+export const answerQuestion = async (
+export const answerSetFor = async (
+export const invalidateFromRound = async (
+export const listQuestions = async (
+export const putQuestionRound = async (
 ```
 
 ## `@auteur/session-store/sessions`
 
 ```ts
-export const unimplemented = (): never =>
+export const createSession = async (
+export const findSession = async (
+export const requireSession = async (db: Db, id: string): Promise<Session> =>
+export const updateSession = async (
 ```

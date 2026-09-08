@@ -1,18 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { identifier, maybeRow, oneRow, placeholders } from "./sql.ts";
-
-describe("placeholders", () => {
-  test("numbers from an offset, so a caller can append to a parameter list", () => {
-    // The failure this catches: an INSERT ... SELECT that builds two clauses and
-    // restarts at $1 for the second, binding the wrong values with no error.
-    expect(placeholders(3)).toBe("$1, $2, $3");
-    expect(placeholders(2, 4)).toBe("$4, $5");
-  });
-
-  test("a count of zero is the empty string, not '$1'", () => {
-    expect(placeholders(0)).toBe("");
-  });
-});
+import { identifier, maybeRow, oneRow } from "./sql.ts";
 
 describe("identifier", () => {
   test("refuses anything that is not a plain identifier rather than escaping it", () => {

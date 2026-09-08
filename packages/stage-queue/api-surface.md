@@ -8,11 +8,19 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/stage-queue/queue`
 
 ```ts
-export const unimplemented = (): never =>
+export const MAX_ATTEMPTS = 3
+export const claimStage = async (
+export const completeStage = async (
+export const enqueueStage = async (
+export const failStage = async (
+export const findQueueEntry = async (
+export const listQueueForSession = async (
 ```
 
 ## `@auteur/stage-queue/sweep`
 
 ```ts
-export const unimplemented = (): never =>
+export const STALE_AFTER_SECONDS = 300
+export const findStaleClaims = async (
+export const releaseStaleClaim = async (
 ```

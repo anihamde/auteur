@@ -25,7 +25,10 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "complexity": { "noExcessiveCognitiveComplexity": "warn" },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "warn",
+        "useLiteralKeys": "off"
+      },
       "correctness": {
         "noUndeclaredDependencies": "error",
         "noUnusedImports": "error",

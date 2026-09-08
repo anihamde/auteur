@@ -11,16 +11,16 @@ import { AuteurError } from "@auteur/errors/auteur-error";
  */
 
 /**
- * `$1, $2, $3` for a list of values, so a caller never interpolates.
+ * There is deliberately no `placeholders(n)` helper here.
  *
- * The one place a placeholder list is built, because building it at each call
- * site is how one of them ends up as a template literal.
+ * One was written, and gate 13 — which refuses any interpolation into a SQL
+ * literal — made it unusable: every call site had to splice its result into the
+ * statement text. That turned out to be the right pressure rather than a
+ * problem to route around. Postgres takes arrays as parameters, so a variable
+ * number of values is `= ANY($1::uuid[])` for a lookup and `SELECT * FROM
+ * unnest($1::uuid[], $2::text[], ...)` for a bulk insert: one static statement,
+ * one plan in the cache, and nothing built by string concatenation.
  */
-export const placeholders = (count: number, from = 1): string =>
-  Array.from(
-    { length: count },
-    (_, index) => `$${(from + index).toString()}`,
-  ).join(", ");
 
 /**
  * An identifier, quoted, for the rare statement that cannot parameterize one.
@@ -37,6 +37,26 @@ export const identifier = (name: string): string => {
     );
   }
   return `"${name}"`;
+};
+
+/**
+ * A comma-separated column list, every name validated as a plain identifier.
+ *
+ * The same argument as `identifier`, for the other thing a statement cannot
+ * parameterize: `SELECT $1 FROM t` selects the string, not the column. Gate 13
+ * permits this call inside a SQL literal for exactly that reason — the names
+ * are checked one by one, so a list assembled from anything but source text
+ * throws rather than reaching Postgres.
+ *
+ * Unquoted, unlike `identifier`: a column list reads far better as
+ * `id, work_id, char_start` than as `"id", "work_id", "char_start"`, and the
+ * validation is the same either way.
+ */
+export const columns = (names: readonly string[]): string => {
+  for (const name of names) {
+    identifier(name);
+  }
+  return names.join(", ");
 };
 
 /** The single row a query must return, or a `not_found` error. */

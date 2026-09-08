@@ -46,6 +46,20 @@ describe("identifier() is the one permitted interpolation", () => {
   test("but a bare table name does not", () => {
     expect(find("db.query(`SELECT count(*) FROM ${table}`)")).toHaveLength(1);
   });
+
+  test("columns() is permitted too, for the list form", () => {
+    expect(
+      find("db.query(`SELECT ${columns(COLUMNS)} FROM events WHERE id = $1`)"),
+    ).toEqual([]);
+  });
+
+  test("a bare column-list constant does not pass", () => {
+    // A module constant looks safe and usually is, but nothing checks that it
+    // holds literal column names — which is exactly what `columns()` does.
+    expect(
+      find("db.query(`SELECT ${COLUMNS} FROM events WHERE id = $1`)"),
+    ).toHaveLength(1);
+  });
 });
 
 describe("what is not SQL is not scanned", () => {
