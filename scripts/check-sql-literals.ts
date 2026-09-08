@@ -9,11 +9,11 @@
  * reads exactly like the parameterized one.
  *
  * So: any template literal whose static text looks like SQL may interpolate
- * **nothing**, with one exception — a call to `identifier(...)` from
- * `@auteur/db/sql`, which is the seam for the rare statement that cannot
- * parameterize a table or column name. That function refuses anything which is
- * not a plain identifier rather than escaping it, so the only values that can
- * reach it are ones written in the source.
+ * **nothing**, with two exceptions — `identifier(...)` and `columns(...)` from
+ * `@auteur/db/sql`. They are the seam for what a statement cannot
+ * parameterize: `SELECT $1 FROM t` selects the string, not the column. Both
+ * refuse anything which is not a plain identifier rather than escaping it, so
+ * the only values that can reach them are ones written in the source.
  *
  * Scanned: every `.ts`/`.tsx` under `packages/*` and `apps/*`, tests included.
  * A test is where an interpolated query is most tempting and least noticed.
@@ -31,8 +31,12 @@ const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const SQL_MARKER =
   /\b(select\s|insert\s+into\s|update\s+\w|delete\s+from\s|create\s+(table|index|unique|schema|database)\s|alter\s+table\s|drop\s+(table|schema|database)\s|truncate\s|listen\s|notify\s|values\s*\(|from\s+\w+\s+where\s)/i;
 
-/** `identifier(x)`, the one permitted interpolation. */
-const IDENTIFIER_CALL = /^\s*identifier\s*\(/;
+/**
+ * The permitted interpolations: `identifier(x)` for one name, `columns([...])`
+ * for a list. Both validate every name as a plain identifier and throw
+ * otherwise, so what reaches the statement text can only have come from source.
+ */
+const SANCTIONED_CALL = /^\s*(?:identifier|columns)\s*\(/;
 
 export type Finding = {
   readonly file: string;
@@ -152,7 +156,7 @@ export const findInterpolatedSql = (
     if (!SQL_MARKER.test(literal.text)) continue;
     for (const span of literal.expressions) {
       const expression = source.slice(span.start, span.end);
-      if (IDENTIFIER_CALL.test(expression)) continue;
+      if (SANCTIONED_CALL.test(expression)) continue;
       findings.push({
         expression: expression.trim(),
         file,
@@ -193,7 +197,7 @@ if (import.meta.main) {
       );
     }
     process.stderr.write(
-      `\n${findings.length.toString()} interpolation(s) into SQL. Pass values as $1, $2 … and, for a table or column name, wrap it in \`identifier()\` from @auteur/db/sql.\n`,
+      `\n${findings.length.toString()} interpolation(s) into SQL. Pass values as $1, $2 …; for a variable number of them use an array parameter (\`= ANY($1::uuid[])\`, \`unnest(...)\`); and for a table or column name use \`identifier()\` or \`columns()\` from @auteur/db/sql.\n`,
     );
     process.exit(1);
   }

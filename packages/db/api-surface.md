@@ -14,8 +14,8 @@ export const createDb = (config: DbConfig): Db =>
 ## `@auteur/db/sql`
 
 ```ts
+export const columns = (names: readonly string[]): string =>
 export const identifier = (name: string): string =>
 export const maybeRow = <Row>(rows: readonly Row[]): Row | undefined => rows[0]
 export const oneRow = <Row>(rows: readonly Row[], what: string): Row =>
-export const placeholders = (count: number, from = 1): string =>
 ```

@@ -8,17 +8,24 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/event-store/events`
 
 ```ts
-export const unimplemented = (): never =>
+export const append = async (
+export const channelFor = (sessionId: string): string =>
+export const latestSeq = async (db: Db, sessionId: string): Promise<number> =>
+export const readSince = async (
 ```
 
 ## `@auteur/event-store/listen`
 
 ```ts
-export const unimplemented = (): never =>
+export const subscribe = async (
 ```
 
 ## `@auteur/event-store/session-runs`
 
 ```ts
-export const unimplemented = (): never =>
+export const claimRun = async (
+export const findRun = async (
+export const finishRun = async (
+export const isCancelRequested = async (
+export const requestCancel = async (
 ```

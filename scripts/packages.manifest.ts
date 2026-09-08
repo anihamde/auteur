@@ -334,6 +334,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     layer: "store",
     name: "session-store",
     workspaceDeps: ["core", "db", "errors", "ids"],
+    workspaceDevDeps: ["test-db"],
   },
   {
     deps: [],
@@ -344,6 +345,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     layer: "store",
     name: "card-store",
     workspaceDeps: ["core", "db", "errors", "ids"],
+    workspaceDevDeps: ["test-db"],
   },
   {
     deps: [],
@@ -359,6 +361,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     layer: "store",
     name: "corpus-store",
     workspaceDeps: ["core", "db", "errors", "ids"],
+    workspaceDevDeps: ["test-db"],
   },
   {
     coverage: 0.9,
@@ -375,6 +378,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     layer: "store",
     name: "event-store",
     workspaceDeps: ["core", "db", "errors", "ids"],
+    workspaceDevDeps: ["test-db"],
   },
   {
     coverage: 0.9,
@@ -387,6 +391,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     layer: "store",
     name: "stage-queue",
     workspaceDeps: ["core", "db", "errors", "ids"],
+    workspaceDevDeps: ["test-db"],
   },
 
   // ------------------------------------------------------------------- service

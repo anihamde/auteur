@@ -8,17 +8,23 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/corpus-store/authors`
 
 ```ts
-export const unimplemented = (): never =>
+export const findAuthor = async (
+export const recordMeasuredWords = async (
+export const upsertAuthor = async (
 ```
 
 ## `@auteur/corpus-store/passages`
 
 ```ts
-export const unimplemented = (): never =>
+export const findPassages = async (
+export const listPassagesForWork = async (
+export const putPassages = async (
 ```
 
 ## `@auteur/corpus-store/works`
 
 ```ts
-export const unimplemented = (): never =>
+export const findWorkBySource = async (
+export const listWorksByAuthor = async (
+export const putWork = async (
 ```

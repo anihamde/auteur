@@ -94,6 +94,7 @@
         "@auteur/ids": "workspace:*",
       },
       "devDependencies": {
+        "@auteur/test-db": "workspace:*",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
@@ -180,6 +181,7 @@
         "@auteur/ids": "workspace:*",
       },
       "devDependencies": {
+        "@auteur/test-db": "workspace:*",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
@@ -240,6 +242,7 @@
         "@auteur/ids": "workspace:*",
       },
       "devDependencies": {
+        "@auteur/test-db": "workspace:*",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
@@ -415,6 +418,7 @@
         "@auteur/ids": "workspace:*",
       },
       "devDependencies": {
+        "@auteur/test-db": "workspace:*",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
@@ -429,6 +433,7 @@
         "@auteur/ids": "workspace:*",
       },
       "devDependencies": {
+        "@auteur/test-db": "workspace:*",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
