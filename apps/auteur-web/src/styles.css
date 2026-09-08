@@ -1,0 +1,11 @@
+/* The design system's tokens and element defaults, imported whole.
+   `@auteur/tokens` maps them into Panda's shape for anything that wants that
+   shape; the app loads the CSS itself, which is what components' `var(--...)`
+   references resolve against. */
+@import "../../../docs/design/design-system/tokens/colors.css";
+@import "../../../docs/design/design-system/tokens/typography.css";
+@import "../../../docs/design/design-system/tokens/spacing.css";
+@import "../../../docs/design/design-system/tokens/effects.css";
+@import "../../../docs/design/design-system/tokens/fonts.css";
+@import "../../../docs/design/design-system/tokens/base.css";
+@import "../../../docs/design/design-system/tokens/theme-light.css";
