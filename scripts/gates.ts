@@ -24,6 +24,12 @@ export type Gate = {
 /** Ordered by gate number. */
 export const GATES: readonly Gate[] = [
   {
+    args: ["--check"],
+    name: "public API surface",
+    number: 4,
+    script: "scripts/api-surface.ts",
+  },
+  {
     args: [],
     name: "dependency direction",
     number: 5,

@@ -79,6 +79,50 @@ const addFile = async (
 
 export const CASES: readonly SelfTestCase[] = [
   {
+    // A file nobody exports is not in the contract — the surface comes from
+    // the `exports` map, not from what is on disk — so the defect to
+    // demonstrate is a subpath that *is* exported and whose snapshot does not
+    // match. Materializing a manifest-declared package with a real export and
+    // no committed api-surface.md is exactly that, and it is the shape every
+    // future package arrives in.
+    breaks: async () => {
+      const undoManifest = await addFile(
+        "packages/ids/package.json",
+        `${JSON.stringify(
+          {
+            exports: { "./new-id": "./src/new-id.ts" },
+            name: "@auteur/ids",
+            private: true,
+            type: "module",
+            version: "0.0.0",
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      const undoSource = await addFile(
+        "packages/ids/src/new-id.ts",
+        "export const newId = (): string => crypto.randomUUID();\n",
+      );
+      return async () => {
+        await undoSource();
+        await undoManifest();
+      };
+    },
+    gate: 4,
+    name: "an exported subpath with no committed snapshot",
+  },
+  {
+    breaks: () =>
+      patchFile(
+        "packages/tsconfig/api-surface.md",
+        "_data file; the subpath itself is the contract_",
+        "_something a hand edit put here_",
+      ),
+    gate: 4,
+    name: "a hand-edited api-surface.md",
+  },
+  {
     breaks: () =>
       patchFile(
         "packages/tsconfig/package.json",

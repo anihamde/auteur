@@ -38,9 +38,11 @@
   "private": true,
   "scripts": {
     "build:install-modules": "[ $CI$CLAUDE_CODE_REMOTE$VERCEL ] && true || bun install",
+    "fix:api-surface": "bun scripts/api-surface.ts",
     "fix:lint": "biome check --max-diagnostics=none --write",
     "gate-self-test": "bun scripts/gate-self-test.ts",
     "gates": "bun scripts/gates.ts",
+    "test:api-surface": "bun scripts/api-surface.ts --check",
     "test:lint": "biome check --max-diagnostics=none",
     "test:types": "tsc --noEmit",
     "turbo": "[ ! -d node_modules ] && bun install --frozen-lockfile; bun x turbo"
