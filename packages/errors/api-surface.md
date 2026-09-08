@@ -8,23 +8,25 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/errors/auteur-error`
 
 ```ts
-export const unimplemented = (): never =>
+export class AuteurError extends Error
 ```
 
 ## `@auteur/errors/error-code`
 
 ```ts
-export const unimplemented = (): never =>
+export const ERROR_CODES = [
+export const STATUS_BY_CODE: Readonly<Record<ErrorCode, number>> =
+export const isErrorCode = (value: unknown): value is ErrorCode =>
 ```
 
 ## `@auteur/errors/is-auteur-error`
 
 ```ts
-export const unimplemented = (): never =>
+export const isAuteurError = (value: unknown): value is AuteurError =>
 ```
 
 ## `@auteur/errors/to-http-response`
 
 ```ts
-export const unimplemented = (): never =>
+export const toHttpResponse = (
 ```

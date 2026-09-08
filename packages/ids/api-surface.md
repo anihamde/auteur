@@ -7,18 +7,17 @@ change and needs a contract review, per the implementation plan's gate 4.
 
 ## `@auteur/ids/branded-ids`
 
-```ts
-export const unimplemented = (): never =>
-```
+_no exports_
 
 ## `@auteur/ids/new-id`
 
 ```ts
-export const unimplemented = (): never =>
+export const newId = <Id extends UuidId>(): Id =>
 ```
 
 ## `@auteur/ids/parse-id`
 
 ```ts
-export const unimplemented = (): never =>
+export const isUuidId = (value: unknown): value is UuidId =>
+export const parseId = <Id extends UuidId>(
 ```
