@@ -1,0 +1,35 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*",
+    "@auteur/env": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/logger": "workspace:*",
+    "@auteur/model-provider": "workspace:*",
+    "openai": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./client": "./src/client.ts",
+    "./models": "./src/models.ts",
+    "./pricing": "./src/pricing.ts",
+    "./provider-errors": "./src/provider-errors.ts",
+    "./responses-request": "./src/responses-request.ts",
+    "./responses-stream": "./src/responses-stream.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/provider-router",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

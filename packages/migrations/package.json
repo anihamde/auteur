@@ -1,0 +1,28 @@
+{
+  "dependencies": {
+    "@auteur/db": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/logger": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./ensure-schema": "./src/ensure-schema.ts",
+    "./manifest": "./src/generated/manifest.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/migrations",
+  "private": true,
+  "scripts": {
+    "build": "bun run src/build-manifest.ts",
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

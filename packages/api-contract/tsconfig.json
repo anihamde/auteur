@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "lib": ["esnext", "dom"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["bun"]
+  },
+  "extends": "../tsconfig/base.json",
+  "include": ["src", "tests"]
+}

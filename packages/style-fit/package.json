@@ -1,0 +1,30 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/prosody": "workspace:*",
+    "@auteur/style-card": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./bands": "./src/bands.ts",
+    "./edited": "./src/edited.ts",
+    "./findings": "./src/findings.ts",
+    "./measures": "./src/measures.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/style-fit",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "@auteur/api-contract": "workspace:*",
+    "@auteur/core": "workspace:*",
+    "@auteur/errors": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./client": "./src/client.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/api-client",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

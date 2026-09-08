@@ -1,0 +1,41 @@
+{
+  "dependencies": {
+    "@auteur/copy": "workspace:*",
+    "@auteur/core": "workspace:*",
+    "@auteur/formatting": "workspace:*",
+    "@auteur/icons": "workspace:*",
+    "@auteur/tokens": "workspace:*",
+    "@base-ui-components/react": "catalog:",
+    "@pandacss/dev": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "axe-core": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./core": "./src/core/index.ts",
+    "./forms": "./src/forms/index.ts",
+    "./pipeline": "./src/pipeline/index.ts",
+    "./prose": "./src/prose/index.ts",
+    "./theme": "./src/theme/index.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/component-library",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

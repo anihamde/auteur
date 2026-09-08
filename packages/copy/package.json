@@ -1,0 +1,31 @@
+{
+  "dependencies": {},
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./author": "./src/author.ts",
+    "./clarify": "./src/clarify.ts",
+    "./draft": "./src/draft.ts",
+    "./idea": "./src/idea.ts",
+    "./index": "./src/index.ts",
+    "./models": "./src/models.ts",
+    "./outline": "./src/outline.ts",
+    "./research": "./src/research.ts",
+    "./result": "./src/result.ts",
+    "./shell": "./src/shell.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/copy",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

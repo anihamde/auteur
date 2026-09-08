@@ -1,0 +1,33 @@
+{
+  "dependencies": {
+    "@auteur/errors": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "fast-check": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./blocks": "./src/blocks.ts",
+    "./clean": "./src/clean.ts",
+    "./cut": "./src/cut.ts",
+    "./dialogue-marker": "./src/dialogue-marker.ts",
+    "./sentences": "./src/sentences.ts",
+    "./snap": "./src/snap.ts",
+    "./tokenize": "./src/tokenize.ts",
+    "./unwrap": "./src/unwrap.ts",
+    "./version": "./src/version.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/text",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

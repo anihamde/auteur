@@ -170,6 +170,25 @@ const readmeFor = (spec: PackageSpec): string => {
   ].join("\n");
 };
 
+/**
+ * The source files a skeleton needs to exist.
+ *
+ * Every declared export, plus the entrypoint of a declared `build` command. The
+ * build script is not an export — nobody imports `build-manifest.ts` — but
+ * `turbo build` runs it before anything else in the graph, so a package that
+ * declares a build and has no script to run fails the whole workspace at the
+ * root of the dependency tree rather than in its own tests. `@auteur/migrations`
+ * is the one such package today and found this on WP-A5's first run.
+ */
+const placeholderTargets = (spec: PackageSpec): readonly string[] => {
+  const targets = new Set(Object.values(spec.exports));
+  const entry = /(\.\/)?(src\/[\w./-]+\.tsx?)/.exec(spec.build ?? "")?.[2];
+  if (entry !== undefined) {
+    targets.add(`./${entry}`);
+  }
+  return [...targets];
+};
+
 const placeholderFor = (file: string): string => {
   const name = file.replace(/^\.\/src\//, "").replace(/\.tsx?$/, "");
   return [
@@ -243,7 +262,7 @@ const syncPackage = async (spec: PackageSpec): Promise<void> => {
   if (!existsSync(join(dir, "README.md"))) {
     await writeFile(join(dir, "README.md"), readmeFor(spec));
   }
-  for (const file of Object.values(spec.exports)) {
+  for (const file of placeholderTargets(spec)) {
     const path = join(dir, file);
     if (!existsSync(path)) {
       await mkdir(dirname(path), { recursive: true });
@@ -288,9 +307,14 @@ const appPackageJson = (
 const generatedAppFiles = async (spec: AppSpec): Promise<Generated> => {
   const bunfig = appBunfig(spec);
   const extra = bunfig === undefined ? {} : { "bunfig.toml": bunfig };
+  const tsconfig = { "tsconfig.json": jsonText(appTsconfig()) };
   const path = join(ROOT, "apps", spec.name, "package.json");
   if (!existsSync(path)) {
-    return { ...extra, "package.json": jsonText(appPackageJson(spec)) };
+    return {
+      ...extra,
+      ...tsconfig,
+      "package.json": jsonText(appPackageJson(spec)),
+    };
   }
   const current = (await Bun.file(path).json()) as Record<string, unknown>;
   const { dependencies, devDependencies, scripts } = appPackageJson(spec);
@@ -300,6 +324,7 @@ const generatedAppFiles = async (spec: AppSpec): Promise<Generated> => {
       : {};
   return {
     ...extra,
+    ...tsconfig,
     "package.json": jsonText({
       ...current,
       dependencies,
@@ -339,12 +364,41 @@ const appBunfig = (spec: AppSpec): string | undefined => {
   ].join("\n");
 };
 
+/**
+ * An app's `tsconfig.json`.
+ *
+ * Without one, `tsc --noEmit` in an app directory falls back to compiler
+ * defaults — no `strict`, no `noUncheckedIndexedAccess`, none of what
+ * `packages/tsconfig` exists to set — and gate 2 passes an app it never really
+ * checked. Found on WP-A5's first run, when the app type-checked green with no
+ * config at all.
+ */
+const appTsconfig = (): unknown => ({
+  compilerOptions: {
+    lib: ["esnext", "dom", "dom.iterable"],
+    module: "esnext",
+    moduleResolution: "bundler",
+    types: ["bun"],
+  },
+  extends: "../../packages/tsconfig/react.json",
+  include: ["api", "src", "tests"],
+});
+
 const syncApp = async (spec: AppSpec): Promise<void> => {
   const dir = join(ROOT, "apps", spec.name);
   const files = await generatedAppFiles(spec);
   for (const [file, content] of Object.entries(files)) {
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, file), content);
+  }
+  // One placeholder source, for the same reason a package gets them: `tsc`
+  // fails with TS18003 when `include` matches nothing, so a skeleton app with
+  // no sources reddens gate 2 for having nothing in it. The work package that
+  // builds the app replaces this.
+  const entry = join(dir, "src", "main.ts");
+  if (!existsSync(entry)) {
+    await mkdir(dirname(entry), { recursive: true });
+    await writeFile(entry, placeholderFor("./src/main.ts"));
   }
   if (!("bunfig.toml" in files)) {
     await rm(join(dir, "bunfig.toml"), { force: true });

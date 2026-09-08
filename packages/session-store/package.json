@@ -1,0 +1,29 @@
+{
+  "dependencies": {
+    "@auteur/core": "workspace:*",
+    "@auteur/db": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/ids": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./artifacts": "./src/artifacts.ts",
+    "./questions": "./src/questions.ts",
+    "./sessions": "./src/sessions.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/session-store",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

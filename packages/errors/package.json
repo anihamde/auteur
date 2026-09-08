@@ -1,0 +1,25 @@
+{
+  "dependencies": {},
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./auteur-error": "./src/auteur-error.ts",
+    "./error-code": "./src/error-code.ts",
+    "./is-auteur-error": "./src/is-auteur-error.ts",
+    "./to-http-response": "./src/to-http-response.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/errors",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

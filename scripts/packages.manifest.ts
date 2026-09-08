@@ -689,8 +689,9 @@ export const APPS: readonly AppSpec[] = [
     name: "auteur-web",
     scripts: {
       "start:dev": "vite dev",
+      "test:coverage": "bun ../../scripts/package-tests.ts coverage",
       "test:types": "tsc --noEmit",
-      "test:unit": "bun test",
+      "test:unit": "bun ../../scripts/package-tests.ts unit",
     },
     testPreload: ["@auteur/test-support/happy-dom"],
     workspaceDeps: [

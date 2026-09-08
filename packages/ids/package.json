@@ -1,0 +1,27 @@
+{
+  "dependencies": {
+    "@auteur/errors": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "fast-check": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./branded-ids": "./src/branded-ids.ts",
+    "./new-id": "./src/new-id.ts",
+    "./parse-id": "./src/parse-id.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/ids",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

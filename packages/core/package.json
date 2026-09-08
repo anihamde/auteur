@@ -1,0 +1,30 @@
+{
+  "dependencies": {
+    "@auteur/ids": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./events": "./src/events.ts",
+    "./fit": "./src/fit.ts",
+    "./pipeline": "./src/pipeline.ts",
+    "./prosody": "./src/prosody.ts",
+    "./session": "./src/session.ts",
+    "./style-card": "./src/style-card.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/core",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

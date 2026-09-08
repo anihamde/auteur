@@ -1,0 +1,29 @@
+{
+  "dependencies": {
+    "@auteur/env": "workspace:*",
+    "@auteur/errors": "workspace:*",
+    "@auteur/logger": "workspace:*",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./db": "./src/db.ts",
+    "./sql": "./src/sql.ts"
+  },
+  "files": [
+    "src/**/*"
+  ],
+  "name": "@auteur/db",
+  "private": true,
+  "scripts": {
+    "test:coverage": "bun ../../scripts/package-tests.ts coverage",
+    "test:types": "tsc --noEmit",
+    "test:unit": "bun ../../scripts/package-tests.ts unit"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}
