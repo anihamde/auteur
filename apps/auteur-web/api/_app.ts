@@ -4,6 +4,7 @@ import type { Db } from "@auteur/db/db";
 import { toHttpResponse } from "@auteur/errors/to-http-response";
 import type { Logger } from "@auteur/logger/logger";
 import { Hono } from "hono";
+import { type AdvanceDeps, advanceRoutes } from "./_routes/advance.ts";
 import { authorRoutes } from "./_routes/authors.ts";
 import { healthRoutes } from "./_routes/health.ts";
 import { modelRoutes } from "./_routes/models.ts";
@@ -28,6 +29,8 @@ export type AppDeps = {
    * offline against a fixture; the default is the one provider that exists.
    */
   readonly providers?: readonly CorpusProvider[];
+  /** Asks the platform to run a stage now. See `_routes/advance.ts`. */
+  readonly invokeStage?: AdvanceDeps["invokeStage"];
 };
 
 /**
@@ -95,6 +98,13 @@ export const createApp = (deps: AppDeps): Hono => {
     ),
   );
 
+  app.route(
+    "/",
+    advanceRoutes({
+      db: deps.db,
+      ...(deps.invokeStage !== undefined && { invokeStage: deps.invokeStage }),
+    }),
+  );
   app.route(
     "/",
     authorRoutes({
