@@ -40,12 +40,15 @@
   "scripts": {
     "build:install-modules": "[ $CI$CLAUDE_CODE_REMOTE$VERCEL ] && true || bun install",
     "decisions:index": "bun scripts/decisions-index.ts",
+    "discrimination": "bun scripts/discrimination.ts",
     "fix:api-surface": "bun scripts/api-surface.ts",
     "fix:lint": "biome check --max-diagnostics=none --write",
     "gate-self-test": "bun scripts/gate-self-test.ts",
     "gates": "bun scripts/gates.ts",
     "migration:new": "bun scripts/new-migration.ts",
     "new:package": "bun scripts/new-package.ts",
+    "preflight": "bun scripts/preflight.ts",
+    "stats": "bun scripts/stats.ts",
     "test:api-surface": "bun scripts/api-surface.ts --check",
     "test:bun-version": "bun scripts/check-bun-version.ts",
     "test:catalog": "bun scripts/check-catalog.ts",
@@ -57,7 +60,8 @@
     "test:sql-literals": "bun scripts/check-sql-literals.ts",
     "test:types": "tsc --noEmit",
     "test:unit": "bun test scripts",
-    "turbo": "[ ! -d node_modules ] && bun install --frozen-lockfile; bun x turbo"
+    "turbo": "[ ! -d node_modules ] && bun install --frozen-lockfile; bun x turbo",
+    "verify:live": "bun scripts/verify-live.ts"
   },
   "type": "module",
   "workspaces": [
