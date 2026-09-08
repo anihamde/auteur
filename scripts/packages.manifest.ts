@@ -754,6 +754,7 @@ export const APPS: readonly AppSpec[] = [
       "stream-client",
       "style-card",
       "style-fit",
+      "text",
       "tokens",
     ],
     workspaceDevDeps: ["test-db", "test-support"],

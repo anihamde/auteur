@@ -5,9 +5,12 @@ import { toHttpResponse } from "@auteur/errors/to-http-response";
 import type { Logger } from "@auteur/logger/logger";
 import { Hono } from "hono";
 import { type AdvanceDeps, advanceRoutes } from "./_routes/advance.ts";
+import { answerRoutes } from "./_routes/answers.ts";
 import { authorRoutes } from "./_routes/authors.ts";
 import { healthRoutes } from "./_routes/health.ts";
 import { modelRoutes } from "./_routes/models.ts";
+import { pinRoutes } from "./_routes/pins.ts";
+import { type RegenerateDeps, regenerateRoutes } from "./_routes/regenerate.ts";
 import { sessionRoutes } from "./_routes/sessions.ts";
 
 /**
@@ -31,6 +34,8 @@ export type AppDeps = {
   readonly providers?: readonly CorpusProvider[];
   /** Asks the platform to run a stage now. See `_routes/advance.ts`. */
   readonly invokeStage?: AdvanceDeps["invokeStage"];
+  /** Where a regenerated selection's span is handed on. See `regenerate.ts`. */
+  readonly recordSpan?: RegenerateDeps["recordSpan"];
 };
 
 /**
@@ -112,8 +117,18 @@ export const createApp = (deps: AppDeps): Hono => {
       ...(deps.providers !== undefined && { providers: deps.providers }),
     }),
   );
+  app.route("/", answerRoutes({ db: deps.db }));
   app.route("/", healthRoutes());
   app.route("/", modelRoutes());
+  app.route("/", pinRoutes({ db: deps.db }));
+  app.route(
+    "/",
+    regenerateRoutes({
+      db: deps.db,
+      ...(deps.invokeStage !== undefined && { invokeStage: deps.invokeStage }),
+      ...(deps.recordSpan !== undefined && { recordSpan: deps.recordSpan }),
+    }),
+  );
   app.route("/", sessionRoutes({ db: deps.db }));
 
   return app;

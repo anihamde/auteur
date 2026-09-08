@@ -159,3 +159,43 @@ export const answerSetFor = async (
   );
   return result.rows.map((row) => ({ answer: row["answer"], id: row["id"] }));
 };
+
+/**
+ * Invalidate every transitive descendant of one question, keeping the rows.
+ *
+ * §6.5's tree, in one recursive statement. Recursive rather than a loop in
+ * TypeScript because the walk and the write must see the same snapshot: a loop
+ * that reads a level, writes it, and reads the next can be interleaved with a
+ * concurrent answer and stop halfway down a branch.
+ *
+ * The rows are kept and marked, never deleted. "You answered this, then
+ * changed it" stays visible in the log, which is the point of the state
+ * existing at all — a deleted row would make the history a lie by omission.
+ *
+ * The question itself is **not** invalidated: it was edited, not withdrawn.
+ * Returns the ids that were, because the caller writes one decisions-log entry
+ * per invalidated question.
+ */
+export const invalidateDescendants = async (
+  db: Db,
+  sessionId: string,
+  questionId: string,
+): Promise<string[]> => {
+  const result = await db.query<{ id: string }>(
+    `WITH RECURSIVE descendants AS (
+       SELECT id FROM questions
+        WHERE session_id = $1 AND depends_on @> to_jsonb($2::text)
+       UNION
+       SELECT q.id FROM questions q
+         JOIN descendants d
+           ON q.depends_on @> to_jsonb(d.id::text)
+        WHERE q.session_id = $1
+     )
+     UPDATE questions SET answer_state = 'invalidated'
+      WHERE id IN (SELECT id FROM descendants)
+        AND answer_state <> 'invalidated'
+      RETURNING id`,
+    [sessionId, questionId],
+  );
+  return result.rows.map((row) => row["id"]);
+};

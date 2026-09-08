@@ -27,6 +27,7 @@
     "@auteur/stream-client": "workspace:*",
     "@auteur/style-card": "workspace:*",
     "@auteur/style-fit": "workspace:*",
+    "@auteur/text": "workspace:*",
     "@auteur/tokens": "workspace:*",
     "hono": "catalog:",
     "react": "catalog:",
