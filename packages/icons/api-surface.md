@@ -8,11 +8,14 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/icons/icon`
 
 ```ts
-export const unimplemented = (): never =>
+export const Icon = ({ label, name, size = 16 }: IconProps): ReactElement =>
+export const STROKE_WIDTH = 1.5
 ```
 
 ## `@auteur/icons/names`
 
 ```ts
-export const unimplemented = (): never =>
+export const ICON_NAMES = [
+export const ICON_SIZES = [14, 16, 20] as const
+export const isIconName = (value: string): value is IconName =>
 ```

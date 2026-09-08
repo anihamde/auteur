@@ -8,7 +8,7 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/test-support/audit`
 
 ```ts
-export const unimplemented = (): never =>
+export const auditAccessibility = async (element: Element): Promise<void> =>
 ```
 
 ## `@auteur/test-support/conformance`
@@ -20,13 +20,13 @@ export const runConformanceSuite = (target: ConformanceTarget): void =>
 ## `@auteur/test-support/happy-dom`
 
 ```ts
-export const unimplemented = (): never =>
+export const hasMatchMedia = (): boolean =>
 ```
 
 ## `@auteur/test-support/render`
 
 ```ts
-export const unimplemented = (): never =>
+export const renderStyled = (
 ```
 
 ## `@auteur/test-support/scripted-provider`

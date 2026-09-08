@@ -6,10 +6,12 @@
     "@auteur/tokens": "workspace:*",
     "@happy-dom/global-registrator": "catalog:",
     "@testing-library/react": "catalog:",
-    "axe-core": "catalog:"
+    "axe-core": "catalog:",
+    "react": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
+    "@types/react": "catalog:",
     "typescript": "catalog:"
   },
   "exports": {

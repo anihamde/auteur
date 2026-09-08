@@ -223,15 +223,17 @@ export const PACKAGES: readonly PackageSpec[] = [
     workspaceDeps: [],
   },
   {
-    deps: [],
+    deps: ["lucide-react", "react"],
     description:
       "The closed-set Lucide binding, and the only way to draw an icon.",
-    devDeps: [],
+    devDeps: ["@types/react"],
     exports: { icon: src("icon.tsx"), names: src("names.ts") },
     layer: "foundation",
     name: "icons",
     react: true,
+    testPreload: ["@auteur/test-support/happy-dom"],
     workspaceDeps: ["tokens"],
+    workspaceDevDeps: ["test-support"],
   },
   {
     deps: [],
@@ -628,10 +630,11 @@ export const PACKAGES: readonly PackageSpec[] = [
       "@happy-dom/global-registrator",
       "@testing-library/react",
       "axe-core",
+      "react",
     ],
     description:
       "happy-dom preload, a styled render, the axe audit, and the scripted provider.",
-    devDeps: [],
+    devDeps: ["@types/react"],
     exports: {
       audit: src("audit.ts"),
       conformance: src("conformance.ts"),
