@@ -15,3 +15,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0004 | [An uncited reading is counted, not stored](decisions/0004-an-uncited-reading-is-counted-not-stored.md) | accepted | 2026-09-08 |
 | 0005 | [There are sixteen routes, not fourteen](decisions/0005-there-are-sixteen-routes.md) | accepted | 2026-09-08 |
 | 0006 | [Staleness needs a per-stage key table](decisions/0006-staleness-needs-a-per-stage-key-table.md) | accepted | 2026-09-08 |
+| 0007 | [Six stages produce an output with nowhere to put it](decisions/0007-a-stage-output-column.md) | accepted | 2026-09-08 |

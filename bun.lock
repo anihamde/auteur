@@ -38,6 +38,7 @@
         "@auteur/model-provider": "workspace:*",
         "@auteur/pipeline": "workspace:*",
         "@auteur/prompt": "workspace:*",
+        "@auteur/prosody": "workspace:*",
         "@auteur/provider-router": "workspace:*",
         "@auteur/session-store": "workspace:*",
         "@auteur/stage-queue": "workspace:*",

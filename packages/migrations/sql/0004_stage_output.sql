@@ -1,0 +1,27 @@
+-- 0004_stage_output
+--
+-- Expand before contract (docs/ARCHITECTURE.md §3.3). A deploy replaces
+-- functions while earlier invocations are still finishing, so this file may
+-- add a nullable column, an index or a constraint — and the migration that
+-- drops or renames what it replaces is a later file, after the code that
+-- read the old shape has stopped running. `scripts/check-migrations.ts`
+-- fails a file that does both.
+--
+-- Never edit this file once it has been applied anywhere: the checksum is
+-- verified on every boot and a mismatch aborts. Roll forward instead.
+
+-- Where a stage's structured output lives when it is not a document.
+--
+-- `artifacts` holds the four kinds the result screen reads: `outline`,
+-- `draft`, `report`, `decisions`. Four of the ten stages produce one of those.
+-- The other six produce something smaller and just as necessary —
+-- `corpus-select` produces the list of works to fetch, `prosody-compute`
+-- produces the measured prosody, `critique` produces its findings — and until
+-- now there was nowhere for it to go.
+--
+-- Widening `artifacts.kind` to ten was rejected for the same reason it was in
+-- decision 0006: `artifacts` would mean two things, and every reader of the
+-- four document kinds would have to know which it had. This column sits beside
+-- the key the same stage already writes, in the same statement, so a stage's
+-- completion and its output cannot be recorded separately.
+ALTER TABLE stage_keys ADD COLUMN output jsonb;

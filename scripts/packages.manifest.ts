@@ -748,6 +748,7 @@ export const APPS: readonly AppSpec[] = [
       "model-provider",
       "pipeline",
       "prompt",
+      "prosody",
       "provider-router",
       "session-store",
       "stage-queue",

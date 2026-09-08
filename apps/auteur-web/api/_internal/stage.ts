@@ -34,14 +34,21 @@ import { requireSignature, SIGNATURE_HEADER } from "./signature.ts";
  * and it returns `claimed: false` without touching anything.
  */
 
-/** What actually runs a stage. Injected, so this route's mechanics are testable
- * without a model provider and without the network. */
+/**
+ * What actually runs a stage. Injected, so this route's mechanics are testable
+ * without a model provider and without the network.
+ *
+ * It returns whatever the stage produced that is not a document — stored
+ * beside the key in the same statement, per decision 0007. A stage that writes
+ * to its own table returns `undefined`, and that is a real answer rather than
+ * an omission.
+ */
 export type StageBody = (input: {
   readonly db: Db;
   readonly sessionId: string;
   readonly stageId: string;
   readonly emit: (event: SessionEvent) => Promise<void>;
-}) => Promise<void>;
+}) => Promise<unknown>;
 
 export type InternalStageDeps = {
   readonly db: Db;
@@ -89,8 +96,9 @@ export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
       await append(db, body.sessionId, event);
     };
 
+    let output: unknown;
     try {
-      await deps.runStageBody({
+      output = await deps.runStageBody({
         db,
         emit,
         sessionId: body.sessionId,
@@ -119,7 +127,7 @@ export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
     const keys = inputKeys(await stalenessInputFor(db, body.sessionId));
     const key = keys.get(body.stageId);
     if (key !== undefined) {
-      await recordStageKey(db, body.sessionId, body.stageId, key);
+      await recordStageKey(db, body.sessionId, body.stageId, key, output);
     }
     await completeStage(db, body.queueId, claimant);
 
