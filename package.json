@@ -42,7 +42,9 @@
     "fix:lint": "biome check --max-diagnostics=none --write",
     "gate-self-test": "bun scripts/gate-self-test.ts",
     "gates": "bun scripts/gates.ts",
+    "new:package": "bun scripts/new-package.ts",
     "test:api-surface": "bun scripts/api-surface.ts --check",
+    "test:generated": "bun scripts/new-package.ts --check",
     "test:lint": "biome check --max-diagnostics=none",
     "test:types": "tsc --noEmit",
     "turbo": "[ ! -d node_modules ] && bun install --frozen-lockfile; bun x turbo"

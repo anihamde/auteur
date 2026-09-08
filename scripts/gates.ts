@@ -35,6 +35,12 @@ export const GATES: readonly Gate[] = [
     number: 5,
     script: "scripts/check-dependencies.ts",
   },
+  {
+    args: ["--check"],
+    name: "generated files match the manifest",
+    number: 6,
+    script: "scripts/new-package.ts",
+  },
 ];
 
 const run = async (gate: Gate): Promise<boolean> => {

@@ -79,6 +79,22 @@ const addFile = async (
 
 export const CASES: readonly SelfTestCase[] = [
   {
+    // The defect gate 6 exists for: `bunfig.toml` carries the coverage floor,
+    // so editing it on disk sets a package's floor to zero while the manifest
+    // still says 0.9 and every other gate stays green.
+    breaks: async () => {
+      const undoPackage = await addFile(
+        "packages/ids/package.json",
+        '{ "name": "@auteur/ids", "private": true }\n',
+      );
+      return async () => {
+        await undoPackage();
+      };
+    },
+    gate: 6,
+    name: "a materialized package.json the manifest did not generate",
+  },
+  {
     // A file nobody exports is not in the contract — the surface comes from
     // the `exports` map, not from what is on disk — so the defect to
     // demonstrate is a subpath that *is* exported and whose snapshot does not
