@@ -8,23 +8,31 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/style-fit/bands`
 
 ```ts
-export const unimplemented = (): never =>
+export const DRIFT_MULTIPLE = 1.5
+export const MIN_POINTS_FOR_IQR = 4
+export const ZERO_WIDTH_TOLERANCE = 0.15
+export const bandFor = (values: readonly number[]): Band =>
+export const verdictFor = (
 ```
 
 ## `@auteur/style-fit/edited`
 
 ```ts
-export const unimplemented = (): never =>
+export const scoreAgainstEdited = (input: EditedInput): EditedPair =>
+export const withEditedTargets = (
 ```
 
 ## `@auteur/style-fit/findings`
 
 ```ts
-export const unimplemented = (): never =>
+export const citablePaths = (
+export const forRevision = (findings: readonly Finding[]): Finding[] =>
+export const triageFindings = (
 ```
 
 ## `@auteur/style-fit/measures`
 
 ```ts
-export const unimplemented = (): never =>
+export const measuresFor = (input: MeasureInput): FitMeasure[] =>
+export const scoredMeasures = (): readonly Scored[] =>
 ```

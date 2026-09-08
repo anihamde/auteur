@@ -49,6 +49,12 @@ export const GATES: readonly Gate[] = [
   },
   {
     args: [],
+    name: "nothing writes card_overlays",
+    number: 8,
+    script: "scripts/check-provenance.ts",
+  },
+  {
+    args: [],
     name: "the guideline index says what is there",
     number: 10,
     script: "scripts/check-guidelines.ts",

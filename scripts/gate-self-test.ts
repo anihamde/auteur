@@ -243,6 +243,26 @@ export const CASES: readonly SelfTestCase[] = [
     name: "a gap in the migration versions",
   },
   {
+    // §4.6's strong form. A runtime test cannot see the absence of a writer:
+    // it would pass on the day someone added one and forgot to run it.
+    breaks: () =>
+      patchFile(
+        "packages/session-store/src/artifacts.ts",
+        "export const putArtifact",
+        [
+          "export const writeOverlay = async (db: Db): Promise<void> => {",
+          "  await db.query(`INSERT INTO card_overlays (session_id) VALUES ($1)`, [",
+          '    "x",',
+          "  ]);",
+          "};",
+          "",
+          "export const putArtifact",
+        ].join("\n"),
+      ),
+    gate: 8,
+    name: "a write to card_overlays outside card-store",
+  },
+  {
     // The whole point of the lock is that a refresh from upstream is a
     // readable diff. An in-place edit makes it archaeology, and the correct
     // home for a deviation is docs/guidelines/local/ with `overrides:`.
