@@ -78,6 +78,16 @@ export type PackageSpec = {
    * packages the implementation plan names as load-bearing carry 0.9.
    */
   readonly coverage?: number;
+  /**
+   * True for a package `new-package.ts` neither generates nor checks.
+   *
+   * The two config packages are the only ones: they ship JSON that every other
+   * package extends, they have no `src/`, no tests and no coverage floor, and
+   * the generated shape — `files: ["src/**\/*"]`, a `test:*` script set, a
+   * `tsconfig.json` extending itself — describes none of that. Generating them
+   * would mean teaching the generator a second shape it uses twice.
+   */
+  readonly handWritten?: boolean;
 };
 
 export type AppSpec = {
@@ -634,6 +644,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     description: "The shared TypeScript configurations.",
     devDeps: [],
     exports: {},
+    handWritten: true,
     layer: "tooling",
     name: "tsconfig",
     workspaceDeps: [],
@@ -643,6 +654,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     description: "The shared Biome configuration.",
     devDeps: [],
     exports: {},
+    handWritten: true,
     layer: "tooling",
     name: "biome-config",
     workspaceDeps: [],

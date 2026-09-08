@@ -21,11 +21,33 @@ export type Gate = {
   readonly args: readonly string[];
 };
 
-/**
- * Ordered by gate number. Work package A3 fills this in; until then CI runs
- * gates 1, 2 and 3 through `turbo test` and this list is legitimately empty.
- */
-export const GATES: readonly Gate[] = [];
+/** Ordered by gate number. */
+export const GATES: readonly Gate[] = [
+  {
+    args: ["--check"],
+    name: "public API surface",
+    number: 4,
+    script: "scripts/api-surface.ts",
+  },
+  {
+    args: [],
+    name: "dependency direction",
+    number: 5,
+    script: "scripts/check-dependencies.ts",
+  },
+  {
+    args: ["--check"],
+    name: "generated files match the manifest",
+    number: 6,
+    script: "scripts/new-package.ts",
+  },
+  {
+    args: [],
+    name: "bun version pins agree",
+    number: 12,
+    script: "scripts/check-bun-version.ts",
+  },
+];
 
 const run = async (gate: Gate): Promise<boolean> => {
   const started = Bun.nanoseconds();
