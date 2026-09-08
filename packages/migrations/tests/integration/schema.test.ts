@@ -24,6 +24,9 @@ const TABLES = [
   "questions",
   "session_runs",
   "sessions",
+  // Not in §3.2: added by decision 0006, because only four of ten stages
+  // produce an artifact and the other six had nowhere to store a key.
+  "stage_keys",
   "stage_pins",
   "stage_queue",
   "stage_runs",

@@ -22,6 +22,7 @@ import {
 } from "@auteur/session-store/sessions";
 import { Hono } from "hono";
 import { z } from "zod";
+import { idOf } from "./_id.ts";
 
 /**
  * The four session routes, and the one response a reload is built from.
@@ -33,15 +34,6 @@ import { z } from "zod";
  * assembles its state from six requests has six chances to render a half-loaded
  * screen, and one of them will be the one a reader sees.
  */
-
-/** The id in the path, parsed rather than read. */
-const idOf = (raw: string): string => {
-  const parsed = z.uuid().safeParse(raw);
-  if (!parsed.success) {
-    throw new AuteurError("invalid_input", "That is not a session id.");
-  }
-  return parsed.data;
-};
 
 /**
  * An artifact body, parsed with the schema its kind is described by.

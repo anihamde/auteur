@@ -327,8 +327,10 @@ export const PACKAGES: readonly PackageSpec[] = [
     devDeps: [],
     exports: {
       artifacts: src("artifacts.ts"),
+      pins: src("pins.ts"),
       questions: src("questions.ts"),
       sessions: src("sessions.ts"),
+      "stage-keys": src("stage-keys.ts"),
     },
     integration: true,
     layer: "store",

@@ -7,6 +7,7 @@ import {
   putArtifact,
   readFresh,
 } from "../../src/artifacts.ts";
+import { putPins, readPins } from "../../src/pins.ts";
 import {
   answerQuestion,
   answerSetFor,
@@ -20,6 +21,7 @@ import {
   requireSession,
   updateSession,
 } from "../../src/sessions.ts";
+import { readStageKeys, recordStageKey } from "../../src/stage-keys.ts";
 
 let harness: TestDb;
 
@@ -260,5 +262,71 @@ describe("questions keep their history", () => {
 
   test("an empty round writes nothing rather than failing on an empty statement", async () => {
     await putQuestionRound(harness.db, []);
+  });
+});
+
+describe("pins are replaced, never merged", () => {
+  test("writing a smaller set removes the pins it omits", async () => {
+    // "Unpin this stage" is a write of the remaining pins, not a second
+    // endpoint. A merging write would make an unpin impossible to express.
+    const session = await createSession(harness.db, {
+      id: newId(),
+      idea: "a lighthouse keeper",
+      lengthPreset: "flash",
+    });
+    await putPins(
+      harness.db,
+      session.id,
+      new Map([
+        ["draft", "claude-sonnet-4.5"],
+        ["outline", "gpt-5"],
+      ]),
+    );
+    await putPins(harness.db, session.id, new Map([["draft", "gpt-5"]]));
+
+    const pins = await readPins(harness.db, session.id);
+    expect(pins.get("draft")).toBe("gpt-5");
+    expect(pins.has("outline")).toBe(false);
+  });
+
+  test("an empty set clears every pin", async () => {
+    const session = await createSession(harness.db, {
+      id: newId(),
+      idea: "a cartographer",
+      lengthPreset: "flash",
+    });
+    await putPins(harness.db, session.id, new Map([["draft", "gpt-5"]]));
+    await putPins(harness.db, session.id, new Map());
+    expect((await readPins(harness.db, session.id)).size).toBe(0);
+  });
+});
+
+describe("a stage key is the previous key, upserted", () => {
+  test("recording twice keeps one row and the later key", async () => {
+    // Invalidation is a key that no longer matches, never a row somebody has
+    // to remember to delete — so there is no `clearStageKey` and this upserts.
+    const session = await createSession(harness.db, {
+      id: newId(),
+      idea: "a lamplighter",
+      lengthPreset: "flash",
+    });
+    await recordStageKey(harness.db, session.id, "outline", "key-one");
+    await recordStageKey(harness.db, session.id, "outline", "key-two");
+
+    const keys = await readStageKeys(harness.db, session.id);
+    expect(keys.size).toBe(1);
+    expect(keys.get("outline")).toBe("key-two");
+  });
+
+  test("a stage that never completed has no row, rather than a sentinel", async () => {
+    // Stale by absence. A sentinel is a value some stage could one day produce.
+    const session = await createSession(harness.db, {
+      id: newId(),
+      idea: "a bell-ringer",
+      lengthPreset: "flash",
+    });
+    expect((await readStageKeys(harness.db, session.id)).has("draft")).toBe(
+      false,
+    );
   });
 });

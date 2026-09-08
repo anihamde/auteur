@@ -14,6 +14,13 @@ export const putArtifact = async (
 export const readFresh = async <Body>(
 ```
 
+## `@auteur/session-store/pins`
+
+```ts
+export const putPins = async (
+export const readPins = async (
+```
+
 ## `@auteur/session-store/questions`
 
 ```ts
@@ -32,4 +39,11 @@ export const deleteSession = async (db: Db, id: string): Promise<boolean> =>
 export const findSession = async (
 export const requireSession = async (db: Db, id: string): Promise<Session> =>
 export const updateSession = async (
+```
+
+## `@auteur/session-store/stage-keys`
+
+```ts
+export const readStageKeys = async (
+export const recordStageKey = async (
 ```
