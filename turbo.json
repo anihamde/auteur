@@ -1,0 +1,62 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": ["NODE_ENV"],
+  "globalPassThroughEnv": [
+    "AUTEUR_API_TOKEN",
+    "AUTEUR_STAGE_SECRET",
+    "AUTEUR_TEST_DATABASE_URL",
+    "CI",
+    "CLAUDE_CODE_REMOTE",
+    "DATABASE_URL",
+    "DATABASE_URL_DIRECT",
+    "FORCE_COLOR",
+    "PORT",
+    "RAMP_ROUTER_API_KEY",
+    "TURBO_SCM_BASE",
+    "VERCEL",
+    "VERCEL_ENV"
+  ],
+  "tasks": {
+    "//#build:install-modules": {
+      "inputs": ["**/package.json", "bunfig.toml", "!**/dist/**"],
+      "outputs": ["bun.lock"]
+    },
+    "//#test": {
+      "with": ["//#test:lint", "//#test:types"]
+    },
+    "//#test:lint": {
+      "dependsOn": ["//#build:install-modules"],
+      "inputs": [
+        "biome.json",
+        "packages/biome-config/base.json",
+        "apps/**/*",
+        "packages/**/*",
+        "scripts/**/*"
+      ]
+    },
+    "//#test:types": {
+      "dependsOn": ["//#build:install-modules"],
+      "inputs": ["scripts/**/*", "tsconfig.json", "packages/tsconfig/*.json"]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/*.test.*"],
+      "outputs": ["dist/**", "src/generated/**", "styled-system/**"]
+    },
+    "test": {
+      "with": ["test:types", "test:unit"]
+    },
+    "test:coverage": {
+      "cache": false,
+      "dependsOn": ["^build", "build"]
+    },
+    "test:types": {
+      "dependsOn": ["^build", "build"],
+      "inputs": ["$TURBO_DEFAULT$", "tsconfig.json"]
+    },
+    "test:unit": {
+      "dependsOn": ["^build", "build"]
+    }
+  },
+  "ui": "stream"
+}

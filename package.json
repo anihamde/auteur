@@ -1,0 +1,53 @@
+{
+  "catalog": {
+    "@base-ui-components/react": "1.0.0-rc.0",
+    "@biomejs/biome": "^2.5.11",
+    "@happy-dom/global-registrator": "^20.11.6",
+    "@pandacss/dev": "^1.12.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.6",
+    "@types/bun": "^1.4.0",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "axe-core": "^4.13.0",
+    "fast-check": "^4.9.0",
+    "hono": "^4.13.5",
+    "openai": "^7.5.0",
+    "pg": "^8.23.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "turbo": "^2.10.12",
+    "typescript": "^5.9.0",
+    "vite": "^7.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@auteur/biome-config": "workspace:*",
+    "@auteur/tsconfig": "workspace:*",
+    "@biomejs/biome": "catalog:",
+    "@types/bun": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "bun": ">=1.3.11"
+  },
+  "name": "auteur",
+  "packageManager": "bun@1.3.11",
+  "private": true,
+  "scripts": {
+    "build:install-modules": "[ $CI$CLAUDE_CODE_REMOTE$VERCEL ] && true || bun install",
+    "fix:lint": "biome check --max-diagnostics=none --write",
+    "gate-self-test": "bun scripts/gate-self-test.ts",
+    "gates": "bun scripts/gates.ts",
+    "test:lint": "biome check --max-diagnostics=none",
+    "test:types": "tsc --noEmit",
+    "turbo": "[ ! -d node_modules ] && bun install --frozen-lockfile; bun x turbo"
+  },
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

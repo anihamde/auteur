@@ -1,0 +1,14 @@
+{
+  "exports": {
+    "./base.json": "./base.json",
+    "./react.json": "./react.json"
+  },
+  "files": [
+    "base.json",
+    "react.json"
+  ],
+  "name": "@auteur/tsconfig",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0"
+}
