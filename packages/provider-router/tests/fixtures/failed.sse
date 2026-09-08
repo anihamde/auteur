@@ -1,0 +1,6 @@
+event: response.created
+data: {"type":"response.created","response":{"created_at":1770000000,"error":null,"id":"r001","incomplete_details":null,"instructions":null,"metadata":null,"model":"gpt-5","object":"response","output":[],"output_text":"","parallel_tool_calls":false,"status":"in_progress","temperature":1,"tool_choice":"auto","tools":[],"top_p":1},"sequence_number":1}
+
+event: response.failed
+data: {"type":"response.failed","response":{"created_at":1770000000,"error":{"code":"server_error","message":"all candidates failed"},"id":"r001","incomplete_details":null,"instructions":null,"metadata":null,"model":"gpt-5","object":"response","output":[],"output_text":"","parallel_tool_calls":false,"status":"failed","temperature":1,"tool_choice":"auto","tools":[],"top_p":1},"sequence_number":2}
+

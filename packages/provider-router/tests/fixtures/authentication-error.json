@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "invalid_api_key",
+    "message": "Incorrect API key provided: sk-proj-test-key-not-a-real-credential.",
+    "param": null,
+    "type": "invalid_request_error"
+  }
+}

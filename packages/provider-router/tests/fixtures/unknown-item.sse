@@ -1,0 +1,6 @@
+event: response.created
+data: {"type":"response.created","response":{"created_at":1770000000,"error":null,"id":"r001","incomplete_details":null,"instructions":null,"metadata":null,"model":"gpt-5","object":"response","output":[],"output_text":"","parallel_tool_calls":false,"status":"in_progress","temperature":1,"tool_choice":"auto","tools":[],"top_p":1},"sequence_number":1}
+
+event: response.completed
+data: {"type":"response.completed","response":{"created_at":1770000000,"error":null,"id":"r001","incomplete_details":null,"instructions":null,"metadata":null,"model":"gpt-5","object":"response","output":[{"id":"ct_1","type":"custom_tool_call","call_id":"c1","name":"shell","input":"ls"}],"output_text":"","parallel_tool_calls":false,"status":"completed","temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"usage":{"input_tokens":1200,"input_tokens_details":{"cached_tokens":200},"output_tokens":48,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":1248}},"sequence_number":2}
+
