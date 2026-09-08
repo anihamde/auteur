@@ -38,6 +38,7 @@
   "private": true,
   "scripts": {
     "build:install-modules": "[ $CI$CLAUDE_CODE_REMOTE$VERCEL ] && true || bun install",
+    "decisions:index": "bun scripts/decisions-index.ts",
     "fix:api-surface": "bun scripts/api-surface.ts",
     "fix:lint": "biome check --max-diagnostics=none --write",
     "gate-self-test": "bun scripts/gate-self-test.ts",
@@ -47,7 +48,9 @@
     "test:api-surface": "bun scripts/api-surface.ts --check",
     "test:bun-version": "bun scripts/check-bun-version.ts",
     "test:catalog": "bun scripts/check-catalog.ts",
+    "test:decisions": "bun scripts/decisions-index.ts --check",
     "test:generated": "bun scripts/new-package.ts --check",
+    "test:guidelines": "bun scripts/check-guidelines.ts",
     "test:lint": "biome check --max-diagnostics=none",
     "test:migrations": "bun scripts/check-migrations.ts",
     "test:sql-literals": "bun scripts/check-sql-literals.ts",

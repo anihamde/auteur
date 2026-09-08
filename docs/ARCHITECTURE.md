@@ -1987,8 +1987,8 @@ rule that is not a gate is a rule that decays.** §11.2's gates are that half,
 and gate 10 extends it to the guidelines themselves: a seeded document edited in
 place fails the build.
 
-So auteur's `AGENTS.md` is the generated index, `docs/guidelines/` holds the 24
-seeded documents, and `docs/guidelines/local/` holds the six auteur-specific
+So auteur's `AGENTS.md` is the generated index, `docs/guidelines/` holds the 25
+seeded documents, and `docs/guidelines/local/` holds the five auteur-specific
 ones. The rules below are what the local set and the index carry beyond the
 seed:
 
@@ -2012,9 +2012,12 @@ enforce the load-bearing half regardless.
 
 ### 11.2 The gates
 
-Ten, all in CI, each with a self-test proving it can fail (nexus's
+Fifteen, all in CI, each with a self-test proving it can fail (nexus's
 `gate-self-test.ts`, taken verbatim — a gate nobody has watched reject a defect
-is a gate nobody knows works).
+is a gate nobody knows works). This section listed ten; five were added during
+implementation and `scripts/gates.ts` is the registry, so CI invokes
+`bun run gates` rather than any gate by name and adding one needs no workflow
+edit. Decision `0003` records two of them.
 
 | # | Gate | What it catches |
 |---|---|---|
@@ -2027,7 +2030,12 @@ is a gate nobody knows works).
 | 7 | `tokens`' preset test | A token value that no longer matches the design CSS (§8.1) |
 | 8 | `provenance-suite` | Invariant 2. Below |
 | 9 | `dependency-min-age` | A dependency version younger than the release-age window |
-| 10 | `check-guidelines.ts --check` | A seeded guideline edited in place, an index that no longer matches what was ported, or a `local/` override naming a document that was not (§11.1) |
+| 10 | `check-guidelines.ts` | A seeded guideline edited in place, an index that no longer matches what was ported, a `local/` override naming a document that was not, an addendum promoting a document that is already ALWAYS, or an upstream guideline the lock classifies as neither taken nor not taken (§11.1) |
+| 11 | `turbo build` | A package no other gate exercises, resolved through the bundler as the deploy will build it |
+| 12 | `check-bun-version.ts` | The pinned bun version and the `engines` floor disagreeing |
+| 13 | `check-sql-literals.ts` | A value interpolated into a SQL literal rather than bound. `identifier()` and `columns()` are the two sanctioned escapes — decision `0003` |
+| 14 | `check-migrations.ts` | A migration that expands and contracts in one file, a gap in the versions, or a generated manifest behind the files |
+| 15 | `decisions-index.ts --check` | `docs/DECISIONS.md` behind `docs/decisions/` |
 
 Plus two scripts that need credentials and therefore run on demand rather than
 in CI: `check-router-catalogue.ts` (the catalog against `GET /v1/models`) and
