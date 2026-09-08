@@ -288,9 +288,13 @@
       "version": "0.0.0",
       "dependencies": {
         "@auteur/tokens": "workspace:*",
+        "lucide-react": "catalog:",
+        "react": "catalog:",
       },
       "devDependencies": {
+        "@auteur/test-support": "workspace:*",
         "@types/bun": "catalog:",
+        "@types/react": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -524,9 +528,11 @@
         "@happy-dom/global-registrator": "catalog:",
         "@testing-library/react": "catalog:",
         "axe-core": "catalog:",
+        "react": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@types/react": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -573,6 +579,7 @@
     "axe-core": "^4.13.0",
     "fast-check": "^4.9.0",
     "hono": "^4.13.5",
+    "lucide-react": "^0.548.0",
     "openai": "^7.5.0",
     "pg": "^8.23.0",
     "react": "^19.2.8",
@@ -1058,6 +1065,8 @@
     "lodash.truncate": ["lodash.truncate@4.4.2", "", {}, "sha512-jttmRe7bRse52OsWIMDLaXxWqRAmtIUccAQ3garviCqJjafXOfNMO0yMfNpdD6zbGaTU0P5Nz7e7gAT6cKmJRw=="],
 
     "look-it-up": ["look-it-up@2.1.0", "", {}, "sha512-nMoGWW2HurtuJf6XAL56FWTDCWLOTSsanrgwOyaR5Y4e3zfG5N/0cU5xWZSEU3tBxhQugRbV1xL9jb+ug7yZww=="],
+
+    "lucide-react": ["lucide-react@0.548.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-63b16z63jM9yc1MwxajHeuu0FRZFsDtljtDjYm26Kd86UQ5HQzu9ksEtoUUw4RBuewodw/tGFmvipePvRsKeDA=="],
 
     "lz-string": ["lz-string@1.5.0", "", { "bin": { "lz-string": "bin/bin.js" } }, "sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ=="],
 

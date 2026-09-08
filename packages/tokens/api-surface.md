@@ -8,11 +8,17 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/tokens/conditions`
 
 ```ts
-export const unimplemented = (): never =>
+export const COLLAPSED_DURATIONS = [
+export const conditions =
+export const reducedMotionCss = (): string =>
 ```
 
 ## `@auteur/tokens/preset`
 
 ```ts
-export const unimplemented = (): never =>
+export const DEFAULT_KEY = "DEFAULT"
+export const designVariables = (): Map<string, string> =>
+export const pathOf = (name: string): string =>
+export const preset = (): Preset => presetFrom(designVariables())
+export const presetFrom = (variables: ReadonlyMap<string, string>): Preset =>
 ```

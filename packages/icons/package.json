@@ -1,9 +1,13 @@
 {
   "dependencies": {
-    "@auteur/tokens": "workspace:*"
+    "@auteur/tokens": "workspace:*",
+    "lucide-react": "catalog:",
+    "react": "catalog:"
   },
   "devDependencies": {
+    "@auteur/test-support": "workspace:*",
     "@types/bun": "catalog:",
+    "@types/react": "catalog:",
     "typescript": "catalog:"
   },
   "exports": {
