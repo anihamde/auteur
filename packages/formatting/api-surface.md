@@ -8,35 +8,36 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/formatting/elapsed`
 
 ```ts
-export const unimplemented = (): never =>
+export const elapsed = (millis: number): string =>
 ```
 
 ## `@auteur/formatting/meta-row`
 
 ```ts
-export const unimplemented = (): never =>
+export const metaRow = (parts: readonly (string | undefined)[]): string =>
 ```
 
 ## `@auteur/formatting/money`
 
 ```ts
-export const unimplemented = (): never =>
+export const money = (micros: number): string =>
 ```
 
 ## `@auteur/formatting/pluralize`
 
 ```ts
-export const unimplemented = (): never =>
+export const formatCount = (count: number): string =>
+export const pluralize = (
 ```
 
 ## `@auteur/formatting/prosody-value`
 
 ```ts
-export const unimplemented = (): never =>
+export const prosodyValue = (value: number, unit: ProsodyUnit): string =>
 ```
 
 ## `@auteur/formatting/relative-time`
 
 ```ts
-export const unimplemented = (): never =>
+export const relativeTime = (at: number, now: number): string =>
 ```
