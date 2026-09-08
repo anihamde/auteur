@@ -1,0 +1,185 @@
+# auteur CI — every gate, on every pull request and on main.
+#
+# This file is written by the build session to `ci/workflows/` and moved into
+# `.github/workflows/` by a human, because an OAuth app without `workflow`
+# scope cannot push to that directory. See docs/CI-HANDOVER.md.
+#
+# It is written ONCE and is not expected to change. Gates do not appear here by
+# name: the jobs invoke `bun run gates` and `bun run gate-self-test`, and
+# `scripts/gates.ts` is the registry each gate script adds itself to. Adding a
+# gate is therefore an ordinary pull request with no workflow edit and no
+# second handover.
+#
+# Until the repository has a root package.json (work package A1), every job
+# short-circuits green with a notice. That is deliberate: this file is added
+# ahead of the code so nothing can merge unchecked, and a docs-only pull
+# request should not fail for lacking a toolchain.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A superseded run is cancelled rather than left to finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: "1.3.11"
+  TURBO_TELEMETRY_DISABLED: "1"
+  DO_NOT_TRACK: "1"
+
+jobs:
+  # ---------------------------------------------------------------- verify
+  # Gates 1, 2, 3 and the contract checks turbo's own `test` task carries.
+  verify:
+    name: Lint, types, unit tests, contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # --affected needs enough history to diff against the base ref.
+          fetch-depth: 0
+
+      - name: Is the toolchain here yet?
+        id: bootstrap
+        run: |
+          if [ -f package.json ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No root package.json yet — the toolchain lands in WP-A1. Skipping."
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.bootstrap.outputs.ready == 'true'
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Restore turbo cache
+        if: steps.bootstrap.outputs.ready == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-verify-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-verify-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
+            turbo-verify-${{ runner.os }}-
+
+      - name: Install
+        if: steps.bootstrap.outputs.ready == 'true'
+        run: bun install --frozen-lockfile
+
+      # On a pull request, run only what the change affects. On main, run
+      # everything, so a cache miss can never hide a break on the trunk.
+      - name: Gates 1, 2, 3 — lint, types, unit tests
+        if: steps.bootstrap.outputs.ready == 'true'
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bun run turbo test \
+              --affected \
+              --concurrency=100% \
+              --cache-dir=.turbo
+          else
+            bun run turbo test \
+              --concurrency=100% \
+              --cache-dir=.turbo
+          fi
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
+
+  # ------------------------------------------------------------------ gates
+  # Every repository-level gate, plus the self-test that proves each one can
+  # reject its own defect. Runs in parallel with `verify` — neither depends on
+  # the other.
+  gates:
+    name: Repository gates, and their self-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Is the toolchain here yet?
+        id: bootstrap
+        run: |
+          if [ -f package.json ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No root package.json yet — the toolchain lands in WP-A1. Skipping."
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.bootstrap.outputs.ready == 'true'
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install
+        if: steps.bootstrap.outputs.ready == 'true'
+        run: bun install --frozen-lockfile
+
+      # The registry in scripts/gates.ts. Each gate script registers itself
+      # there, so this step never changes as gates are added.
+      - name: Every registered gate
+        if: steps.bootstrap.outputs.ready == 'true'
+        run: bun run gates
+
+      # A gate nobody has watched reject a defect is a gate nobody knows works.
+      - name: Gate self-test — every gate must reject its own defect
+        if: steps.bootstrap.outputs.ready == 'true'
+        run: bun run gate-self-test
+
+  # ------------------------------------------------------------------ build
+  # Gate 11. The only task that resolves the whole graph through a bundler, so
+  # it is the only one that catches a package no other gate exercises. Becomes
+  # meaningful at WP-R1, when there is first a bundle to build.
+  build:
+    name: The client bundles as the deploy will build it
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Is there anything to build yet?
+        id: bootstrap
+        run: |
+          if [ -f package.json ] && [ -d apps/auteur-web ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No bundle yet — the client lands in WP-R1. Skipping."
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.bootstrap.outputs.ready == 'true'
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Restore turbo cache
+        if: steps.bootstrap.outputs.ready == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-build-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-build-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
+            turbo-build-${{ runner.os }}-
+
+      - name: Install
+        if: steps.bootstrap.outputs.ready == 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        if: steps.bootstrap.outputs.ready == 'true'
+        run: bun run turbo build --concurrency=100% --cache-dir=.turbo
