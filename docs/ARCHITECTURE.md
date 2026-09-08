@@ -14,9 +14,11 @@ Sources, in precedence order for anything this document does not say:
 
 Where those three disagree with each other, §13 says what is built and why.
 
-Stack: Bun + Turborepo + Biome · TypeScript · Hono + `bun:sqlite` + SSE on the
-server · Vite + React + PandaCSS in the browser · Ramp Router as the model
-gateway behind a provider seam. Single-user, runs locally, no accounts.
+Stack: Bun + Turborepo + Biome · TypeScript · Postgres on Neon, hand-written
+SQL, no ORM · Vite + React + PandaCSS on Vercel with every route a function
+· one function invocation per pipeline stage, chained through a durable queue ·
+Ramp Router as the model gateway behind a provider seam. Single-user, no
+accounts; deployed rather than local (§7).
 
 ---
 
@@ -49,8 +51,7 @@ seven-stage pipeline from being undebuggable.
 
 ```
 apps/
-  auteur-server/          Hono, bun:sqlite, SSE
-  auteur-web/             Vite + React, the seven-step wizard
+  auteur-web/             Vite + React client and all fourteen routes, on Vercel
 packages/
   foundation:  ids  core  errors  env  logger  text  prosody
                tokens  icons  copy  formatting
@@ -95,7 +96,7 @@ Two packages are foundation-layer that a reader might expect elsewhere:
 | `icons` | The Lucide binding, and the only way to draw an icon |
 | `copy` | Every user-facing string, with the content rules asserted by test |
 | `formatting` | Presentation rules: elapsed times, counts, money, prosody numbers |
-| `db` | `bun:sqlite` connection and SQL primitives. Knows no domain |
+| `db` | `pg` connection handling, pooled and direct, and SQL primitives. Knows no domain |
 | `migrations` | The ordered SQL ledger and the runner that applies it on access |
 | `session-store` | Sessions, answers, artifacts and their staleness |
 | `card-store` | The style-card cache, versioned per author |
@@ -169,7 +170,10 @@ named here. `pattern` means the approach is copied and the code is not.
 | `api-contract` / `api-client` | nexus | **pattern.** One zod object, routes enumerated from it, client generated from it — so a contract change breaks both sides' compile at once. auteur has 14 routes rather than 31. |
 | `stream-client` | nexus `loop-client` | **adapted.** The cursor / replay / de-duplicate contract verbatim; the events are auteur's. |
 | `run-store` | nexus | **pattern into `event-store`.** Append to the table, then fan out — never the reverse — and a gap-free per-session `seq` (§7.3). |
-| `migrations` | nexus | **adapted.** The inlined-manifest-plus-checksum ledger applied by `ensureSchema()` on access, with nobody running a migration by hand. SQLite specifics in §3.1. |
+| `deployment` topology | nexus | **not taken.** nexus splits Vercel and Fly because its agent loop is a tool loop of unbounded length. auteur's stages are individually bounded (§7), so one function per stage replaces the machine. What is taken is nexus's *reason* for having a durable log at all. |
+| `migrations` | nexus | **verbatim in approach and close to it in code.** The inlined-manifest-plus-checksum ledger applied by `ensureSchema()` on access under `pg_advisory_lock`, with nobody running a migration by hand. §3.3. |
+| `db` | nexus | **adapted.** `pg` primitives verbatim; auteur adds the pooled-versus-direct distinction §3.1 needs and drops the scope argument it has no use for. |
+| `run-store` sweeper | nexus | **adapted into `stage-queue`.** §7.3. Taken for a different failure than nexus's — a lost invocation rather than a dying machine — but the same shape: claim, stamp, sweep what went stale. |
 | `scripts/` toolchain | nexus | **verbatim.** `packages.manifest.ts`, `check-dependencies.ts`, `api-surface.ts`, `new-package.ts`, `package-tests.ts`, `check-catalog.ts`, `preflight.ts`, `gate-self-test.ts`. |
 | `turbo.json`, `biome.json`, `bunfig.toml`, `.github/workflows/ci.yml` | nexus | **adapted.** Concurrency group, `--affected` on pull requests, `--concurrency=100%`, cache restore keyed on the lockfile. |
 | `dependency-min-age` | argo-browser | **verbatim,** with `minimumReleaseAge` in `bunfig.toml`. It closes a real hole: Bun grandfathers versions already in the lockfile. |
@@ -182,7 +186,6 @@ named here. `pattern` means the approach is copied and the code is not.
 | argo `agent-loop` | The PRD takes it as a contract only. nexus's `model-provider` is that contract, and taking it instead is what lets `provider-router` land unmodified. |
 | argo `model-client-anthropic`, nexus's absent equivalent | The PRD keeps it for a direct-Anthropic fallback. Deferred: a second adapter is a second wire format to keep correct, and the seam is what makes it a later decision rather than a refactor. `provider-router`'s conformance test is what keeps the seam honest with one implementation behind it — see nexus's `DECISIONS.md` on exactly this. |
 | argo `transport-ws`, `protocol-loop` | The PRD's call, and it is right. auteur streams one direction. |
-| nexus `db`, `migrations` runner internals | `pg`. Rewritten for `bun:sqlite`; the ledger design survives, the driver code does not. |
 | nexus `scope`, `authz`, `auth`, the stores | Single-user. There is no workspace boundary and no membership, so the branded-scope machinery guards nothing. |
 | nexus `retrieval`, `web-search`, `blob`, `email`, `extraction`, `memory`, `merge`, `assets` | No retrieval (PRD §4 explicitly), no uploads, no web research in v1. |
 | nexus `agent-loop`, `agent-tools`, `loop-client`'s `useRun` | auteur's pipeline is deterministic stages, not a tool loop. `clarify` re-enters itself but it is a bounded `for` loop over a stage, not an agent. |
@@ -192,134 +195,157 @@ named here. `pattern` means the approach is copied and the code is not.
 
 ## 3. Persistence
 
-**`[open]` in `PRD.md` §12 — resolved: yes, SQLite via `bun:sqlite`.** Style
-cards cost real money and minutes to build and are worth caching across
-sessions; a half-finished wizard must survive a reload; and the durable event
-log that makes the SSE stream replayable (§7.3) needs somewhere to live. In
-`bun:sqlite` all of that costs one file and no process.
+**`[open]` in `PRD.md` §12 — resolved: Postgres on Neon.** An earlier draft of
+this section resolved it to `bun:sqlite`, on the reasoning that a single-user
+local app should not operate a database. That reasoning was right for a local
+app and is void for a deployed one: §7's topology puts the short routes on
+Vercel functions, and a function's filesystem is ephemeral and per-invocation,
+so a file-backed database is not reachable from them at all. Neon is the
+transactional store; nothing else is a system of record.
+
+Three things this buys back, each of which was a cost in the SQLite draft:
+
+- **nexus's `db` and `migrations` come across close to verbatim** rather than
+  being rewritten for a second driver (§2). The advisory-lock migration runner,
+  the connection handling and the query primitives are all `pg`, which is what
+  they were written against.
+- **The `database` and `migrations` guidelines apply unmodified.** They are
+  written for exactly this — Postgres on Neon, hand-written SQL, no ORM, the
+  server converging the schema on access.
+- **Serverless connection discipline is a solved problem here**, where under
+  SQLite it was an unsolvable one: Vercel functions use Neon's pooled endpoint,
+  a streaming `LISTEN` connection uses the direct endpoint (§7).
 
 ### 3.1 Conventions
 
-- **UUIDv7 primary keys**, minted in TypeScript by `ids`, stored as `text`.
+- **UUIDv7 primary keys**, minted in TypeScript by `ids`, stored as `uuid`.
   Time-ordered, so rows index and paginate by id and no separate sort column is
-  needed.
-- **`text` + `CHECK` instead of an enum**, mirroring cleanly onto a TypeScript
-  union. SQLite has no enum type; the `CHECK` is what makes the union
-  enforceable at the storage layer.
-- **Timestamps are integer milliseconds since the epoch**, UTC. `bun:sqlite`
-  round-trips integers exactly and this avoids the string-format ambiguity of
-  SQLite's date functions. `core` converts at the boundary; no domain type
-  carries a number where a moment is meant.
-- **JSON columns hold documents, not relations.** A style card, an outline and a
-  prosody block are each one `text` column of JSON, parsed with zod on read
+  needed. Minted in the application rather than by the database so an id exists
+  before the insert, which is what lets an event reference a row it is written
+  beside.
+- **`text` + `CHECK` instead of an enum type.** A `CHECK` mirrors cleanly onto a
+  TypeScript union and is altered by a migration; a Postgres `enum` type is
+  altered by a DDL statement with its own transactional rules, for no gain.
+- **`timestamptz`**, always UTC, never a bare `timestamp`. `core` converts at
+  the boundary; no domain type carries a number where a moment is meant.
+- **`jsonb` columns hold documents, not relations.** A style card, an outline
+  and a prosody block are each one `jsonb` column, parsed with zod on read
   (invariant 4). They are read whole, written whole, and never queried into.
   Anything that *is* queried — a session's step, an author id, a card version —
-  is a real column.
-- **Pragmas, set once on open:** `journal_mode = WAL`, `synchronous = NORMAL`,
-  `foreign_keys = ON`, `busy_timeout = 5000`. WAL is what lets the SSE reader
-  and the pipeline writer coexist; `foreign_keys` is off by default in SQLite
-  and every `ON DELETE CASCADE` below is silently inert without it.
-- **One writer.** The server is one process, so there is no write-contention
-  design to do. `busy_timeout` covers the reader.
+  is a real column. `jsonb` rather than `json` so equality and containment work
+  if a query ever needs them, at no cost on write.
+- **Two connection modes, and the seam between them is `env`.** Almost every
+  function opens against Neon's **pooled** endpoint, because instances are
+  plural and short-lived and a direct connection per invocation exhausts the
+  server. The one exception is the SSE route, which opens the **direct**
+  endpoint because `LISTEN` is a session-level feature that pooled-mode
+  PgBouncer does not support, and holds it for the life of the stream. `env`
+  exposes both; a test asserts no route but the SSE one reads the direct URL.
+- **One writer per session, not per database.** Postgres has real concurrency,
+  so the SQLite draft's "one writer" simplification is gone. What replaces it is
+  narrower and is the property that actually matters: a session's stages run in
+  exactly one runner process at a time, enforced by `stage_runs` and the
+  dispatch lock in §7.3.
 
 ### 3.2 Schema
 
 ```sql
 -- Sessions: one wizard run.
 CREATE TABLE sessions (
-  id            TEXT PRIMARY KEY,
-  step          TEXT NOT NULL CHECK (step IN
+  id            uuid PRIMARY KEY,
+  step          text NOT NULL CHECK (step IN
                   ('idea','author','research','clarify','outline','draft','result')),
-  idea          TEXT NOT NULL,              -- verbatim, never rewritten
-  constraints   TEXT,                       -- the "hard constraints" field
-  length_preset TEXT NOT NULL CHECK (length_preset IN
+  idea          text NOT NULL,              -- verbatim, never rewritten
+  constraints   text,                       -- the "hard constraints" field
+  length_preset text NOT NULL CHECK (length_preset IN
                   ('flash','short','long','novelette')),
-  author_id     TEXT REFERENCES authors(id),
-  card_id       TEXT REFERENCES style_cards(id),
-  created_at    INTEGER NOT NULL,
-  updated_at    INTEGER NOT NULL
+  author_id     text REFERENCES authors(id),
+  card_id       uuid REFERENCES style_cards(id),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
 );
 
 -- Authors, as the corpus index knows them. One row per resolved author,
--- not per search result.
+-- not per search result. The id is provider-scoped and minted, not a uuid:
+-- "gutenberg:borges-jorge-luis-1899". §5.2
 CREATE TABLE authors (
-  id            TEXT PRIMARY KEY,           -- "gutenberg:borges-jorge-luis". §5.2
-  provider      TEXT NOT NULL CHECK (provider IN ('gutenberg')),
-  kind          TEXT NOT NULL CHECK (kind IN ('full-text','secondary')),
-  display_name  TEXT NOT NULL,
-  birth_year    INTEGER,
-  death_year    INTEGER,
-  work_count    INTEGER NOT NULL,
-  measured_words INTEGER,                   -- NULL until a corpus is fetched (§5.3)
-  fetched_at    INTEGER
+  id            text PRIMARY KEY,
+  provider      text NOT NULL CHECK (provider IN ('gutenberg')),
+  kind          text NOT NULL CHECK (kind IN ('full-text','secondary')),
+  display_name  text NOT NULL,
+  birth_year    integer,
+  death_year    integer,
+  work_count    integer NOT NULL,
+  measured_words integer,                   -- NULL until a corpus is fetched (§5.3)
+  fetched_at    timestamptz
 );
 
 -- The style-card cache. Canonical, shared across sessions, never edited.
 CREATE TABLE style_cards (
-  id            TEXT PRIMARY KEY,
-  author_id     TEXT NOT NULL REFERENCES authors(id),
-  version       INTEGER NOT NULL,           -- 1, 2, 3 … per author. "borges@3"
-  build_key     TEXT NOT NULL,              -- §4.4. Identity of the inputs
-  provenance    TEXT NOT NULL CHECK (provenance IN ('full-text','secondary')),
-  confidence    REAL NOT NULL,              -- citation coverage. §4.5
-  card          TEXT NOT NULL,              -- the whole StyleCard, JSON
-  built_at      INTEGER NOT NULL,
+  id            uuid PRIMARY KEY,
+  author_id     text NOT NULL REFERENCES authors(id),
+  version       integer NOT NULL,           -- 1, 2, 3 … per author. "borges@3"
+  build_key     text NOT NULL,              -- §4.4. Identity of the inputs
+  provenance    text NOT NULL CHECK (provenance IN ('full-text','secondary')),
+  confidence    real NOT NULL,              -- citation coverage. §4.5
+  card          jsonb NOT NULL,             -- the whole StyleCard
+  built_at      timestamptz NOT NULL DEFAULT now(),
   UNIQUE (author_id, version),
   UNIQUE (build_key)
 );
 
 -- Per-session overrides. Never merged into style_cards.
 CREATE TABLE card_overlays (
-  session_id    TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-  card_id       TEXT NOT NULL REFERENCES style_cards(id),
-  fields        TEXT NOT NULL               -- { [path]: { value, origin } }, JSON
+  session_id    uuid PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+  card_id       uuid NOT NULL REFERENCES style_cards(id),
+  fields        jsonb NOT NULL              -- { [path]: { value, origin } }
 );
 
 -- Per-session model pins over the tier defaults. Same layering as the overlay.
 CREATE TABLE stage_pins (
-  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  stage_id      TEXT NOT NULL,
-  model_id      TEXT NOT NULL,
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  stage_id      text NOT NULL,
+  model_id      text NOT NULL,
   PRIMARY KEY (session_id, stage_id)
 );
 
 -- Corpus works and the passages selected from them.
 CREATE TABLE works (
-  id            TEXT PRIMARY KEY,           -- "gutenberg:1234"
-  author_id     TEXT NOT NULL REFERENCES authors(id),
-  title         TEXT NOT NULL,
-  year          INTEGER,
-  language      TEXT NOT NULL,
-  translator    TEXT,                       -- when gutendex reports one (§5.2)
-  source_url    TEXT NOT NULL,
-  cleaner_version TEXT NOT NULL,            -- §4.2
-  word_count    INTEGER NOT NULL,
-  text          TEXT NOT NULL,              -- cleaned full text
-  fetched_at    INTEGER NOT NULL,
+  id            text PRIMARY KEY,           -- "gutenberg:1234"
+  author_id     text NOT NULL REFERENCES authors(id),
+  title         text NOT NULL,
+  year          integer,
+  language      text NOT NULL,
+  translator    text,                       -- when gutendex reports one (§5.2)
+  source_url    text NOT NULL,
+  cleaner_version text NOT NULL,            -- §4.2
+  word_count    integer NOT NULL,
+  text          text NOT NULL,              -- cleaned full text
+  fetched_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (source_url, cleaner_version)      -- the cache key. §5.4
 );
 
 CREATE TABLE passages (
-  id            TEXT PRIMARY KEY,
-  work_id       TEXT NOT NULL REFERENCES works(id) ON DELETE CASCADE,
-  char_start    INTEGER NOT NULL,
-  char_end      INTEGER NOT NULL,
-  text          TEXT NOT NULL               -- verbatim. Exemplars cite this row
+  id            uuid PRIMARY KEY,
+  work_id       text NOT NULL REFERENCES works(id) ON DELETE CASCADE,
+  char_start    integer NOT NULL,
+  char_end      integer NOT NULL,
+  text          text NOT NULL               -- verbatim. Exemplars cite this row
 );
 
 -- Questions form a tree, not a list (PRD §6).
 CREATE TABLE questions (
-  id            TEXT PRIMARY KEY,
-  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  round         INTEGER NOT NULL CHECK (round BETWEEN 1 AND 3),
-  ordinal       INTEGER NOT NULL,
-  text          TEXT NOT NULL,
-  decision      TEXT NOT NULL,              -- what it resolves. Non-empty (§6.5)
-  why_asked     TEXT NOT NULL,              -- why the answers so far did not settle it
-  suggestions   TEXT NOT NULL,              -- string[], JSON
-  depends_on    TEXT NOT NULL,              -- questionId[], JSON
-  answer        TEXT,                       -- NULL = unanswered
-  answer_state  TEXT NOT NULL CHECK (answer_state IN
+  id            uuid PRIMARY KEY,
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  round         integer NOT NULL CHECK (round BETWEEN 1 AND 3),
+  ordinal       integer NOT NULL,
+  text          text NOT NULL,
+  decision      text NOT NULL,              -- what it resolves. Non-empty (§6.5)
+  why_asked     text NOT NULL,              -- why the answers so far did not settle it
+  suggestions   jsonb NOT NULL,             -- string[]
+  depends_on    jsonb NOT NULL,             -- questionId[]
+  answer        text,                       -- NULL = unanswered
+  answer_state  text NOT NULL CHECK (answer_state IN
                   ('open','answered','skipped','invalidated')),
   UNIQUE (session_id, round, ordinal)
 );
@@ -327,54 +353,79 @@ CREATE TABLE questions (
 -- Stage artifacts: outline, draft, report, and the decisions log.
 -- input_key is what makes staleness a computed fact rather than a flag (§7.5).
 CREATE TABLE artifacts (
-  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  kind          TEXT NOT NULL CHECK (kind IN
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  kind          text NOT NULL CHECK (kind IN
                   ('outline','draft','report','decisions')),
-  input_key     TEXT NOT NULL,
-  body          TEXT NOT NULL,              -- JSON, or markdown for 'draft'
-  created_at    INTEGER NOT NULL,
+  input_key     text NOT NULL,
+  body          jsonb NOT NULL,             -- markdown for 'draft' is a JSON string
+  created_at    timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (session_id, kind)
 );
 
 -- The durable event log. §7.3.
 CREATE TABLE events (
-  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  seq           INTEGER NOT NULL,           -- gap-free, per session, from 1
-  type          TEXT NOT NULL,
-  payload       TEXT NOT NULL,              -- JSON
-  created_at    INTEGER NOT NULL,
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  seq           integer NOT NULL,           -- gap-free, per session, from 1
+  type          text NOT NULL,
+  payload       jsonb NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (session_id, seq)
 );
 
 -- One row per provider call. The cost line in the rail footer sums this.
 CREATE TABLE stage_runs (
-  id            TEXT PRIMARY KEY,
-  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  stage_id      TEXT NOT NULL,
-  attempt       INTEGER NOT NULL,
-  model_id      TEXT,                       -- NULL for a deterministic stage
-  tier          TEXT CHECK (tier IN ('cheap','balanced','strong')),
-  status        TEXT NOT NULL CHECK (status IN ('running','ok','error','cancelled')),
-  input_tokens  INTEGER,
-  cached_input_tokens INTEGER,
-  output_tokens INTEGER,
-  cost_micros   INTEGER,                    -- §10.2. Declared, not billed
-  started_at    INTEGER NOT NULL,
-  finished_at   INTEGER,
-  error_code    TEXT
+  id            uuid PRIMARY KEY,
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  stage_id      text NOT NULL,
+  attempt       integer NOT NULL,
+  model_id      text,                       -- NULL for a deterministic stage
+  tier          text CHECK (tier IN ('cheap','balanced','strong')),
+  status        text NOT NULL CHECK (status IN ('running','ok','error','cancelled')),
+  input_tokens  integer,
+  cached_input_tokens integer,
+  output_tokens integer,
+  cost_micros   bigint,                     -- §10.2. Declared, not billed
+  started_at    timestamptz NOT NULL DEFAULT now(),
+  finished_at   timestamptz,
+  error_code    text
+);
+
+-- One row per session with a run in flight. §7.3's run claim and the cancel
+-- flag live here; a session with no row has no run in flight.
+CREATE TABLE session_runs (
+  session_id    uuid PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+  claimed_by    text NOT NULL,              -- the invocation that claimed it
+  status        text NOT NULL CHECK (status IN ('running','done','error','cancelled')),
+  cancel_requested boolean NOT NULL DEFAULT false,
+  started_at    timestamptz NOT NULL DEFAULT now(),
+  finished_at   timestamptz
+);
+
+-- The durable stage chain. A stage's last act is to enqueue the next one;
+-- a cron sweep re-invokes anything a lost invocation left behind. §7.
+CREATE TABLE stage_queue (
+  id            uuid PRIMARY KEY,
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  stage_id      text NOT NULL,
+  status        text NOT NULL CHECK (status IN ('queued','claimed','done','error')),
+  attempt       integer NOT NULL DEFAULT 0,
+  claimed_by    text,                       -- the invocation holding it
+  claimed_at    timestamptz,
+  enqueued_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (session_id, stage_id, attempt)
 );
 
 CREATE TABLE stories (
-  session_id    TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-  title         TEXT,
-  markdown      TEXT NOT NULL,
-  word_count    INTEGER NOT NULL,
-  prosody       TEXT NOT NULL,              -- the draft's own measured block, JSON
-  created_at    INTEGER NOT NULL
+  session_id    uuid PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+  title         text,
+  markdown      text NOT NULL,
+  word_count    integer NOT NULL,
+  prosody       jsonb NOT NULL,             -- the draft's own measured block
+  created_at    timestamptz NOT NULL DEFAULT now()
 );
 ```
 
-Three properties worth naming:
+Four properties worth naming:
 
 - **`works.text` holds the cleaned full text.** A corpus is tens of megabytes at
   most and prosody is recomputed whenever the segmenter's version changes
@@ -386,35 +437,44 @@ Three properties worth naming:
   on the card holding quotation text that a write could reach.
 - **`style_cards.build_key` is unique.** Rebuilding a card with identical
   inputs is a cache hit, not a version 4 (§4.4).
+- **`session_runs` and `stage_queue` are the whole of the distributed-systems
+  surface.** They are the two tables that exist because a stage runs in a
+  different invocation from the route that started it and from the stream
+  watching it. Everything else in this schema would be identical in a
+  single-process design.
 
 ### 3.3 Migrations
 
-nexus's design, minus the parts Postgres needed:
+nexus's design, taken close to verbatim because the driver is now the same one
+it was written for:
 
 - `packages/migrations/sql/NNNN_name.sql` is the schema's history, one coherent
   migration per file. `0001` creates the ledger.
 - `bun run build` inlines every file into `src/generated/manifest.ts` as
   `{ version, name, sql, checksum }`, committed. Inlined rather than read from
-  disk so a bundled server cannot find zero migrations at runtime — the worst
-  failure this package has.
-- `ensureSchema()` runs on server access. Fast path is one statement
+  disk so a bundled serverless function cannot find zero migrations at runtime —
+  the worst failure this package has, and the one nexus actually shipped.
+- `ensureSchema()` runs on access. Fast path is one statement
   (`SELECT max(version) FROM _auteur_migrations`), memoized in a module-level
   promise. Only when that says the database is behind does it take
-  `BEGIN IMMEDIATE`, re-read the ledger, verify checksums, and apply each
-  pending migration in its own transaction with its ledger row written inside
-  it. There is no advisory lock because there is no second process; `BEGIN
-  IMMEDIATE` is what serialises a second *instance* of the same server.
+  `pg_advisory_lock(<constant>)`, re-read the ledger, verify checksums, and apply
+  each pending migration in its own transaction with its ledger row written
+  inside it. The advisory lock is what serialises every Vercel function
+  instance and a developer's laptop pointed at the same branch — which is
+  precisely the situation SQLite's `BEGIN IMMEDIATE` could not have covered.
+- It is called from two places: a request handler's first use, and a build-time
+  step, so a bad migration fails the deploy rather than the first request after
+  it.
 - **Never edit an applied migration.** Checksums are verified on every boot and
   a mismatch aborts. Rollback is a new forward migration.
 - `bun run migration:new` scaffolds a file. It does not apply one.
 
-One SQLite-specific rule: **a migration file may not contain more than one
-`ALTER TABLE` per table when the change is a rewrite.** SQLite's `ALTER TABLE`
-is narrow, so a column type change or a dropped constraint is a
-create-copy-drop-rename, and doing two of those to one table in one file makes
-the checksum's promise ("this file has been applied") harder to reason about
-than writing two files.
-
+Because a deploy replaces functions while earlier invocations are still
+finishing, **a schema change ships in expand / migrate / contract order**: add the column nullable, deploy code
+that writes both, backfill, deploy code that reads the new one, drop the old in
+a later migration. The deploy never assumes the previous version has stopped
+running. This is the `migrations` guideline's rule and it is load-bearing here
+in a way it was not in the single-process draft.
 ---
 
 ## 4. The style card
@@ -640,10 +700,31 @@ around 500 word *types* drawn by frequency from a real corpus, each tagged
 Latinate or not, checked in as a fixture. The classifier's precision and recall
 against that set are a test output, and they decide where the measure lands:
 
-| Precision on the validation set | What ships |
+**It is scored, and it carries its own provenance.** The measure ships as one of
+the five scored measures (§9.1) from the start, and the `FitMeasure` it produces
+carries a `classifier` field naming what produced it:
+
+```ts
+classifier?: {
+  kind: "suffix-proxy";
+  /** Measured against the validation set. Absent until it has been. */
+  precision?: number;
+  validated: boolean;
+};
+```
+
+Until the validation set exists the UI reads `latinate ratio (suffix proxy,
+unvalidated)`; once it does, the qualifier becomes the number —
+`latinate ratio (suffix proxy, precision 0.89)`. A reader is never shown a
+verdict without being told what produced it, which is what makes scoring an
+admitted proxy honest rather than a claim the product cannot support.
+
+The precision gate then decides whether it *stays*:
+
+| Precision on the validation set | What happens |
 |---|---|
-| At or above 0.85 | One of the five scored measures (§9.1), reported with a band and a verdict |
-| Below 0.85 | Evidence only: it goes into the drafting prompt as a register hint and out of the report entirely |
+| At or above 0.85 | Stays scored. `validated: true`, `precision` filled in, and the UI's qualifier becomes the number |
+| Below 0.85 | **Demoted**: it leaves the report entirely and goes into the drafting prompt as a register hint only. The demotion is one line, because §9.1's scored set reads `prosody`'s exported gate result rather than a literal |
 
 Two properties make that gate honest. The validation set is drawn by frequency,
 so it weights the words that actually occur rather than the dictionary's tail.
@@ -652,8 +733,9 @@ rather than a quiet fit — and a suffix list tuned until it passes is a fit to
 500 labels, which the fixture's own comment says.
 
 A deterministic proxy applied identically to corpus and draft is what the
-comparison needs. What it does not need is a proxy nobody measured, presented
-next to four measures that mean something.
+comparison needs. What it must not do is sit unlabelled next to four measures
+that are counts rather than guesses — which is what the `classifier` block above
+prevents, and why it is on this measure and on no other.
 
 `commonBigrams` are the 25 most frequent adjacent-word pairs after dropping
 pairs where both words are stopwords. They are the one measure here that is more
@@ -1286,16 +1368,76 @@ Two constraints, both from the same reasoning:
 
 ## 7. The server
 
-`apps/auteur-server` is one Hono process. It owns the database, the pipeline and
-the SSE fan-out. There is no second service and no queue: `PRD.md` §4 puts
-hosting out of scope, so the process the user started is the process that runs
-the pipeline, and a turn's lifetime is bounded by that process rather than by an
-HTTP request.
+auteur deploys as **one unit and one database**: `apps/auteur-web` on Vercel —
+the Vite client as a static build, every route as a function — and Postgres on
+Neon. There is no second service and no machine.
+
+**The pipeline runs as one function invocation per stage**, not as one
+long-running process. That is the non-obvious part of this design and it is
+worth stating why it works, because the naive reading of §6.2 says otherwise.
+
+A run is minutes end to end. But the unit of execution is the **stage**, not the
+run, and every stage is bounded:
+
+| Stage | Bounded by |
+|---|---|
+| `corpus-select`, `clarify`, `critique` | one model call |
+| `work-fetch` | twelve HTTP fetches at four concurrent |
+| `prosody-compute`, `style-fit` | pure CPU over a few hundred thousand words |
+| `style-extract`, `outline`, `revise` | one model call |
+| `draft` | one model call under `single-call`; **one call per beat** under `sequential-scene`, which §6.6 already selects for anything long |
+
+Nothing carries in memory between stages: a stage reads its inputs from
+`artifacts` and the session row, writes its output back, and appends events.
+That was already true — it is what §7.5's `input_key` staleness is computed
+over — so making each stage a separate invocation costs no design change.
+
+**Chaining is durable, not fire-and-forget.** A stage's last act inside its
+transaction is to enqueue the next stage in `stage_queue`; it then asks Vercel
+to invoke the next one and returns. If that invocation is lost — a cold start
+that fails, a deploy mid-run — the row is still queued, and a one-minute cron
+sweep picks it up. Claiming a row is a conditional update, so a sweep racing a
+live invocation cannot run a stage twice.
+
+**Streaming works because the durable log already came first.** §7.3's ordering
+rule — every event is written to `events` before it is pushed to any subscriber
+— means the table, not a broker, is the source of truth. So `GET /events` is a
+streaming function that replays from the cursor and then waits on Postgres
+`LISTEN`/`NOTIFY` for the session's channel; the stage function `NOTIFY`s after
+each append. No in-memory broker, no polling.
+
+Three consequences, each a real cost rather than a footnote:
+
+- **Deltas are batched, not per token.** The drafting stage accumulates the
+  provider's deltas and flushes an event every ~250ms or at a paragraph
+  boundary, whichever comes first. One row per flush rather than one per token,
+  which keeps the write rate sane and the caret's advance smooth enough to read
+  as streaming. §6.7's live drift is already computed per paragraph, so it is
+  unaffected.
+- **An SSE connection ends at the function's ceiling, routinely.** §7.3's
+  failure table already specifies reconnect-from-cursor, and `stream-client`
+  already de-duplicates by `seq`. What changes is that this path is the common
+  case rather than the exceptional one, so it is tested as such.
+- **`LISTEN` needs a direct, unpooled connection**, which §3.1's two connection
+  modes already provide, and holds one for the life of each open stream. For a
+  single-user product that is one connection. **This is the one assumption in
+  this section that has not been verified against Neon**; if `LISTEN`/`NOTIFY`
+  is unavailable, the fallback is polling `events` on the cursor every 300ms,
+  which costs latency and no architecture.
+
+**Cancellation is a flag, not a signal.** `POST /cancel` sets
+`session_runs.cancel_requested`; the running stage checks it between delta
+flushes and aborts its provider call. Worst-case latency is one flush.
+
+`PRD.md` §4 puts hosting out of scope. This corrects it, and the correction is
+the reason §3 resolves to Postgres rather than to a file: a function's
+filesystem is ephemeral and per-invocation.
 
 ### 7.1 Routes
 
 Fourteen, described once in `api-contract` as zod, with `api-client` generated
 from the same object so a contract change breaks both sides' compile together.
+
 
 ```
 GET    /api/health
@@ -1318,7 +1460,15 @@ PUT    /api/sessions/:id/pins                       { [stageId]: modelId }
 GET    /api/sessions/:id/export                     text/markdown
 
 GET    /api/sessions/:id/events?cursor=N            text/event-stream
+
+── internal, signed, never reached by a browser ────────────────────────
+POST   /internal/stage                              { sessionId, stageId }
 ```
+
+`/internal/stage` is the one route a browser never calls: it runs exactly one
+stage and is invoked by the previous stage or by the cron sweep, authenticated
+with a shared secret. It is in `api-contract` like every other route, so its
+request shape is parsed rather than trusted.
 
 `POST /advance` is the only route that starts work, and it starts **exactly the
 stages that are stale** (§7.5). That is what makes every step re-enterable
@@ -1362,7 +1512,7 @@ replay. `seq` is gap-free per session, from 1, allocated inside the same
 transaction as the insert.
 
 `GET /api/sessions/:id/events?cursor=N` replays from `events` at the cursor and
-then continues live from the in-memory broker. `stream-client` remembers the
+then continues live by waiting on the session's `LISTEN` channel (§7). `stream-client` remembers the
 highest `seq` it delivered, reconnects with it, and drops anything at or below
 it — so delivery is exactly-once from the consumer's point of view whether the
 server replays from the cursor or after it.
@@ -1376,12 +1526,27 @@ Failure behaviour, adapted from nexus's table:
 | A frame that will not parse | Fatal at once. Reconnecting from the same cursor refetches the same bad frame forever |
 | `close()` | Idempotent, aborts the in-flight request, stops reconnecting |
 
-There is no heartbeat table and no stale-run sweeper. nexus needs both because
-its loop runs on a machine that can die independently of the client; here the
-pipeline and the SSE endpoint are the same process, so a dead process is a dead
-server and the browser's reconnect is the whole recovery path. What survives a
-crash is what is in `events` and `artifacts`, which is what `GET /api/sessions/:id`
-returns on the next load.
+**A sweep, for a lost invocation rather than a dying machine.** An earlier draft
+of this document said auteur needed neither a heartbeat nor a sweeper, because
+everything ran in one process. §7's stage-per-invocation model brings the need
+back for a different reason: an invocation can be lost — a failed cold start, a
+deploy mid-run — leaving a `stage_queue` row claimed and never completed.
+
+- A stage claims its queue row with a conditional update and stamps
+  `claimed_at`. Two invocations of the same row cannot both proceed, which is
+  what stops a cron sweep racing a live invocation from running a stage twice.
+- A one-minute Vercel cron sweeps two things: rows queued and never claimed
+  (re-invoke), and rows claimed longer than any stage could plausibly take
+  (release for one retry, then fail the run).
+- A failed run marks `session_runs.status = 'error'`, marks its `running`
+  `stage_runs` rows `error` with code `internal`, and **appends a `stage_error`
+  event**, so a reconnecting client is told why its run stopped rather than
+  watching a stream that never advances.
+
+**The claim is also the lock against a double start.** `session_runs.session_id`
+is the primary key, so beginning a run is an insert that either succeeds or
+conflicts — a double-clicked "advance" cannot run the pipeline twice against one
+event log.
 
 ### 7.4 Errors
 
@@ -1671,13 +1836,17 @@ type FitMeasure = {
   targetValue: number;            // what the draft aimed at
   targetOrigin: Origin;           // always "measured" in v1 (§4.6)
   status: "pass" | "drift" | "fail" | "insufficient-length";
+  /** Present only where a measure is a declared proxy rather than a count. §4.3 */
+  classifier?: { kind: "suffix-proxy"; precision?: number; validated: boolean };
 };
 ```
 
 **Five measures are scored**, which is `PRD.md` §10's list with §4.3's
 substitution: mean sentence length, punctuation rate (semicolon, em dash and
-colon, each separately), dialogue ratio, MATTR and — subject to §4.3's
-precision gate — latinate ratio. The rest of
+colon, each separately), dialogue ratio, MATTR and latinate ratio. The last is
+the only one that is a proxy rather than a count, so it is the only one whose
+`FitMeasure` carries a `classifier`, and §4.3's precision gate can demote it out
+of this list. The rest of
 `ProsodyBlock` is evidence for the drafting prompt and is not scored —
 `commonBigrams` because it is a lexicon rather than a measure (§4.3), and
 `paragraphLength` because a beat sheet decides it more than a voice does.
@@ -1795,22 +1964,33 @@ fetch.
 
 ### 11.1 The regime
 
-**`[open]` in `PRD.md` §12 — resolved, with a change of source.** The PRD asks
-whether to adopt argo's `AGENTS.md` regime, on the grounds that the ripped
-packages are written to it. Since the packages actually being ripped are
-nexus's, the answer is nexus's regime, and auteur gets its own `AGENTS.md`
-modelled on it.
+**`[open]` in `PRD.md` §12 — resolved: the document-index regime, seeded from
+`ac-zeitgeist/agent-guidelines`.** See
+`docs/IMPLEMENTATION-PLAN.md` §1 for the selection and
+`docs/decisions/0001-document-index-regime.md` for the decision.
 
-The difference between the two is worth stating, because it is the reason for
-the switch. argo's `AGENTS.md` is an index of nine guideline documents with
-authority levels and a mandatory post-edit audit — a strong regime that costs a
-re-read of several documents per change. nexus's is one file: three invariants,
-seven non-negotiables, the UI and content rules, and the two commands to run
-before calling a change done. Most of its rules are CI gates rather than prose,
-which is the property worth copying: **a rule that is not a gate is a rule that
-decays.**
+An earlier draft of this section resolved it the other way, toward nexus's
+one-file regime, on the grounds that the packages being taken are nexus's and
+that argo's index — nine documents with authority levels and a mandatory
+post-edit audit — costs a re-read of several documents per change. That cost is
+real, and it is now accepted rather than avoided. What changed the answer:
+`agent-guidelines` ships the guidelines themselves, with tiers and triggers that
+do the per-change filtering, a `local/` mechanism that gives auteur's four
+adaptations somewhere to live without editing a seeded file, per-package
+promotion, and a lock file that makes a later refresh a readable diff. The
+one-file version has nowhere to put any of that: it compresses ~1,950 lines of
+rules into ~200 and loses the rationale, and its adaptations are edits with no
+record of what they replaced.
 
-auteur's `AGENTS.md` will carry, in one file:
+The property worth keeping from nexus is not the file count — it is that **a
+rule that is not a gate is a rule that decays.** §11.2's gates are that half,
+and gate 10 extends it to the guidelines themselves: a seeded document edited in
+place fails the build.
+
+So auteur's `AGENTS.md` is the generated index, `docs/guidelines/` holds the 24
+seeded documents, and `docs/guidelines/local/` holds the six auteur-specific
+ones. The rules below are what the local set and the index carry beyond the
+seed:
 
 - The four invariants (§0), and the instruction to resolve ambiguity toward them.
 - **Tests and implementation land together.** A package with implementation
@@ -1825,12 +2005,14 @@ auteur's `AGENTS.md` will carry, in one file:
 - The dependency, contract and catalog gates below.
 - The two commands: `bun run turbo test` and `bun run preflight`.
 
-It will not carry a nine-document reading list. The velocity cost the PRD worries
-about is real and it comes mostly from that, not from the rules themselves.
+The velocity cost the PRD worries about is real. `docs/IMPLEMENTATION-PLAN.md`
+§1.7 states it plainly and names the three things that bound it: tiers filter
+per change, per-package addenda make the common case local, and the gates
+enforce the load-bearing half regardless.
 
 ### 11.2 The gates
 
-Nine, all in CI, each with a self-test proving it can fail (nexus's
+Ten, all in CI, each with a self-test proving it can fail (nexus's
 `gate-self-test.ts`, taken verbatim — a gate nobody has watched reject a defect
 is a gate nobody knows works).
 
@@ -1845,6 +2027,7 @@ is a gate nobody knows works).
 | 7 | `tokens`' preset test | A token value that no longer matches the design CSS (§8.1) |
 | 8 | `provenance-suite` | Invariant 2. Below |
 | 9 | `dependency-min-age` | A dependency version younger than the release-age window |
+| 10 | `check-guidelines.ts --check` | A seeded guideline edited in place, an index that no longer matches what was ported, or a `local/` override naming a document that was not (§11.1) |
 
 Plus two scripts that need credentials and therefore run on demand rather than
 in CI: `check-router-catalogue.ts` (the catalog against `GET /v1/models`) and
@@ -1896,8 +2079,9 @@ of a seven-step wizard is a maintenance cost that catches less than the axe audi
 
 | Item | Resolution |
 |---|---|
-| §12 — adopt argo's `AGENTS.md` regime? | **No; adopt nexus's, in one file.** §11.1. The packages being taken are nexus's, and nexus's regime is mostly CI gates rather than a reading list, which is the half worth having. |
-| §12 — persistence via `bun:sqlite`? | **Yes.** §3. Cards are expensive, a half-finished wizard must survive a reload, and the replayable event log needs somewhere to live. |
+| §12 — adopt argo's `AGENTS.md` regime? | **Yes in shape: the document-index regime, seeded from `agent-guidelines` rather than copied from argo.** §11.1, and decision 0001. The index's cost is accepted and bounded; nexus's contribution is §11.2's gates, which is the half that does not decay. |
+| §12 — persistence via `bun:sqlite`? | **No — Postgres on Neon.** §3. The reasons for persistence stand: cards are expensive, a half-finished wizard must survive a reload, and the replayable event log needs somewhere to live. The store changed because §7 puts the short routes on functions, which cannot reach a file. |
+| §4 — hosting out of scope | **Corrected.** §7. One deploy unit and one database: the client and all fourteen routes on Vercel, one function invocation per pipeline stage chained through a durable queue, Postgres on Neon. No machine. |
 | §9 — the living-author tier's legal position | **Left open. Not an architecture decision.** §5.5 puts the seam and the type distinction in place, and no v1 code path ingests in-copyright primary text. The review the PRD asks for is needed before the v2 tier is built, and this document does not pre-empt it. |
 
 Three further decisions this document makes that the PRD leaves implicit:
@@ -1906,7 +2090,7 @@ Three further decisions this document makes that the PRD leaves implicit:
 |---|---|
 | A second `ModelClient` for direct Anthropic is deferred, not built | §2, "Not taken" |
 | Type-token ratio is replaced by MATTR | §4.3 |
-| The latinate proxy is scored only if it passes a hand-labelled precision gate | §4.3 |
+| The latinate proxy is scored, carrying its own provenance, and demoted only if it fails a hand-labelled precision gate | §4.3 |
 | Nothing writes a card overlay in v1; the draft prompt states the conflict | §4.6 |
 | Confidence is citation coverage; the other three strength facts are shown, not blended | §4.5 |
 | A tier with no structured-output model is a startup error, not a repair loop | §6.4 |
@@ -2019,8 +2203,9 @@ gate and the design port given its own step.
 4. **`corpus-gutenberg`.** **Spike first**: one real gutendex response recorded
    as a fixture and the schema pinned to it (§5.2). Then search, fetch, work
    selection, passage selection, and the `works`/`passages` cache.
-5. **`db` and `migrations`.** The §3 schema, the ledger, `ensureSchema()`. Small
-   and mechanical, and it comes after 3 and 4 because those two need no database.
+5. **`db` and `migrations`.** The §3 schema, the ledger, `ensureSchema()` under
+   the advisory lock, and the ephemeral-Neon-branch test harness. Mostly nexus's
+   code, and it comes after 3 and 4 because those two need no database.
 6. **`style-card`.** Schema, `resolveCard`, `buildKey`, confidence, the
    extraction stage's prompt and its structured output. Ends with a real card for
    a real author, inspectable as JSON.
@@ -2028,8 +2213,9 @@ gate and the design port given its own step.
    `clarify` re-entry, both draft strategies. Tested against the scripted fake
    provider; then one real end-to-end flash story with the cost read off
    `stage_runs`.
-8. **`apps/auteur-server`.** Routes, `api-contract`, the event log, SSE,
-   `advance` and the staleness computation (§7.5).
+8. **The routes.** `api-contract`, the fourteen functions, `advance` and the
+   staleness computation (§7.5), the stage queue and its cron sweep, the
+   `LISTEN`-backed SSE route, and cancel (§7.3).
 9. **`tokens` and `component-library`.** The preset with its gate, then the
    fifteen components against their `.d.ts` contracts. This is the step that can
    run in parallel with 6 through 8 — it touches no file they touch.
@@ -2037,6 +2223,8 @@ gate and the design port given its own step.
     (§8.6), because it exercises both grounds and the live measurement.
 11. **`style-fit`, `export`, `provenance-suite`.** The report, the label, and
     gate 8.
+12. **The deploy.** `vercel.json`, the cron schedule, the Neon project, the
+    stage secret and the bearer token (§7).
 
 Steps 3, 4 and 6 are the product. Steps 1, 2, 5 and 8 are plumbing and should
 not absorb more than they need. Step 9 is the one that can be worked in
