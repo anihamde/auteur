@@ -8,5 +8,6 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/export/render-export`
 
 ```ts
-export const unimplemented = (): never =>
+export const attributionFor = (label: ExportLabel): string =>
+export const renderExport = (
 ```
