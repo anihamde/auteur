@@ -8,53 +8,59 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/text/blocks`
 
 ```ts
-export const unimplemented = (): never =>
+export const splitBlocks = (text: string): readonly Block[] =>
 ```
 
 ## `@auteur/text/clean`
 
 ```ts
-export const unimplemented = (): never =>
+export const GUTENBERG_MARKERS: readonly (readonly [string, string])[] = [
+export const cleanGutenberg = (raw: string, sourceUrl: string): string =>
 ```
 
 ## `@auteur/text/cut`
 
 ```ts
-export const unimplemented = (): never =>
+export const cutWindows = (
+export const safeBoundary = (text: string, index: number): number =>
 ```
 
 ## `@auteur/text/dialogue-marker`
 
 ```ts
-export const unimplemented = (): never =>
+export const combineMarkers = (
+export const detectDialogueMarker = (text: string): DialogueMarker =>
 ```
 
 ## `@auteur/text/sentences`
 
 ```ts
-export const unimplemented = (): never =>
+export const splitSentences = (text: string): readonly string[] =>
 ```
 
 ## `@auteur/text/snap`
 
 ```ts
-export const unimplemented = (): never =>
+export const snapToSentence = (
 ```
 
 ## `@auteur/text/tokenize`
 
 ```ts
-export const unimplemented = (): never =>
+export const countWords = (text: string): number =>
+export const tokenize = (text: string): readonly string[] =>
+export const tokenizeLower = (text: string): readonly string[] =>
 ```
 
 ## `@auteur/text/unwrap`
 
 ```ts
-export const unimplemented = (): never =>
+export const unwrap = (text: string): string =>
 ```
 
 ## `@auteur/text/version`
 
 ```ts
-export const unimplemented = (): never =>
+export const cleanerVersion = (): string =>
+export const segmenterVersion = (): string => `seg-${hash(ABBREVIATIONS)}`
 ```

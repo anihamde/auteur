@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@auteur/core": "workspace:*",
     "@auteur/errors": "workspace:*"
   },
   "devDependencies": {
