@@ -13,7 +13,7 @@ import { styleCardSchema } from "@auteur/core/style-card";
 import { z } from "zod";
 
 /**
- * The fourteen routes, described once.
+ * The sixteen routes, described once (decision 0005).
  *
  * `api-client` is generated from this same object, so a contract change breaks
  * both sides' compile together rather than one side at run time. That is the
