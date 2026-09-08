@@ -8,17 +8,22 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/dependency-min-age/check`
 
 ```ts
-export const unimplemented = (): never =>
+export const check = async (options:
+export const npmRegistry: Registry = async (name, version) =>
+export const pinnedVersions = (lockfile: string): Release[] =>
 ```
 
 ## `@auteur/dependency-min-age/config`
 
 ```ts
-export const unimplemented = (): never =>
+export const DEFAULT_WINDOW_SECONDS = 604_800
+export const parseWindow = (bunfig: string): number =>
+export const windowFrom = (path: string): number =>
 ```
 
 ## `@auteur/dependency-min-age/find-violations`
 
 ```ts
-export const unimplemented = (): never =>
+export const findViolations = (
+export const render = (
 ```

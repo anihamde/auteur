@@ -43,6 +43,12 @@ export const GATES: readonly Gate[] = [
   },
   {
     args: [],
+    name: "no pinned dependency is younger than the release-age window",
+    number: 9,
+    script: "scripts/check-min-age.ts",
+  },
+  {
+    args: [],
     name: "bun version pins agree",
     number: 12,
     script: "scripts/check-bun-version.ts",
