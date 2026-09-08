@@ -8,59 +8,60 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/copy/author`
 
 ```ts
-export const unimplemented = (): never =>
+export const author =
 ```
 
 ## `@auteur/copy/clarify`
 
 ```ts
-export const unimplemented = (): never =>
+export const clarify =
 ```
 
 ## `@auteur/copy/draft`
 
 ```ts
-export const unimplemented = (): never =>
+export const draft =
 ```
 
 ## `@auteur/copy/idea`
 
 ```ts
-export const unimplemented = (): never =>
+export const idea =
 ```
 
 ## `@auteur/copy/index`
 
 ```ts
-export const unimplemented = (): never =>
+export const COPY =
+export const copyStrings = (): { path: string; text: string }[] =>
 ```
 
 ## `@auteur/copy/models`
 
 ```ts
-export const unimplemented = (): never =>
+export const models =
 ```
 
 ## `@auteur/copy/outline`
 
 ```ts
-export const unimplemented = (): never =>
+export const outline =
 ```
 
 ## `@auteur/copy/research`
 
 ```ts
-export const unimplemented = (): never =>
+export const research =
 ```
 
 ## `@auteur/copy/result`
 
 ```ts
-export const unimplemented = (): never =>
+export const result =
 ```
 
 ## `@auteur/copy/shell`
 
 ```ts
-export const unimplemented = (): never =>
+export const shell =
 ```

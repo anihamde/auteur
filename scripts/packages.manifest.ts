@@ -496,6 +496,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     layer: "agent",
     name: "provider-router",
     workspaceDeps: ["core", "env", "errors", "logger", "model-provider"],
+    workspaceDevDeps: ["test-support"],
   },
   {
     deps: [],
@@ -621,6 +622,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     devDeps: [],
     exports: {
       audit: src("audit.ts"),
+      conformance: src("conformance.ts"),
       "happy-dom": src("happy-dom.ts"),
       render: src("render.tsx"),
       "scripted-provider": src("scripted-provider.ts"),
@@ -628,7 +630,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     layer: "test",
     name: "test-support",
     react: true,
-    workspaceDeps: ["core", "model-provider", "tokens"],
+    workspaceDeps: ["core", "errors", "model-provider", "tokens"],
   },
   {
     deps: ["pg"],
