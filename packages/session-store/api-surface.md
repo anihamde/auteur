@@ -28,6 +28,7 @@ export const putQuestionRound = async (
 
 ```ts
 export const createSession = async (
+export const deleteSession = async (db: Db, id: string): Promise<boolean> =>
 export const findSession = async (
 export const requireSession = async (db: Db, id: string): Promise<Session> =>
 export const updateSession = async (

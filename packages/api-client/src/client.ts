@@ -1,4 +1,11 @@
-import { methodFor, parseBody, pathFor } from "@auteur/api-contract/contract";
+import {
+  type BodyInputOf,
+  methodFor,
+  parseBody,
+  pathFor,
+  type QueryInputOf,
+  type ResponseOf,
+} from "@auteur/api-contract/contract";
 import {
   errorResponseSchema,
   ROUTES,
@@ -7,7 +14,6 @@ import {
 import type { Fetch } from "@auteur/api-contract/transport";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { isErrorCode } from "@auteur/errors/error-code";
-import type { z } from "zod";
 
 /**
  * The client, generated from the contract.
@@ -29,28 +35,10 @@ export type ClientConfig = {
   readonly fetch?: Fetch;
 };
 
-type Spec<Name extends RouteName> = (typeof ROUTES)[Name];
-
-type BodyOf<Name extends RouteName> =
-  Spec<Name> extends { body: infer Schema }
-    ? Schema extends z.ZodType
-      ? z.input<Schema>
-      : never
-    : undefined;
-
-type QueryOf<Name extends RouteName> =
-  Spec<Name> extends { query: infer Schema }
-    ? Schema extends z.ZodType
-      ? z.input<Schema>
-      : never
-    : undefined;
-
-type ResponseOf<Name extends RouteName> = z.output<Spec<Name>["response"]>;
-
 export type CallOptions<Name extends RouteName> = {
   readonly params?: Readonly<Record<string, string>>;
-  readonly body?: BodyOf<Name>;
-  readonly query?: QueryOf<Name>;
+  readonly body?: BodyInputOf<Name>;
+  readonly query?: QueryInputOf<Name>;
   readonly signal?: AbortSignal;
 };
 

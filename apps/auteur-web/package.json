@@ -15,6 +15,7 @@
     "@auteur/event-store": "workspace:*",
     "@auteur/export": "workspace:*",
     "@auteur/formatting": "workspace:*",
+    "@auteur/ids": "workspace:*",
     "@auteur/logger": "workspace:*",
     "@auteur/migrations": "workspace:*",
     "@auteur/model-provider": "workspace:*",
