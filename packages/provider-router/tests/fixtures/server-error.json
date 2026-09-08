@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "all_candidates_failed",
+    "message": "Every candidate provider failed for this request.",
+    "param": null,
+    "type": "server_error"
+  }
+}

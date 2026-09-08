@@ -8,23 +8,19 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/model-provider/descriptor`
 
 ```ts
-export const unimplemented = (): never =>
+export const meetsRequirements = (
 ```
 
 ## `@auteur/model-provider/provider`
 
-```ts
-export const unimplemented = (): never =>
-```
+_no exports_
 
 ## `@auteur/model-provider/registry`
 
 ```ts
-export const unimplemented = (): never =>
+export const createRegistry = (): Registry =>
 ```
 
 ## `@auteur/model-provider/request`
 
-```ts
-export const unimplemented = (): never =>
-```
+_no exports_

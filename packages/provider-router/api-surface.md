@@ -8,35 +8,42 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/provider-router/client`
 
 ```ts
-export const unimplemented = (): never =>
+export const createRouterProvider = (config: RouterConfig): ModelProvider =>
 ```
 
 ## `@auteur/provider-router/models`
 
 ```ts
-export const unimplemented = (): never =>
+export const CATALOGUE: readonly CatalogueRow[] = [
+ROUTER_PROVIDER_ID
+export const findRow = (id: string): CatalogueRow | undefined =>
+export const toDescriptor = (row: CatalogueRow): ModelDescriptor => (
 ```
 
 ## `@auteur/provider-router/pricing`
 
 ```ts
-export const unimplemented = (): never =>
+export const costMicros = (usage: Usage, pricing: Pricing): number =>
+export const formatMicros = (micros: number): string =>
 ```
 
 ## `@auteur/provider-router/provider-errors`
 
 ```ts
-export const unimplemented = (): never =>
+export const ROUTER_PROVIDER_ID = "ramp-router"
+export const asAuteurError = (
+export const fromStreamError = (
+export const redactSecrets = (text: string, apiKey?: string): string =>
 ```
 
 ## `@auteur/provider-router/responses-request`
 
 ```ts
-export const unimplemented = (): never =>
+export const toResponsesRequest = (
 ```
 
 ## `@auteur/provider-router/responses-stream`
 
 ```ts
-export const unimplemented = (): never =>
+toProviderEvents
 ```
