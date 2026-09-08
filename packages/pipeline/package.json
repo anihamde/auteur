@@ -9,16 +9,20 @@
     "@auteur/model-provider": "workspace:*",
     "@auteur/prompt": "workspace:*",
     "@auteur/prosody": "workspace:*",
+    "@auteur/provider-router": "workspace:*",
     "@auteur/session-store": "workspace:*",
     "@auteur/stage-queue": "workspace:*",
     "@auteur/style-card": "workspace:*",
-    "@auteur/style-fit": "workspace:*"
+    "@auteur/style-fit": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "@auteur/test-support": "workspace:*",
     "@types/bun": "catalog:",
     "typescript": "catalog:"
   },
   "exports": {
+    "./clarify": "./src/clarify.ts",
     "./drift": "./src/drift.ts",
     "./engine": "./src/engine.ts",
     "./extract": "./src/extract.ts",
