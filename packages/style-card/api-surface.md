@@ -8,23 +8,28 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/style-card/build`
 
 ```ts
-export const unimplemented = (): never =>
+export const buildCard = (input: BuildInput): StyleCard =>
+export const targetFromProsody = (prosody: ProsodyBlock): ProsodyTarget => (
 ```
 
 ## `@auteur/style-card/build-key`
 
 ```ts
-export const unimplemented = (): never =>
+export const buildKey = (input: BuildKeyInput): string =>
+export const buildKeyComponents = (input: BuildKeyInput): string[] => [
 ```
 
 ## `@auteur/style-card/resolve`
 
 ```ts
-export const unimplemented = (): never =>
+export const overlaidPaths = (
+export const resolveCard = (
 ```
 
 ## `@auteur/style-card/strength`
 
 ```ts
-export const unimplemented = (): never =>
+export const cardStrengthOf = (input: StrengthInput): CardStrength =>
+export const confidenceOf = (attempted: number, cited: number): number =>
+export const flattenClaims = (card: StyleCard): FlatClaim[] =>
 ```

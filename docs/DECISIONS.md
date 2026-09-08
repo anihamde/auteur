@@ -12,3 +12,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0001 | [The document-index guideline regime](decisions/0001-document-index-regime.md) | accepted | 2026-09-08 |
 | 0002 | [Integration tests start their own Postgres](decisions/0002-integration-tests-start-their-own-postgres.md) | accepted | 2026-09-08 |
 | 0003 | [Two gates the plan did not name: interpolated SQL, and migration order](decisions/0003-two-gates-the-plan-did-not-name.md) | accepted | 2026-09-08 |
+| 0004 | [An uncited reading is counted, not stored](decisions/0004-an-uncited-reading-is-counted-not-stored.md) | accepted | 2026-09-08 |
