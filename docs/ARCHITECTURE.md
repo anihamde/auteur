@@ -15,7 +15,7 @@ Sources, in precedence order for anything this document does not say:
 Where those three disagree with each other, §13 says what is built and why.
 
 Stack: Bun + Turborepo + Biome · TypeScript · Postgres on Neon, hand-written
-SQL, no ORM · Vite + React + PandaCSS on Vercel with eleven routes as functions
+SQL, no ORM · Vite + React + PandaCSS on Vercel with every route a function
 · one function invocation per pipeline stage, chained through a durable queue ·
 Ramp Router as the model gateway behind a provider seam. Single-user, no
 accounts; deployed rather than local (§7).
@@ -173,7 +173,7 @@ named here. `pattern` means the approach is copied and the code is not.
 | `deployment` topology | nexus | **not taken.** nexus splits Vercel and Fly because its agent loop is a tool loop of unbounded length. auteur's stages are individually bounded (§7), so one function per stage replaces the machine. What is taken is nexus's *reason* for having a durable log at all. |
 | `migrations` | nexus | **verbatim in approach and close to it in code.** The inlined-manifest-plus-checksum ledger applied by `ensureSchema()` on access under `pg_advisory_lock`, with nobody running a migration by hand. §3.3. |
 | `db` | nexus | **adapted.** `pg` primitives verbatim; auteur adds the pooled-versus-direct distinction §3.1 needs and drops the scope argument it has no use for. |
-| `run-store` heartbeat and sweeper | nexus | **adapted into `event-store` and `session_runs`.** §7.3. Taken because §7's two units reintroduce the failure it exists for. |
+| `run-store` sweeper | nexus | **adapted into `stage-queue`.** §7.3. Taken for a different failure than nexus's — a lost invocation rather than a dying machine — but the same shape: claim, stamp, sweep what went stale. |
 | `scripts/` toolchain | nexus | **verbatim.** `packages.manifest.ts`, `check-dependencies.ts`, `api-surface.ts`, `new-package.ts`, `package-tests.ts`, `check-catalog.ts`, `preflight.ts`, `gate-self-test.ts`. |
 | `turbo.json`, `biome.json`, `bunfig.toml`, `.github/workflows/ci.yml` | nexus | **adapted.** Concurrency group, `--affected` on pull requests, `--concurrency=100%`, cache restore keyed on the lockfile. |
 | `dependency-min-age` | argo-browser | **verbatim,** with `minimumReleaseAge` in `bunfig.toml`. It closes a real hole: Bun grandfathers versions already in the lockfile. |
@@ -390,14 +390,13 @@ CREATE TABLE stage_runs (
   error_code    text
 );
 
--- One row per session that a runner has claimed. §7.3's dispatch lock and
--- heartbeat live here; a session with no row has no run in flight.
+-- One row per session with a run in flight. §7.3's run claim and the cancel
+-- flag live here; a session with no row has no run in flight.
 CREATE TABLE session_runs (
   session_id    uuid PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
   claimed_by    text NOT NULL,              -- the invocation that claimed it
   status        text NOT NULL CHECK (status IN ('running','done','error','cancelled')),
   cancel_requested boolean NOT NULL DEFAULT false,
-  heartbeat_at  timestamptz NOT NULL DEFAULT now(),
   started_at    timestamptz NOT NULL DEFAULT now(),
   finished_at   timestamptz
 );
@@ -470,8 +469,8 @@ it was written for:
   a mismatch aborts. Rollback is a new forward migration.
 - `bun run migration:new` scaffolds a file. It does not apply one.
 
-Because two deploy units run at once during a rollout, **a schema change ships
-in expand / migrate / contract order**: add the column nullable, deploy code
+Because a deploy replaces functions while earlier invocations are still
+finishing, **a schema change ships in expand / migrate / contract order**: add the column nullable, deploy code
 that writes both, backfill, deploy code that reads the new one, drop the old in
 a later migration. The deploy never assumes the previous version has stopped
 running. This is the `migrations` guideline's rule and it is load-bearing here

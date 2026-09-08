@@ -139,8 +139,8 @@ is what `ARCHITECTURE.md` §3 resolving to Postgres on Neon buys: they are
 written for exactly that — hand-written SQL, no ORM, serverless connection
 rules, and the server converging the schema on access under an advisory lock.
 The expand/migrate/contract rule in `migrations` is load-bearing here in a way
-it would not have been in a single process: two deploy units are live at once
-during a rollout.
+it would not have been in a single process: a deploy replaces functions while
+earlier invocations are still finishing.
 
 `deployment` likewise applies whole. Its "Vercel is the default" half is the
 whole deploy, and its serverless rules — a handler is short-lived, no
@@ -422,6 +422,11 @@ www.gutenberg.org:443   connect_rejected (policy)
 api.router.com:443      connect_rejected (policy)
 registry.npmjs.org      allowed
 ```
+
+Two things the environment *does* have, both verified at planning time and both
+load-bearing: **Postgres 16**, so `test-db` runs a real server and every store,
+migration and route test runs locally without Neon; and **cross-connection
+`LISTEN`/`NOTIFY` through `pg`**, which is §5.3's streaming mechanism.
 
 So each spike splits in two: **an offline half built now, designed so a wrong
 guess fails loudly rather than silently**, and **a live half deferred to
@@ -730,9 +735,13 @@ with it.
   four-minute time-to-draft target. WP-X1 measures it; if it dominates, the fix
   is Vercel's fluid compute rather than a machine.
 - **`LISTEN` needs a direct, unpooled connection**, held for the life of each
-  open stream. **This is the one unverified assumption in this section** — it
-  goes in WP-X0. If Neon does not support it, the fallback is polling `events`
-  on the cursor every 300ms, which costs latency and no architecture.
+  open stream. The mechanism is verified: on Postgres 16 with `pg`, a
+  `pg_notify` committed on one connection arrives on another `LISTEN`ing
+  connection with its JSON payload intact. **What is not verified is Neon
+  specifically** — their pooled endpoint will not support it and their direct
+  endpoint is ordinary Postgres, so this is expected to work, and WP-X0 confirms
+  it. If it does not, the fallback is polling `events` on the cursor every
+  300ms, which costs latency and no architecture.
 
 #### What it buys
 
@@ -752,7 +761,7 @@ feedback.
 | 1 | Move `ci/workflows/ci.yml` to `.github/workflows/` (§2.6) | CI running at all | PRs land with gates verified locally; CI results appear retroactively once the file is live. **This does not block the next PR.** |
 | 2 | `RAMP_ROUTER_API_KEY`, and egress to `api.router.com` | S1's live half, K5, W2, X1 | The catalogue table ships `source: "declared"` and the pipeline runs against a scripted provider |
 | 3 | Egress to `gutendex.com` and `www.gutenberg.org` | S2's live half, S3, I3's real fetches, X1 | Synthetic fixtures, labelled synthetic, with schemas that reject rather than ignore |
-| 4 | A Neon project and its two connection strings, pooled and direct | G1 onward, and every store | An ephemeral local Postgres serves the test suite; nothing is blocked, but nothing runs against Neon |
+| 4 | A Neon project and its two connection strings, pooled and direct | The deploy only | **Not blocking for development.** Verified at planning time: Postgres 16 is installed in the build environment and `test-db` runs a real server against it, including cross-connection `LISTEN`/`NOTIFY` with `pg`. Every store, migration and route test runs locally |
 | 5 | A Vercel account | R11 | The client and the routes run locally against the same Neon branch |
 | 6 | Values for `AUTEUR_API_TOKEN` and `AUTEUR_STAGE_SECRET` | R11 | Only read when deployed |
 
@@ -1007,7 +1016,7 @@ Each screen WP owns its screen directory and its own `copy` module.
 |---|---|---|---|---|
 | **W1** | `bun run stats` — completion rate and time-to-draft from `sessions` and `stage_runs` | `scripts/stats.ts` | Against a seeded database, completion rate and median time-to-draft match hand-computed values; time-to-draft measures `corpus-select.started_at` to `draft`'s first `stage_delta`, asserted against a recorded event log | H1, L9 |
 | **W2** **[key][net]** | `bun scripts/discrimination.ts` (§10.3) | `scripts/discrimination.ts` | Runs against held-out passages `corpus-select` did not choose — asserted by intersecting the held-out set with the card's `sources` and requiring it empty | K5, W1 |
-| **X0** **[key][net]** | **The verification pass** (§5.4): `bun run verify:live` runs S1's, S2's and S3's live halves in one command and prints one report — every catalogue row whose declared value differs from the measured one, the gutendex schema diff, the latinate precision with its keep/demote verdict, and **whether Neon supports `LISTEN`/`NOTIFY` on a direct connection** (§5.3's one unverified assumption). Rewrites the catalogue tags to `measured`, replaces the synthetic fixtures with recorded ones, and writes the three `docs/spikes/` notes | `scripts/verify-live.ts`, `docs/spikes/**`, `packages/provider-router/src/models.ts`, `packages/provider-router/tests/fixtures/**`, `packages/corpus-gutenberg/tests/fixtures/**`, `packages/prosody/tests/fixtures/latinate-validation.json` | **The pass fails on any discrepancy rather than absorbing it**, so its green run is the claim that every declared value was right. Each of the three sub-reports is separately green or names what moved. Anything it moves lands as its own follow-up PR — a catalogue correction, a schema correction, or the one-line promotion of `latinateRatio` to a scored measure | R11, V1 |
+| **X0** **[key][net]** | **The verification pass** (§5.4): `bun run verify:live` runs S1's, S2's and S3's live halves in one command and prints one report — every catalogue row whose declared value differs from the measured one, the gutendex schema diff, the latinate precision with its keep/demote verdict, and **whether Neon's direct endpoint supports `LISTEN`/`NOTIFY`** (§5.3 — the mechanism is verified on stock Postgres; Neon specifically is not). Rewrites the catalogue tags to `measured`, replaces the synthetic fixtures with recorded ones, and writes the three `docs/spikes/` notes | `scripts/verify-live.ts`, `docs/spikes/**`, `packages/provider-router/src/models.ts`, `packages/provider-router/tests/fixtures/**`, `packages/corpus-gutenberg/tests/fixtures/**`, `packages/prosody/tests/fixtures/latinate-validation.json` | **The pass fails on any discrepancy rather than absorbing it**, so its green run is the claim that every declared value was right. Each of the three sub-reports is separately green or names what moved. Anything it moves lands as its own follow-up PR — a catalogue correction, a schema correction, or the one-line promotion of `latinateRatio` to a scored measure | R11, V1 |
 | **X1** **[key][net]** | One real end-to-end flash story, and `docs/BASELINE.md` recording all five §10 measures | `docs/BASELINE.md` | The five measures reported with their sources: style fidelity from `style-fit`, completion and time-to-draft from `stats`, cost from `SUM(stage_runs.cost_micros)`, discrimination from W2. A missed target is reported as a number and a stage, not smoothed | X0, W2 |
 | **X2** | The stage-to-tier experiment §5.2 promises: `style-extract` at `strong`, `critique` at `balanced`, each measured | `docs/BASELINE.md` (appended), `packages/config/src/tiers.ts` | Two config edits, two runs, the deltas in style fidelity and cost recorded. Whatever it shows becomes a decision file | X1 |
 | **Z1** | `preflight.ts` completing: every env var validated, failing fast with the missing name | `scripts/preflight.ts` | Run against an incomplete `.env`, it names the first missing variable and exits non-zero | B3, D4 |
