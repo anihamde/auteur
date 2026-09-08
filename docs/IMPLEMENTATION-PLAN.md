@@ -137,8 +137,8 @@ seams: provider calls, gutendex fetches, and `resolveCard`.
 `migrations` is already the architecture's design (§3.3) — the server converges
 the schema on access and nobody applies one by hand. `ci`'s failure and speed
 rules are what §2.2 and WP-A1 implement. `deployment` is taken because auteur
-now deploys (§5.3); which half of it applies is inverted from the guideline's
-default, and `local/deploy-split.md` says so.
+now deploys (§5.3), but the half of it that applies is inverted from the
+guideline's default, and `local/deploy-split.md` says so.
 
 ### 1.5 Not taken, and the four seeded documents auteur overrides
 
@@ -164,7 +164,7 @@ the lock is that it stays readable. WP-A5 writes:
 | `local/http-hono.md` | if-touched | `http-api` | Steps 1 and 2 (authenticate, authorize) do not exist. Steps 3–5 stand verbatim: parse before doing work, status codes that mean what happened, one error shape, never a 200 carrying an error. |
 | `local/react-spa.md` | if-touched | `react` | Strikes "Server Components by default"; everything else stands. |
 | `local/invariants.md` | **always** | — | `ARCHITECTURE.md` §0's four invariants, the instruction to resolve ambiguity toward them, and the repository-wide promotion of `data-boundaries`: its trigger fires on nearly every diff in a product that is seven model calls and two HTTP clients, so it is in scope for every change rather than re-decided per diff. |
-| `local/deploy-split.md` | if-touched | `deployment` | Inverts the guideline's default. Fly is not the overflow for long-running work — it is the whole deploy, one machine with a volume, and the serverless rules Vercel's half states (no in-process state, no local filesystem writes, connections pooled) are exactly what auteur does not obey and must not be made to. Vercel keeps one job: preview deployments of the client in demo mode. There is no queue, no job idempotency requirement, no worker, and no third platform. |
+| `local/deploy-target.md` | if-touched | `deployment` | Inverts the guideline's default. Fly is not the overflow for long-running work — it is the whole deploy, one machine with a volume serving the client from the same origin. The serverless rules the guideline's Vercel half states (no in-process state, no local filesystem writes, connections pooled) are exactly what auteur does not obey and must not be made to, so **there is no Vercel**. No queue, no job idempotency requirement, no worker, no second platform. |
 | `local/ink-paper-and-copy.md` | if-touched | — | The UI and content rules `ARCHITECTURE.md` §11.1 lists that no seeded guideline covers: tokens only, the two ink/paper mechanisms (§8.3), every user-facing string in `copy`, and the content rules §8.4 asserts as tests. `styling` is seeded unmodified and this sits beside it. |
 
 ### 1.6 Per-package addenda
@@ -373,8 +373,7 @@ race to add one.
 | `turbo.json` | WP-A1, then WP-Z2 | Task graph lands complete at A1. One late tuning PR. |
 | `ci/workflows/ci.yml` | WP-A1 only | Staged, then handed over (§2.6). |
 | `fly.toml`, `Dockerfile` | WP-R11 | Land once, with the deploy. |
-| `vercel.json` | WP-R10 | Preview-only, and configured through Vercel's GitHub integration rather than the workflow, so it needs no second handover. |
-| `.github/workflows/ci.yml` | **nobody, after the handover** | Changing it means another staged file and another handover, so it is written complete once and the gates register themselves in `scripts/gates.ts` instead. |
+ | `.github/workflows/ci.yml` | **nobody, after the handover** | Changing it means another staged file and another handover, so it is written complete once and the gates register themselves in `scripts/gates.ts` instead. |
 | `scripts/gates.ts` | WP-A1, then one line per gate | Each gate script appends its own registration. Appends collide rarely and take both sides. |
 | `biome.json` | WP-A1 | Never edited again. A rule that needs disabling gets a decision file first. |
 | `bunfig.toml` | WP-A1 | `minimumReleaseAge` and the per-package `preload` blocks, all at once. |
@@ -689,15 +688,13 @@ minutes rather than unrecoverable data — the corpus texts re-fetch and the car
 rebuild from them (`ARCHITECTURE.md` §4.2's whole point) — so the plan does not
 build a backup path, and says so rather than leaving it unsaid.
 
-**Vercel keeps one job, and only one: preview deployments of the client in demo
-mode.** WP-R10 gives the client a runtime API base and a demo mode that renders
-every screen from a recorded event log with no server. Pointed at Vercel, that
-is a per-pull-request preview of the seven screens — which for a product whose
-differentiator is a measured design system is the thing reviewers most need to
-look at. It is a review surface, not a second production surface: it never talks
-to the Fly machine, so there is no CORS to configure and no mixed content to
-work around. If previews ever need to hit a real server, that is a third thing
-and this plan does not build it.
+**No Vercel, anywhere.** An earlier draft kept it for preview deployments of
+the client. That is a second platform to configure and account for, in exchange
+for a convenience, and "one platform" is worth more than the convenience. WP-R10
+still builds the client's runtime API base and its demo mode — those are
+independently earned, by R5's recorded-event-log test and by wanting the client
+runnable without a server in development — but nothing hosts them but the Fly
+machine.
 
 This corrects `PRD.md` §4, which puts hosting out of scope. The correction is
 recorded in `ARCHITECTURE.md` §7 rather than by editing the PRD, which is how §2
@@ -716,8 +713,7 @@ feedback.
 | 2 | `RAMP_ROUTER_API_KEY`, and egress to `api.router.com` | S1's live half, K5, W2, X1 | The catalogue table ships `source: "declared"` and the pipeline runs against a scripted provider |
 | 3 | Egress to `gutendex.com` and `www.gutenberg.org` | S2's live half, S3, I3's real fetches, X1 | Synthetic fixtures, labelled synthetic, with schemas that reject rather than ignore |
 | 4 | A Fly.io account and a `fly` token | R11, R12 | The server runs locally, which is the default anyway (§5.3) |
-| 5 | A Vercel account | R10's preview deployments | Demo mode works locally; only the hosting is missing |
-| 6 | A value for `AUTEUR_API_TOKEN` | R11 | Only read when the server is deployed |
+| 5 | A value for `AUTEUR_API_TOKEN` | R11 | Only read when the server is deployed |
 
 **Feedback you give at WP-X0, not before.** The verification pass prints one
 report: every declared-versus-measured discrepancy in the catalogue, the
@@ -938,7 +934,7 @@ Each screen WP owns its screen directory and its own `copy` module.
 | **R7** | Outline screen | `.../screens/outline/**`, `packages/copy/src/outline.ts` | The beat sheet renders on a paper card; the footer caption names the model and tier the draft will run on, read from resolution rather than from the tier map | R1, N4 |
 | **R8** | Result screen: three tabs | `.../screens/result/**`, `packages/copy/src/result.ts` | The three tabs are three reads of one `GET /api/sessions/:id`, asserted by a single-request test; the provenance label renders on the story tab; selecting a span turns the ghost button into "Regenerate selection" | R1, N5, T2 |
 | **R9** | Model overlay, including "use one model for every stage" | `.../screens/models/**`, `packages/copy/src/models.ts` | The one-model control writes seven pins in one request and surfaces a per-stage refusal with its reason rather than applying partially; "Follow tier defaults" clears every pin; the panel scrolls inside the viewport with its footer reachable | R1, N6 |
-| **R10** | API-base indirection and demo mode (§5.3) | `apps/auteur-web/src/api-base.ts`, `src/demo/**` | With `VITE_API_BASE` unset the client renders every screen from a recorded event log — the same log R5's test uses — and issues **zero** network requests, asserted by a fetch spy; with it set, every request goes to that origin and none to a hardcoded host | R5, R8 |
+| **R10** | API-base indirection and demo mode | `apps/auteur-web/src/api-base.ts`, `src/demo/**` | With `VITE_API_BASE` unset the client renders every screen from a recorded event log — the same log R5's test uses — and issues **zero** network requests, asserted by a fetch spy; with it set, every request goes to that origin and none to a hardcoded host | R5, R8 |
 | **R11** **[optional]** | The deploy (§5.3): `fly.toml`, `Dockerfile`, the volume mount, the bearer-token middleware, and the server serving the client's static build from the same origin | `fly.toml`, `Dockerfile`, `apps/auteur-server/src/auth.ts`, `apps/auteur-server/src/static.ts` | A test asserting `fly.toml` declares exactly one machine with auto-stop off and a volume mounted at the database path — the one-writer property of `ARCHITECTURE.md` §3.1 as a checked fact rather than a convention; a request with no bearer token gets 401 on **every** route including `/api/health`, asserted by enumerating the contract's fourteen rather than by a spot check; the client loads from the server's own origin with no CORS header set | R10, N8, V1 |
 | **R12** **[optional]** | Boot-time reconciliation of orphaned runs (`ARCHITECTURE.md` §7.3) | `apps/auteur-server/src/reconcile.ts` | A database seeded with a `running` `stage_runs` row is reconciled on boot: the row becomes `error` with code `internal` and a `stage_error` event is appended to that session, so a reconnecting client sees why its run stopped. A row already `ok` or `cancelled` is untouched | R11, H4 |
 
@@ -1081,9 +1077,9 @@ Applied as written; each is reversible and none blocks. Every one gets a
     listener is public and the gateway key is behind it. No sessions, no
     schema, so `PRD.md` §4's "no accounts" and the exclusion of the `auth`
     guideline both stand.
-18. **Vercel keeps preview deployments of the client in demo mode, and nothing
-    else.** A review surface, not a second production surface — it never talks
-    to the Fly machine, so there is no CORS and no mixed content.
+18. **No Vercel at all.** One platform. R10's demo mode stays because R5's
+    recorded-event-log test and local development both need it, not because
+    anything hosts it.
 19. **No backup path for the volume.** Fly snapshots it daily and it is
     single-copy; losing it costs cached cards and session history, which are
     money and minutes rather than unrecoverable data, because the corpus texts
