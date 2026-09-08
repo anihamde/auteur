@@ -47,9 +47,26 @@ if (spec === undefined) {
   process.exit(1);
 }
 
+/**
+ * Where an app's implementation lives.
+ *
+ * A package keeps everything under `src/`. An app also has `api/`, because
+ * that is where the platform looks for a function — and a runner that scanned
+ * only `src/` would read a fully-routed app as a scaffold, skip it, and never
+ * run one route test.
+ */
+const sourceRoots =
+  APPS.find((candidate) => candidate.name === packageName) === undefined
+    ? ["src"]
+    : ["src", "api"];
+
 const sourceFiles: string[] = [];
-for await (const relative of new Glob("src/**/*.{ts,tsx}").scan({ cwd })) {
-  sourceFiles.push(relative);
+for (const root of sourceRoots) {
+  for await (const relative of new Glob(`${root}/**/*.{ts,tsx}`).scan({
+    cwd,
+  })) {
+    sourceFiles.push(relative);
+  }
 }
 
 const testFiles = sourceFiles.filter((file) => /\.test\.tsx?$/.test(file));
@@ -84,7 +101,7 @@ if (testFiles.length === 0 && !hasIntegration) {
   process.stderr.write(
     `@auteur/${packageName} has implementation files but no tests.\n` +
       "Every work package ships its tests with its implementation: colocated\n" +
-      "`src/*.test.ts`, or a suite under `tests/integration/`.\n",
+      "`*.test.ts` beside the source, or a suite under `tests/integration/`.\n",
   );
   process.exit(1);
 }
@@ -141,7 +158,10 @@ if (hasIntegration && needsDatabase) {
   }
 }
 
-const args = ["test", "src"];
+const args = [
+  "test",
+  ...sourceRoots.filter((root) => existsSync(join(cwd, root))),
+];
 if (hasIntegration) {
   args.push("tests/integration");
 }
