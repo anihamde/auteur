@@ -8,11 +8,13 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/env/env`
 
 ```ts
-export const unimplemented = (): never =>
+export const env = (
+export const resetEnvForTest = (): void =>
 ```
 
 ## `@auteur/env/env-spec`
 
 ```ts
-export const unimplemented = (): never =>
+export const ENV_KEYS = Object.keys(ENV_SPEC) as readonly EnvKey[]
+export const ENV_SPEC =
 ```

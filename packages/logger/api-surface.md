@@ -8,5 +8,6 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/logger/logger`
 
 ```ts
-export const unimplemented = (): never =>
+export const LOG_LEVELS = ["debug", "info", "warn", "error"] as const
+export const createLogger = (options: LoggerOptions = {}): Logger =>
 ```
