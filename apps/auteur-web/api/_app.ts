@@ -1,9 +1,14 @@
 import { type RouteName, specOf } from "@auteur/api-contract/routes";
 import type { CorpusProvider } from "@auteur/corpus-gutenberg/provider";
 import type { Db } from "@auteur/db/db";
+import { AuteurError } from "@auteur/errors/auteur-error";
 import { toHttpResponse } from "@auteur/errors/to-http-response";
 import type { Logger } from "@auteur/logger/logger";
 import { Hono } from "hono";
+import {
+  type InternalStageDeps,
+  internalStageRoutes,
+} from "./_internal/stage.ts";
 import { type AdvanceDeps, advanceRoutes } from "./_routes/advance.ts";
 import { answerRoutes } from "./_routes/answers.ts";
 import { authorRoutes } from "./_routes/authors.ts";
@@ -36,6 +41,12 @@ export type AppDeps = {
   readonly invokeStage?: AdvanceDeps["invokeStage"];
   /** Where a regenerated selection's span is handed on. See `regenerate.ts`. */
   readonly recordSpan?: RegenerateDeps["recordSpan"];
+  /**
+   * `POST /internal/stage`'s secret and stage body. Absent in a test that does
+   * not exercise the pipeline, and the route is then not mounted at all —
+   * which is stricter than mounting it with an empty secret.
+   */
+  readonly internalStage?: Omit<InternalStageDeps, "db" | "invokeStage">;
 };
 
 /**
@@ -71,15 +82,15 @@ export const createApp = (deps: AppDeps): Hono => {
       // Deliberately not "invalid token" versus "no token": the difference is
       // information about the token, which is the one thing an unauthenticated
       // caller must not learn.
-      return context.json(
-        {
-          error: {
-            code: "unauthorized",
-            message: "This request is not authorised.",
-          },
-        },
-        401,
+      // Through the same mapping as every other failure, so there is one error
+      // shape and one place that decides what a code means.
+      const { body, status } = toHttpResponse(
+        new AuteurError(
+          "unauthorized",
+          "This request does not carry the API token.",
+        ),
       );
+      return context.json(body, status as 401);
     }
     return next();
   });
@@ -120,6 +131,18 @@ export const createApp = (deps: AppDeps): Hono => {
   app.route("/", answerRoutes({ db: deps.db }));
   app.route("/", healthRoutes());
   app.route("/", modelRoutes());
+  if (deps.internalStage !== undefined) {
+    app.route(
+      "/",
+      internalStageRoutes({
+        db: deps.db,
+        ...deps.internalStage,
+        ...(deps.invokeStage !== undefined && {
+          invokeStage: deps.invokeStage,
+        }),
+      }),
+    );
+  }
   app.route("/", pinRoutes({ db: deps.db }));
   app.route(
     "/",

@@ -20,7 +20,10 @@ export const listQueueForSession = async (
 ## `@auteur/stage-queue/sweep`
 
 ```ts
+export const QUEUED_AFTER_SECONDS = 60
 export const STALE_AFTER_SECONDS = 300
+export const abandonStaleClaim = async (
+export const findAbandonedQueued = async (
 export const findStaleClaims = async (
 export const releaseStaleClaim = async (
 ```
