@@ -14,9 +14,11 @@ Sources, in precedence order for anything this document does not say:
 
 Where those three disagree with each other, §13 says what is built and why.
 
-Stack: Bun + Turborepo + Biome · TypeScript · Hono + `bun:sqlite` + SSE on the
-server · Vite + React + PandaCSS in the browser · Ramp Router as the model
-gateway behind a provider seam. Single-user, runs locally, no accounts.
+Stack: Bun + Turborepo + Biome · TypeScript · Postgres on Neon, hand-written
+SQL, no ORM · Vite + React + PandaCSS on Vercel with eleven routes as functions
+· Hono + SSE on one Fly machine for the pipeline · Ramp Router as the model
+gateway behind a provider seam. Single-user, no accounts; deployed rather than
+local (§7).
 
 ---
 
@@ -49,8 +51,8 @@ seven-stage pipeline from being undebuggable.
 
 ```
 apps/
-  auteur-server/          Hono, bun:sqlite, SSE
-  auteur-web/             Vite + React, the seven-step wizard
+  auteur-web/             Vite + React client and eleven routes, on Vercel
+  auteur-runner/          Hono: the pipeline, SSE and cancel, on Fly
 packages/
   foundation:  ids  core  errors  env  logger  text  prosody
                tokens  icons  copy  formatting
@@ -95,7 +97,7 @@ Two packages are foundation-layer that a reader might expect elsewhere:
 | `icons` | The Lucide binding, and the only way to draw an icon |
 | `copy` | Every user-facing string, with the content rules asserted by test |
 | `formatting` | Presentation rules: elapsed times, counts, money, prosody numbers |
-| `db` | `bun:sqlite` connection and SQL primitives. Knows no domain |
+| `db` | `pg` connection handling, pooled and direct, and SQL primitives. Knows no domain |
 | `migrations` | The ordered SQL ledger and the runner that applies it on access |
 | `session-store` | Sessions, answers, artifacts and their staleness |
 | `card-store` | The style-card cache, versioned per author |
@@ -169,7 +171,10 @@ named here. `pattern` means the approach is copied and the code is not.
 | `api-contract` / `api-client` | nexus | **pattern.** One zod object, routes enumerated from it, client generated from it — so a contract change breaks both sides' compile at once. auteur has 14 routes rather than 31. |
 | `stream-client` | nexus `loop-client` | **adapted.** The cursor / replay / de-duplicate contract verbatim; the events are auteur's. |
 | `run-store` | nexus | **pattern into `event-store`.** Append to the table, then fan out — never the reverse — and a gap-free per-session `seq` (§7.3). |
-| `migrations` | nexus | **adapted.** The inlined-manifest-plus-checksum ledger applied by `ensureSchema()` on access, with nobody running a migration by hand. SQLite specifics in §3.1. |
+| `deployment` topology | nexus | **pattern.** Vercel for the routes, Fly for the long-running process, one signed internal dispatch between them, Postgres shared. §7. |
+| `migrations` | nexus | **verbatim in approach and close to it in code.** The inlined-manifest-plus-checksum ledger applied by `ensureSchema()` on access under `pg_advisory_lock`, with nobody running a migration by hand. §3.3. |
+| `db` | nexus | **adapted.** `pg` primitives verbatim; auteur adds the pooled-versus-direct distinction §3.1 needs and drops the scope argument it has no use for. |
+| `run-store` heartbeat and sweeper | nexus | **adapted into `event-store` and `session_runs`.** §7.3. Taken because §7's two units reintroduce the failure it exists for. |
 | `scripts/` toolchain | nexus | **verbatim.** `packages.manifest.ts`, `check-dependencies.ts`, `api-surface.ts`, `new-package.ts`, `package-tests.ts`, `check-catalog.ts`, `preflight.ts`, `gate-self-test.ts`. |
 | `turbo.json`, `biome.json`, `bunfig.toml`, `.github/workflows/ci.yml` | nexus | **adapted.** Concurrency group, `--affected` on pull requests, `--concurrency=100%`, cache restore keyed on the lockfile. |
 | `dependency-min-age` | argo-browser | **verbatim,** with `minimumReleaseAge` in `bunfig.toml`. It closes a real hole: Bun grandfathers versions already in the lockfile. |
@@ -182,7 +187,6 @@ named here. `pattern` means the approach is copied and the code is not.
 | argo `agent-loop` | The PRD takes it as a contract only. nexus's `model-provider` is that contract, and taking it instead is what lets `provider-router` land unmodified. |
 | argo `model-client-anthropic`, nexus's absent equivalent | The PRD keeps it for a direct-Anthropic fallback. Deferred: a second adapter is a second wire format to keep correct, and the seam is what makes it a later decision rather than a refactor. `provider-router`'s conformance test is what keeps the seam honest with one implementation behind it — see nexus's `DECISIONS.md` on exactly this. |
 | argo `transport-ws`, `protocol-loop` | The PRD's call, and it is right. auteur streams one direction. |
-| nexus `db`, `migrations` runner internals | `pg`. Rewritten for `bun:sqlite`; the ledger design survives, the driver code does not. |
 | nexus `scope`, `authz`, `auth`, the stores | Single-user. There is no workspace boundary and no membership, so the branded-scope machinery guards nothing. |
 | nexus `retrieval`, `web-search`, `blob`, `email`, `extraction`, `memory`, `merge`, `assets` | No retrieval (PRD §4 explicitly), no uploads, no web research in v1. |
 | nexus `agent-loop`, `agent-tools`, `loop-client`'s `useRun` | auteur's pipeline is deterministic stages, not a tool loop. `clarify` re-enters itself but it is a bounded `for` loop over a stage, not an agent. |
@@ -192,136 +196,157 @@ named here. `pattern` means the approach is copied and the code is not.
 
 ## 3. Persistence
 
-**`[open]` in `PRD.md` §12 — resolved: yes, SQLite via `bun:sqlite`.** Style
-cards cost real money and minutes to build and are worth caching across
-sessions; a half-finished wizard must survive a reload; and the durable event
-log that makes the SSE stream replayable (§7.3) needs somewhere to live. In
-`bun:sqlite` all of that costs one file and no process.
+**`[open]` in `PRD.md` §12 — resolved: Postgres on Neon.** An earlier draft of
+this section resolved it to `bun:sqlite`, on the reasoning that a single-user
+local app should not operate a database. That reasoning was right for a local
+app and is void for a deployed one: §7's topology puts the short routes on
+Vercel functions, and a function's filesystem is ephemeral and per-invocation,
+so a file-backed database is not reachable from them at all. Neon is the
+transactional store; nothing else is a system of record.
+
+Three things this buys back, each of which was a cost in the SQLite draft:
+
+- **nexus's `db` and `migrations` come across close to verbatim** rather than
+  being rewritten for a second driver (§2). The advisory-lock migration runner,
+  the connection handling and the query primitives are all `pg`, which is what
+  they were written against.
+- **The `database` and `migrations` guidelines apply unmodified.** They are
+  written for exactly this — Postgres on Neon, hand-written SQL, no ORM, the
+  server converging the schema on access.
+- **Serverless connection discipline is a solved problem here**, where under
+  SQLite it was an unsolvable one: Vercel functions use Neon's pooled endpoint,
+  the Fly runner uses the direct endpoint with its own small pool.
 
 ### 3.1 Conventions
 
-- **UUIDv7 primary keys**, minted in TypeScript by `ids`, stored as `text`.
+- **UUIDv7 primary keys**, minted in TypeScript by `ids`, stored as `uuid`.
   Time-ordered, so rows index and paginate by id and no separate sort column is
-  needed.
-- **`text` + `CHECK` instead of an enum**, mirroring cleanly onto a TypeScript
-  union. SQLite has no enum type; the `CHECK` is what makes the union
-  enforceable at the storage layer.
-- **Timestamps are integer milliseconds since the epoch**, UTC. `bun:sqlite`
-  round-trips integers exactly and this avoids the string-format ambiguity of
-  SQLite's date functions. `core` converts at the boundary; no domain type
-  carries a number where a moment is meant.
-- **JSON columns hold documents, not relations.** A style card, an outline and a
-  prosody block are each one `text` column of JSON, parsed with zod on read
+  needed. Minted in the application rather than by the database so an id exists
+  before the insert, which is what lets an event reference a row it is written
+  beside.
+- **`text` + `CHECK` instead of an enum type.** A `CHECK` mirrors cleanly onto a
+  TypeScript union and is altered by a migration; a Postgres `enum` type is
+  altered by a DDL statement with its own transactional rules, for no gain.
+- **`timestamptz`**, always UTC, never a bare `timestamp`. `core` converts at
+  the boundary; no domain type carries a number where a moment is meant.
+- **`jsonb` columns hold documents, not relations.** A style card, an outline
+  and a prosody block are each one `jsonb` column, parsed with zod on read
   (invariant 4). They are read whole, written whole, and never queried into.
   Anything that *is* queried — a session's step, an author id, a card version —
-  is a real column.
-- **Pragmas, set once on open:** `journal_mode = WAL`, `synchronous = NORMAL`,
-  `foreign_keys = ON`, `busy_timeout = 5000`. WAL is what lets the SSE reader
-  and the pipeline writer coexist; `foreign_keys` is off by default in SQLite
-  and every `ON DELETE CASCADE` below is silently inert without it.
-- **One writer.** The server is one process, so there is no write-contention
-  design to do. `busy_timeout` covers the reader. Hosting does not change this:
-  the deploy is one machine, and `docs/IMPLEMENTATION-PLAN.md` §5.3 makes that
-  a checked property of `fly.toml` rather than a convention.
+  is a real column. `jsonb` rather than `json` so equality and containment work
+  if a query ever needs them, at no cost on write.
+- **Two connection modes, and the seam between them is `env`.** A Vercel
+  function opens against Neon's **pooled** endpoint, because instances are
+  plural and short-lived and a direct connection per invocation exhausts the
+  server. The Fly runner opens against the **direct** endpoint with a small
+  pool it keeps for its lifetime, because it holds transactions across a
+  streaming call and pooled-mode PgBouncer does not support that. `env` exposes
+  both and each app reads the one it is allowed.
+- **One writer per session, not per database.** Postgres has real concurrency,
+  so the SQLite draft's "one writer" simplification is gone. What replaces it is
+  narrower and is the property that actually matters: a session's stages run in
+  exactly one runner process at a time, enforced by `stage_runs` and the
+  dispatch lock in §7.3.
 
 ### 3.2 Schema
 
 ```sql
 -- Sessions: one wizard run.
 CREATE TABLE sessions (
-  id            TEXT PRIMARY KEY,
-  step          TEXT NOT NULL CHECK (step IN
+  id            uuid PRIMARY KEY,
+  step          text NOT NULL CHECK (step IN
                   ('idea','author','research','clarify','outline','draft','result')),
-  idea          TEXT NOT NULL,              -- verbatim, never rewritten
-  constraints   TEXT,                       -- the "hard constraints" field
-  length_preset TEXT NOT NULL CHECK (length_preset IN
+  idea          text NOT NULL,              -- verbatim, never rewritten
+  constraints   text,                       -- the "hard constraints" field
+  length_preset text NOT NULL CHECK (length_preset IN
                   ('flash','short','long','novelette')),
-  author_id     TEXT REFERENCES authors(id),
-  card_id       TEXT REFERENCES style_cards(id),
-  created_at    INTEGER NOT NULL,
-  updated_at    INTEGER NOT NULL
+  author_id     text REFERENCES authors(id),
+  card_id       uuid REFERENCES style_cards(id),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
 );
 
 -- Authors, as the corpus index knows them. One row per resolved author,
--- not per search result.
+-- not per search result. The id is provider-scoped and minted, not a uuid:
+-- "gutenberg:borges-jorge-luis-1899". §5.2
 CREATE TABLE authors (
-  id            TEXT PRIMARY KEY,           -- "gutenberg:borges-jorge-luis". §5.2
-  provider      TEXT NOT NULL CHECK (provider IN ('gutenberg')),
-  kind          TEXT NOT NULL CHECK (kind IN ('full-text','secondary')),
-  display_name  TEXT NOT NULL,
-  birth_year    INTEGER,
-  death_year    INTEGER,
-  work_count    INTEGER NOT NULL,
-  measured_words INTEGER,                   -- NULL until a corpus is fetched (§5.3)
-  fetched_at    INTEGER
+  id            text PRIMARY KEY,
+  provider      text NOT NULL CHECK (provider IN ('gutenberg')),
+  kind          text NOT NULL CHECK (kind IN ('full-text','secondary')),
+  display_name  text NOT NULL,
+  birth_year    integer,
+  death_year    integer,
+  work_count    integer NOT NULL,
+  measured_words integer,                   -- NULL until a corpus is fetched (§5.3)
+  fetched_at    timestamptz
 );
 
 -- The style-card cache. Canonical, shared across sessions, never edited.
 CREATE TABLE style_cards (
-  id            TEXT PRIMARY KEY,
-  author_id     TEXT NOT NULL REFERENCES authors(id),
-  version       INTEGER NOT NULL,           -- 1, 2, 3 … per author. "borges@3"
-  build_key     TEXT NOT NULL,              -- §4.4. Identity of the inputs
-  provenance    TEXT NOT NULL CHECK (provenance IN ('full-text','secondary')),
-  confidence    REAL NOT NULL,              -- citation coverage. §4.5
-  card          TEXT NOT NULL,              -- the whole StyleCard, JSON
-  built_at      INTEGER NOT NULL,
+  id            uuid PRIMARY KEY,
+  author_id     text NOT NULL REFERENCES authors(id),
+  version       integer NOT NULL,           -- 1, 2, 3 … per author. "borges@3"
+  build_key     text NOT NULL,              -- §4.4. Identity of the inputs
+  provenance    text NOT NULL CHECK (provenance IN ('full-text','secondary')),
+  confidence    real NOT NULL,              -- citation coverage. §4.5
+  card          jsonb NOT NULL,             -- the whole StyleCard
+  built_at      timestamptz NOT NULL DEFAULT now(),
   UNIQUE (author_id, version),
   UNIQUE (build_key)
 );
 
 -- Per-session overrides. Never merged into style_cards.
 CREATE TABLE card_overlays (
-  session_id    TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-  card_id       TEXT NOT NULL REFERENCES style_cards(id),
-  fields        TEXT NOT NULL               -- { [path]: { value, origin } }, JSON
+  session_id    uuid PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+  card_id       uuid NOT NULL REFERENCES style_cards(id),
+  fields        jsonb NOT NULL              -- { [path]: { value, origin } }
 );
 
 -- Per-session model pins over the tier defaults. Same layering as the overlay.
 CREATE TABLE stage_pins (
-  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  stage_id      TEXT NOT NULL,
-  model_id      TEXT NOT NULL,
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  stage_id      text NOT NULL,
+  model_id      text NOT NULL,
   PRIMARY KEY (session_id, stage_id)
 );
 
 -- Corpus works and the passages selected from them.
 CREATE TABLE works (
-  id            TEXT PRIMARY KEY,           -- "gutenberg:1234"
-  author_id     TEXT NOT NULL REFERENCES authors(id),
-  title         TEXT NOT NULL,
-  year          INTEGER,
-  language      TEXT NOT NULL,
-  translator    TEXT,                       -- when gutendex reports one (§5.2)
-  source_url    TEXT NOT NULL,
-  cleaner_version TEXT NOT NULL,            -- §4.2
-  word_count    INTEGER NOT NULL,
-  text          TEXT NOT NULL,              -- cleaned full text
-  fetched_at    INTEGER NOT NULL,
+  id            text PRIMARY KEY,           -- "gutenberg:1234"
+  author_id     text NOT NULL REFERENCES authors(id),
+  title         text NOT NULL,
+  year          integer,
+  language      text NOT NULL,
+  translator    text,                       -- when gutendex reports one (§5.2)
+  source_url    text NOT NULL,
+  cleaner_version text NOT NULL,            -- §4.2
+  word_count    integer NOT NULL,
+  text          text NOT NULL,              -- cleaned full text
+  fetched_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (source_url, cleaner_version)      -- the cache key. §5.4
 );
 
 CREATE TABLE passages (
-  id            TEXT PRIMARY KEY,
-  work_id       TEXT NOT NULL REFERENCES works(id) ON DELETE CASCADE,
-  char_start    INTEGER NOT NULL,
-  char_end      INTEGER NOT NULL,
-  text          TEXT NOT NULL               -- verbatim. Exemplars cite this row
+  id            uuid PRIMARY KEY,
+  work_id       text NOT NULL REFERENCES works(id) ON DELETE CASCADE,
+  char_start    integer NOT NULL,
+  char_end      integer NOT NULL,
+  text          text NOT NULL               -- verbatim. Exemplars cite this row
 );
 
 -- Questions form a tree, not a list (PRD §6).
 CREATE TABLE questions (
-  id            TEXT PRIMARY KEY,
-  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  round         INTEGER NOT NULL CHECK (round BETWEEN 1 AND 3),
-  ordinal       INTEGER NOT NULL,
-  text          TEXT NOT NULL,
-  decision      TEXT NOT NULL,              -- what it resolves. Non-empty (§6.5)
-  why_asked     TEXT NOT NULL,              -- why the answers so far did not settle it
-  suggestions   TEXT NOT NULL,              -- string[], JSON
-  depends_on    TEXT NOT NULL,              -- questionId[], JSON
-  answer        TEXT,                       -- NULL = unanswered
-  answer_state  TEXT NOT NULL CHECK (answer_state IN
+  id            uuid PRIMARY KEY,
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  round         integer NOT NULL CHECK (round BETWEEN 1 AND 3),
+  ordinal       integer NOT NULL,
+  text          text NOT NULL,
+  decision      text NOT NULL,              -- what it resolves. Non-empty (§6.5)
+  why_asked     text NOT NULL,              -- why the answers so far did not settle it
+  suggestions   jsonb NOT NULL,             -- string[]
+  depends_on    jsonb NOT NULL,             -- questionId[]
+  answer        text,                       -- NULL = unanswered
+  answer_state  text NOT NULL CHECK (answer_state IN
                   ('open','answered','skipped','invalidated')),
   UNIQUE (session_id, round, ordinal)
 );
@@ -329,54 +354,66 @@ CREATE TABLE questions (
 -- Stage artifacts: outline, draft, report, and the decisions log.
 -- input_key is what makes staleness a computed fact rather than a flag (§7.5).
 CREATE TABLE artifacts (
-  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  kind          TEXT NOT NULL CHECK (kind IN
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  kind          text NOT NULL CHECK (kind IN
                   ('outline','draft','report','decisions')),
-  input_key     TEXT NOT NULL,
-  body          TEXT NOT NULL,              -- JSON, or markdown for 'draft'
-  created_at    INTEGER NOT NULL,
+  input_key     text NOT NULL,
+  body          jsonb NOT NULL,             -- markdown for 'draft' is a JSON string
+  created_at    timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (session_id, kind)
 );
 
 -- The durable event log. §7.3.
 CREATE TABLE events (
-  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  seq           INTEGER NOT NULL,           -- gap-free, per session, from 1
-  type          TEXT NOT NULL,
-  payload       TEXT NOT NULL,              -- JSON
-  created_at    INTEGER NOT NULL,
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  seq           integer NOT NULL,           -- gap-free, per session, from 1
+  type          text NOT NULL,
+  payload       jsonb NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (session_id, seq)
 );
 
 -- One row per provider call. The cost line in the rail footer sums this.
 CREATE TABLE stage_runs (
-  id            TEXT PRIMARY KEY,
-  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  stage_id      TEXT NOT NULL,
-  attempt       INTEGER NOT NULL,
-  model_id      TEXT,                       -- NULL for a deterministic stage
-  tier          TEXT CHECK (tier IN ('cheap','balanced','strong')),
-  status        TEXT NOT NULL CHECK (status IN ('running','ok','error','cancelled')),
-  input_tokens  INTEGER,
-  cached_input_tokens INTEGER,
-  output_tokens INTEGER,
-  cost_micros   INTEGER,                    -- §10.2. Declared, not billed
-  started_at    INTEGER NOT NULL,
-  finished_at   INTEGER,
-  error_code    TEXT
+  id            uuid PRIMARY KEY,
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  stage_id      text NOT NULL,
+  attempt       integer NOT NULL,
+  model_id      text,                       -- NULL for a deterministic stage
+  tier          text CHECK (tier IN ('cheap','balanced','strong')),
+  status        text NOT NULL CHECK (status IN ('running','ok','error','cancelled')),
+  input_tokens  integer,
+  cached_input_tokens integer,
+  output_tokens integer,
+  cost_micros   bigint,                     -- §10.2. Declared, not billed
+  started_at    timestamptz NOT NULL DEFAULT now(),
+  finished_at   timestamptz,
+  error_code    text
+);
+
+-- One row per session that a runner has claimed. §7.3's dispatch lock and
+-- heartbeat live here; a session with no row has no run in flight.
+CREATE TABLE session_runs (
+  session_id    uuid PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+  runner_id     text NOT NULL,              -- the fly machine that claimed it
+  status        text NOT NULL CHECK (status IN ('running','done','error','cancelled')),
+  cancel_requested boolean NOT NULL DEFAULT false,
+  heartbeat_at  timestamptz NOT NULL DEFAULT now(),
+  started_at    timestamptz NOT NULL DEFAULT now(),
+  finished_at   timestamptz
 );
 
 CREATE TABLE stories (
-  session_id    TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-  title         TEXT,
-  markdown      TEXT NOT NULL,
-  word_count    INTEGER NOT NULL,
-  prosody       TEXT NOT NULL,              -- the draft's own measured block, JSON
-  created_at    INTEGER NOT NULL
+  session_id    uuid PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+  title         text,
+  markdown      text NOT NULL,
+  word_count    integer NOT NULL,
+  prosody       jsonb NOT NULL,             -- the draft's own measured block
+  created_at    timestamptz NOT NULL DEFAULT now()
 );
 ```
 
-Three properties worth naming:
+Four properties worth naming:
 
 - **`works.text` holds the cleaned full text.** A corpus is tens of megabytes at
   most and prosody is recomputed whenever the segmenter's version changes
@@ -388,35 +425,44 @@ Three properties worth naming:
   on the card holding quotation text that a write could reach.
 - **`style_cards.build_key` is unique.** Rebuilding a card with identical
   inputs is a cache hit, not a version 4 (§4.4).
+- **`session_runs` is the whole of the distributed-systems surface.** It is the
+  one table that exists because the pipeline runs in a different process from
+  the routes that start and observe it. Everything else in this schema would be
+  identical in a single-process design.
 
 ### 3.3 Migrations
 
-nexus's design, minus the parts Postgres needed:
+nexus's design, taken close to verbatim because the driver is now the same one
+it was written for:
 
 - `packages/migrations/sql/NNNN_name.sql` is the schema's history, one coherent
   migration per file. `0001` creates the ledger.
 - `bun run build` inlines every file into `src/generated/manifest.ts` as
   `{ version, name, sql, checksum }`, committed. Inlined rather than read from
-  disk so a bundled server cannot find zero migrations at runtime — the worst
-  failure this package has.
-- `ensureSchema()` runs on server access. Fast path is one statement
+  disk so a bundled serverless function cannot find zero migrations at runtime —
+  the worst failure this package has, and the one nexus actually shipped.
+- `ensureSchema()` runs on access. Fast path is one statement
   (`SELECT max(version) FROM _auteur_migrations`), memoized in a module-level
   promise. Only when that says the database is behind does it take
-  `BEGIN IMMEDIATE`, re-read the ledger, verify checksums, and apply each
-  pending migration in its own transaction with its ledger row written inside
-  it. There is no advisory lock because there is no second process; `BEGIN
-  IMMEDIATE` is what serialises a second *instance* of the same server.
+  `pg_advisory_lock(<constant>)`, re-read the ledger, verify checksums, and apply
+  each pending migration in its own transaction with its ledger row written
+  inside it. The advisory lock is what serialises every Vercel function
+  instance, the Fly runner and a developer's laptop pointed at the same branch —
+  which is precisely the situation SQLite's `BEGIN IMMEDIATE` could not have
+  covered.
+- It is called from three places: the Vercel request handler's first use, the
+  Fly runner's boot sequence, and a build-time step, so a bad migration fails
+  the deploy rather than the first request after it.
 - **Never edit an applied migration.** Checksums are verified on every boot and
   a mismatch aborts. Rollback is a new forward migration.
 - `bun run migration:new` scaffolds a file. It does not apply one.
 
-One SQLite-specific rule: **a migration file may not contain more than one
-`ALTER TABLE` per table when the change is a rewrite.** SQLite's `ALTER TABLE`
-is narrow, so a column type change or a dropped constraint is a
-create-copy-drop-rename, and doing two of those to one table in one file makes
-the checksum's promise ("this file has been applied") harder to reason about
-than writing two files.
-
+Because two deploy units run at once during a rollout, **a schema change ships
+in expand / migrate / contract order**: add the column nullable, deploy code
+that writes both, backfill, deploy code that reads the new one, drop the old in
+a later migration. The deploy never assumes the previous version has stopped
+running. This is the `migrations` guideline's rule and it is load-bearing here
+in a way it was not in the single-process draft.
 ---
 
 ## 4. The style card
@@ -1288,43 +1334,61 @@ Two constraints, both from the same reasoning:
 
 ## 7. The server
 
-`apps/auteur-server` is one Hono process running on the user's own machine. It
-owns the database, the pipeline and the SSE fan-out. There is no second service
-and no queue: the process the user started is the process that runs the
-pipeline, and a turn's lifetime is bounded by that process rather than by an
-HTTP request.
+auteur deploys as **two units and one database**, which is nexus's topology
+and is taken for nexus's reason.
 
-**One narrow correction to `PRD.md` §4, which puts hosting out of scope.**
-Running locally stays the default and is what the rest of this document assumes.
-But the same process is *deployable* without changing: **one Fly.io machine with
-a persistent volume, and the `bun:sqlite` file on the volume**, also serving the
-client's static build, so there is one origin and no CORS. Whether to deploy it
-is a decision taken after the product runs — `docs/IMPLEMENTATION-PLAN.md` §5.3
-makes it two work packages at the end that touch five files nothing else
-touches.
+| Unit | Runs | Holds |
+|---|---|---|
+| `apps/auteur-web` on **Vercel** | The Vite client as a static build, and eleven of the fourteen routes as functions | Every read and every short synchronous write. Nothing that outlives a request. |
+| `apps/auteur-runner` on **Fly.io** | One long-lived Hono process | The pipeline engine, the SSE fan-out, `/cancel`, and the internal dispatch endpoint. |
+| **Neon** | Postgres | Everything in §3. The only thing both units share. |
 
-What this deliberately is not: a serverless split. A Vercel function's
-filesystem is ephemeral and per-invocation, so of the fourteen routes below only
-the two that touch no database could ever be functions, and the pipeline could
-not be one at any ceiling. Choosing a machine instead means **nothing in §3 or
-§7 changes** — one process, one writer, the SSE fan-out and the pipeline in the
-same place, no queue, no second service, and no managed database to operate.
-The deploy target moved; the design did not.
+**Why the runner is not a function**, which is the whole argument for the
+split: a run is minutes of work — §10 targets a median under four minutes to
+first token, and a novelette under `sequential-scene` is far longer — and it
+must survive the client closing the tab, which a handler driven by the client's
+own request cannot. The SSE fan-out is the same problem from the other side: it
+pushes from an in-memory broker in the process that is running the stages, and
+an ephemeral plural instance has neither the process nor the broker.
 
-Three constraints follow from the volume, and they are in
-`docs/IMPLEMENTATION-PLAN.md` §5.3 with what each costs: exactly one machine
-with auto-stop off, because a volume attaches to one machine and a stopped
-machine drops an in-flight run; a single shared bearer token on every route,
-because a public listener with the gateway key behind it is otherwise a bill
-anyone can run up; and a boot-time reconciliation, because a machine restart is
-now possible mid-run in a way a laptop process was not — see §7.3.
+**Why the rest is not on Fly.** Eleven routes are a query and a small write.
+Putting them on the machine would mean the machine is in the request path for
+every keystroke of author search, and it buys nothing: they are exactly what a
+function is for.
+
+The seam between the two is one signed internal call. `POST /advance` on Vercel
+computes what is stale (§7.5), writes the intent, dispatches to the runner over
+an HTTP call authenticated with a shared secret, and **returns immediately**.
+It never blocks on the run. The client then opens the SSE stream against the
+runner and watches.
+
+Three costs this topology has that a single process did not, each paid
+explicitly rather than discovered:
+
+- **The client talks to two origins.** Vercel for the routes, Fly for `/events`
+  and `/cancel`. That is a CORS configuration and a second base URL in the
+  client. The alternative — SSE on Vercel polling the `events` table — replaces
+  a push with a poll and gives up token-latency streaming, which is the draft
+  screen's entire point. Rejected.
+- **A heartbeat and a stale-run sweeper.** §7.3. An earlier draft of this
+  document said auteur needed neither, because the pipeline and the SSE endpoint
+  were the same process as everything else. They are not any more, so nexus's
+  reason for having them is now auteur's reason.
+- **Expand / migrate / contract on every schema change** (§3.3), because two
+  deploy units are live at once during a rollout.
+
+`PRD.md` §4 puts hosting out of scope. This corrects it, and the correction is
+the reason §3 resolves to Postgres rather than to a file.
 
 ### 7.1 Routes
 
 Fourteen, described once in `api-contract` as zod, with `api-client` generated
 from the same object so a contract change breaks both sides' compile together.
+The contract records which unit serves each one, so the client's two base URLs
+are derived from it rather than remembered.
 
 ```
+── Vercel (apps/auteur-web) ────────────────────────────────────────────
 GET    /api/health
 GET    /api/models                                  the catalog, per tier
 
@@ -1339,13 +1403,23 @@ POST   /api/sessions/:id/author                     { authorId } — starts rese
 POST   /api/sessions/:id/answers                    { questionId, answer | skip }
 POST   /api/sessions/:id/advance                    { to: Step } — runs what is stale
 POST   /api/sessions/:id/regenerate                 { kind: 'outline' } | { kind: 'selection', from, to }
-POST   /api/sessions/:id/cancel
 
 PUT    /api/sessions/:id/pins                       { [stageId]: modelId }
 GET    /api/sessions/:id/export                     text/markdown
 
+── Fly (apps/auteur-runner) ────────────────────────────────────────────
 GET    /api/sessions/:id/events?cursor=N            text/event-stream
+POST   /api/sessions/:id/cancel
+
+── internal, signed, never reached by a browser ────────────────────────
+POST   /internal/dispatch                           { sessionId, stages }
 ```
+
+`/cancel` is on the runner because the `AbortSignal` it aborts lives in that
+process. A cancel routed through Vercel could only set a flag the runner would
+have to poll, which turns an immediate stop into a delayed one for no gain.
+`session_runs.cancel_requested` still exists, as the record of what happened and
+as the path a sweeper uses; the live cancel does not depend on it.
 
 `POST /advance` is the only route that starts work, and it starts **exactly the
 stages that are stale** (§7.5). That is what makes every step re-enterable
@@ -1403,22 +1477,27 @@ Failure behaviour, adapted from nexus's table:
 | A frame that will not parse | Fatal at once. Reconnecting from the same cursor refetches the same bad frame forever |
 | `close()` | Idempotent, aborts the in-flight request, stops reconnecting |
 
-There is no heartbeat table and no stale-run sweeper. nexus needs both because
-its loop runs on a machine that can die independently of the client; here the
-pipeline and the SSE endpoint are the same process, so a dead process is a dead
-server and the browser's reconnect is the whole recovery path. What survives a
-crash is what is in `events` and `artifacts`, which is what `GET /api/sessions/:id`
-returns on the next load.
+**A heartbeat and a sweeper, which an earlier draft of this document said were
+unnecessary.** That draft's reasoning was that the pipeline and the SSE endpoint
+were the same process as everything else, so a dead process was a dead server
+and the browser's reconnect was the whole recovery path. Under §7's topology the
+runner dies independently of the client and of the routes, so nexus's reason for
+having them is now auteur's:
 
-**One thing hosting adds, and it is not a heartbeat.** A deploy or a machine
-restart can now interrupt a run, where a laptop process could not be replaced
-under itself. The `stage_runs` rows of the interrupted run would stay `running`
-for ever and the session would never advance. So `ensureSchema()`'s caller
-follows it with one statement: every `stage_runs` row still `running` at boot
-becomes `error` with code `internal`, and its session gets a `stage_error`
-event. That is a reconciliation at startup, not a sweeper on a timer — there is
-still exactly one process, so a row that is `running` when it boots is by
-definition orphaned.
+- The runner writes `session_runs.heartbeat_at` every few seconds while a run is
+  in flight.
+- A run whose heartbeat is older than a small multiple of that interval is
+  reaped: `session_runs.status` becomes `error`, every `stage_runs` row of that
+  session still `running` becomes `error` with code `internal`, and a
+  `stage_error` event is appended so a reconnecting client is told why its run
+  stopped rather than watching a stream that never advances.
+- The sweep runs on the runner's own boot and on a timer, and it is idempotent,
+  so two runners sweeping at once is not a race.
+
+**The dispatch lock is the same row.** `session_runs.session_id` is the primary
+key, so a claim is an insert that either succeeds or conflicts. Two dispatches
+for one session cannot both start a run, which is what stops a double-clicked
+"advance" from running the pipeline twice against one event log.
 
 ### 7.4 Errors
 
@@ -1948,8 +2027,8 @@ of a seven-step wizard is a maintenance cost that catches less than the axe audi
 | Item | Resolution |
 |---|---|
 | §12 — adopt argo's `AGENTS.md` regime? | **Yes in shape: the document-index regime, seeded from `agent-guidelines` rather than copied from argo.** §11.1, and decision 0001. The index's cost is accepted and bounded; nexus's contribution is §11.2's gates, which is the half that does not decay. |
-| §12 — persistence via `bun:sqlite`? | **Yes.** §3. Cards are expensive, a half-finished wizard must survive a reload, and the replayable event log needs somewhere to live. |
-| §4 — hosting out of scope | **Corrected.** §7. The same one-process server deploys to a single Fly.io machine with the SQLite file on a persistent volume, serving the client from the same origin. Nothing about §3 or §7's design changes; a serverless split would have changed both. |
+| §12 — persistence via `bun:sqlite`? | **No — Postgres on Neon.** §3. The reasons for persistence stand: cards are expensive, a half-finished wizard must survive a reload, and the replayable event log needs somewhere to live. The store changed because §7 puts the short routes on functions, which cannot reach a file. |
+| §4 — hosting out of scope | **Corrected.** §7. Two deploy units and one database: the client and eleven routes on Vercel, the pipeline and the SSE stream on one Fly machine, Postgres on Neon. This is nexus's topology, taken for nexus's reason. |
 | §9 — the living-author tier's legal position | **Left open. Not an architecture decision.** §5.5 puts the seam and the type distinction in place, and no v1 code path ingests in-copyright primary text. The review the PRD asks for is needed before the v2 tier is built, and this document does not pre-empt it. |
 
 Three further decisions this document makes that the PRD leaves implicit:
@@ -2071,8 +2150,9 @@ gate and the design port given its own step.
 4. **`corpus-gutenberg`.** **Spike first**: one real gutendex response recorded
    as a fixture and the schema pinned to it (§5.2). Then search, fetch, work
    selection, passage selection, and the `works`/`passages` cache.
-5. **`db` and `migrations`.** The §3 schema, the ledger, `ensureSchema()`. Small
-   and mechanical, and it comes after 3 and 4 because those two need no database.
+5. **`db` and `migrations`.** The §3 schema, the ledger, `ensureSchema()` under
+   the advisory lock, and the ephemeral-Neon-branch test harness. Mostly nexus's
+   code, and it comes after 3 and 4 because those two need no database.
 6. **`style-card`.** Schema, `resolveCard`, `buildKey`, confidence, the
    extraction stage's prompt and its structured output. Ends with a real card for
    a real author, inspectable as JSON.
@@ -2080,8 +2160,10 @@ gate and the design port given its own step.
    `clarify` re-entry, both draft strategies. Tested against the scripted fake
    provider; then one real end-to-end flash story with the cost read off
    `stage_runs`.
-8. **`apps/auteur-server`.** Routes, `api-contract`, the event log, SSE,
-   `advance` and the staleness computation (§7.5).
+8. **The two apps' server halves.** `api-contract`, the eleven Vercel routes,
+   `advance` and the staleness computation (§7.5); then `apps/auteur-runner` —
+   the event log, SSE, cancel, the signed dispatch, the heartbeat and the
+   sweeper (§7.3).
 9. **`tokens` and `component-library`.** The preset with its gate, then the
    fifteen components against their `.d.ts` contracts. This is the step that can
    run in parallel with 6 through 8 — it touches no file they touch.
@@ -2089,9 +2171,8 @@ gate and the design port given its own step.
     (§8.6), because it exercises both grounds and the live measurement.
 11. **`style-fit`, `export`, `provenance-suite`.** The report, the label, and
     gate 8.
-12. **The deploy, if it is taken.** One Fly machine, one volume, the boot
-    reconciliation, the bearer token, and the client served from the same
-    origin (§7). Optional, and last, because nothing before it depends on it.
+12. **The deploy.** `vercel.json`, `fly.toml`, the Neon project, the signed
+    dispatch secret and the bearer token (§7).
 
 Steps 3, 4 and 6 are the product. Steps 1, 2, 5 and 8 are plumbing and should
 not absorb more than they need. Step 9 is the one that can be worked in
