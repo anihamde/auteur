@@ -8,5 +8,5 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/api-client/client`
 
 ```ts
-export const unimplemented = (): never =>
+export const createClient = (config: ClientConfig = {}) =>
 ```

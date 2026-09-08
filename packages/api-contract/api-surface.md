@@ -8,11 +8,29 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/api-contract/contract`
 
 ```ts
-export const unimplemented = (): never =>
+export const methodFor = (name: RouteName): Method => specOf(name).method
+export const parseBody = <Name extends RouteName>(
+export const parseQuery = <Name extends RouteName>(
+export const pathFor = (name: RouteName, params: PathParams = {}): string =>
+export const publicRoutes = (): RouteName[] =>
+export const streamingRoutes = (): RouteName[] =>
 ```
 
 ## `@auteur/api-contract/routes`
 
 ```ts
-export const unimplemented = (): never =>
+export const METHODS = ["GET", "POST", "PATCH", "PUT", "DELETE"] as const
+export const ROUTES =
+export const ROUTE_NAMES = Object.keys(ROUTES) as RouteName[]
+export const authorResultSchema = z.object(
+export const errorResponseSchema = z.object(
+fitMeasureSchema
+export const modelRowSchema = z.object(
+export const sessionViewSchema = z.object(
+export const specOf = (name: RouteName): RouteSpec => ROUTES[name]
+export const stageRowSchema = z.object(
 ```
+
+## `@auteur/api-contract/transport`
+
+_no exports_

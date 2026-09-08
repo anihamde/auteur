@@ -78,7 +78,9 @@ export type SessionEventType = SessionEvent["type"];
 
 /** An event as it is stored and replayed: the payload plus its cursor. */
 export const storedEventSchema = z.object({
-  createdAt: z.date(),
+  // Coerced for the reason `sessionSchema`'s are: this schema parses a row from
+  // `pg` and a frame off an SSE stream, and only one of those carries a `Date`.
+  createdAt: z.coerce.date(),
   event: sessionEventSchema,
   /** Gap-free per session, from 1. §7.3. */
   seq: z.number().int().min(1),
