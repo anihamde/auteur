@@ -1,0 +1,7 @@
+[install]
+# Supply-chain hardening: refuse npm package versions published less than this
+# many seconds ago (7 days), giving the community time to flag a malicious
+# release before it reaches our installs. Gate 9 closes the hole this leaves:
+# bun grandfathers versions already in the lockfile, so the age of what is
+# pinned is checked separately.
+minimumReleaseAge = 604800
