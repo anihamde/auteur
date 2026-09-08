@@ -1,0 +1,156 @@
+{
+  "profile": "local-app",
+  "sourceCommit": "d47bcd37392dba0a2c87d00059c5e6550f24b636",
+  "vars": {
+    "TEST_COMMAND": "bun run turbo test",
+    "PKG_SCOPE": "@auteur",
+    "COMPONENT_LIBRARY": "@auteur/component-library"
+  },
+  "documents": [
+    {
+      "id": "control-flow",
+      "path": "docs/guidelines/control-flow.md",
+      "sha256": "ce84f2a4295eec91d175ad0ad6dabff89b873dc2f1da459a345ee0a071e0bd5c"
+    },
+    {
+      "id": "documentation",
+      "path": "docs/guidelines/documentation.md",
+      "sha256": "44f0ecf8b24c17881f86e54218bf839afda2054d0722fc53558b6ac58d0d8935"
+    },
+    {
+      "id": "errors",
+      "path": "docs/guidelines/errors.md",
+      "sha256": "96b69866260a2097f7b6e453bb37a4aef58b9f4b45c43105d694d8c75ed75127"
+    },
+    {
+      "id": "files",
+      "path": "docs/guidelines/files.md",
+      "sha256": "075187f205ddf93370e757d95fde81ab388c6fa74323e72096a921e7a0f0295c"
+    },
+    {
+      "id": "functions",
+      "path": "docs/guidelines/functions.md",
+      "sha256": "fe175b68e97807b5abb2537f4d9144160289402ee06064787dc2166dad64f0f4"
+    },
+    {
+      "id": "git-and-prs",
+      "path": "docs/guidelines/git-and-prs.md",
+      "sha256": "37cb1b0bb2f8acc1249e4c84fe78cea7c66d497adc6c8bbd87236d0ec00e294e"
+    },
+    {
+      "id": "language-choice",
+      "path": "docs/guidelines/language-choice.md",
+      "sha256": "1312ed84f0fc302515f321a68b70eeda5f4289683183b965749e4cd493298897"
+    },
+    {
+      "id": "package-design",
+      "path": "docs/guidelines/package-design.md",
+      "sha256": "c8406d9968f9303193eb9c91e113c76cbc7b6cb6a11ff22b43c8300dafb294f7"
+    },
+    {
+      "id": "testing",
+      "path": "docs/guidelines/testing.md",
+      "sha256": "5431fdc933427e94e5fc24c6e493fff831af1d5cac363ed09c2ffb9866fcd6a3"
+    },
+    {
+      "id": "tooling",
+      "path": "docs/guidelines/tooling.md",
+      "sha256": "4fdd37d9a74ae92a10e301260126e9f35bd3750b72b9d07759c279436e6abfdf"
+    },
+    {
+      "id": "types",
+      "path": "docs/guidelines/types.md",
+      "sha256": "1f398f3fda795c55d35f488ea5aed0671843ae3d4cdd08973fbf4d02b1021424"
+    },
+    {
+      "id": "accessibility",
+      "path": "docs/guidelines/accessibility.md",
+      "sha256": "6b1e10536dd97a683f0fdaa73a9ac30e7df3ef35137fdb61fc323a1911277a35"
+    },
+    {
+      "id": "data-boundaries",
+      "path": "docs/guidelines/data-boundaries.md",
+      "sha256": "a680ae33e7bf9f1803077719d4a37b788eaa94a89a32501c1a4f4274a82a51ea"
+    },
+    {
+      "id": "database",
+      "path": "docs/guidelines/database.md",
+      "sha256": "b89acbff2fa5bb9c8297a4ecde8dc70666e8fe4bf70862615cb751dec92744a2"
+    },
+    {
+      "id": "deployment",
+      "path": "docs/guidelines/deployment.md",
+      "sha256": "346d1ab5b33e1c15aea42396e01644e95c0fd4efae92406a5fdc9e702708347e"
+    },
+    {
+      "id": "discriminated-unions",
+      "path": "docs/guidelines/discriminated-unions.md",
+      "sha256": "30a35ecc8615e1c40e29c57cd7f96958f03ff8d36f423e6ffcd4d93a08922aab"
+    },
+    {
+      "id": "http-api",
+      "path": "docs/guidelines/http-api.md",
+      "sha256": "db0c5c4a3242d1ca929516f3feba9b41186cb73565706129a015e3f29aa57596"
+    },
+    {
+      "id": "icons",
+      "path": "docs/guidelines/icons.md",
+      "sha256": "fcf00f820adc87d6af4358112b63dd0911fdf6e0dafd20d035a827514a617df2"
+    },
+    {
+      "id": "migrations",
+      "path": "docs/guidelines/migrations.md",
+      "sha256": "0a26cfc3175dc903c820f1c814e762cdbe79e882125f5406a621846b2fbcbd51"
+    },
+    {
+      "id": "monorepo",
+      "path": "docs/guidelines/monorepo.md",
+      "sha256": "807625cab34fae43fbf0791310f46f0e50f6dfcfdddbf98b89a5279104fbdaeb"
+    },
+    {
+      "id": "react",
+      "path": "docs/guidelines/react.md",
+      "sha256": "256bcd3bac2d52f7151864bf61efb62776f3cde0b6f877c5e84e08d05cf38ec8"
+    },
+    {
+      "id": "security",
+      "path": "docs/guidelines/security.md",
+      "sha256": "7bfec19b8e5a1dc0b9ebabf891389b29400d2c28a44150c63550a824cbb2f6cf"
+    },
+    {
+      "id": "styling",
+      "path": "docs/guidelines/styling.md",
+      "sha256": "37c830288db92d202ecae185acc7ea418db95ed60f26bf65ecfb1591645dafa1"
+    },
+    {
+      "id": "ci",
+      "path": "docs/guidelines/ci.md",
+      "sha256": "91d01c1d44913dfd32becde10838d479917918dbb53278e080fe98c6bd133df7"
+    },
+    {
+      "id": "option-result",
+      "path": "docs/guidelines/option-result.md",
+      "sha256": "dce1e6fd78aaf8046e0b6c8e1d001654b1ceb2ea5f1fdd36118cbd36a644f1fb"
+    },
+    {
+      "id": "agents-index",
+      "path": "AGENTS.md",
+      "sha256": "04efd4ae4fd48c257537dae2b40dd89c72c724d58c5bf8ad1f98f1eb6197377a"
+    },
+    {
+      "id": "claude-pointer",
+      "path": "CLAUDE.md",
+      "sha256": "e2cfda935f57156ec9f619ba7434b9ed250cd3011cb621b7bacc5a8ed83f0344"
+    },
+    {
+      "id": "local-readme",
+      "path": "docs/guidelines/local/README.md",
+      "sha256": "8f461084dc73c44a1c48c7fe85c42b06ae160146472d5a31c654f15f6801454e"
+    },
+    {
+      "id": "package-addendum-template",
+      "path": "docs/templates/package-AGENTS.md",
+      "sha256": "efa4b7a9efa93dfc6be2861294348aac337ff04b6f5edce001240710aa1739da"
+    }
+  ]
+}

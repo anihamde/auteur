@@ -242,6 +242,96 @@ export const CASES: readonly SelfTestCase[] = [
     gate: 14,
     name: "a gap in the migration versions",
   },
+  {
+    // The whole point of the lock is that a refresh from upstream is a
+    // readable diff. An in-place edit makes it archaeology, and the correct
+    // home for a deviation is docs/guidelines/local/ with `overrides:`.
+    breaks: () =>
+      patchFile(
+        "docs/guidelines/testing.md",
+        "# Testing",
+        "# Testing\n\nA sentence somebody added to the seed.",
+      ),
+    gate: 10,
+    name: "a seeded guideline edited in place",
+  },
+  {
+    breaks: () =>
+      patchFile(
+        "AGENTS.md",
+        "| [Types](docs/guidelines/types.md)",
+        "| [Types](docs/guidelines/types-renamed.md)",
+      ),
+    gate: 10,
+    name: "an id dropped from the index",
+  },
+  {
+    // It supersedes nothing, so its rules read as the repository's when they
+    // are one half of a conversation with a document nobody has.
+    breaks: () =>
+      addAndRemoveFile(
+        "docs/guidelines/local/self-test.md",
+        [
+          "---",
+          "id: self-test",
+          "title: Self test",
+          "covers: nothing",
+          "tier: if-touched",
+          'trigger: "Never."',
+          "overrides: [nextjs]",
+          "---",
+          "",
+          "# Self test",
+          "",
+          "Overrides a guideline that was not ported.",
+          "",
+        ].join("\n"),
+      ),
+    gate: 10,
+    name: "a local doc overriding a guideline that was not ported",
+  },
+  {
+    // Promotion is the only direction the precedence rules allow, so a
+    // "promotion" of an ALWAYS document is a no-op or an attempt to weaken it.
+    breaks: async () => {
+      const undo = await addFile(
+        "packages/ids/docs/AGENTS.md",
+        [
+          "---",
+          "package: packages/ids",
+          "promotes:",
+          "  always: [testing]",
+          "---",
+          "",
+          "# @auteur/ids",
+          "",
+          "Promotes a document that is already ALWAYS.",
+          "",
+        ].join("\n"),
+      );
+      return undo;
+    },
+    gate: 10,
+    name: "an addendum promoting a document that is already ALWAYS",
+  },
+  {
+    breaks: () =>
+      addAndRemoveFile(
+        "docs/decisions/0004-self-test.md",
+        [
+          "# 0004 — A decision the index does not name",
+          "",
+          "**Status:** accepted · **Date:** 2026-09-08",
+          "",
+          "## Context",
+          "",
+          "Written to prove the index check runs.",
+          "",
+        ].join("\n"),
+      ),
+    gate: 15,
+    name: "a decision the generated index does not name",
+  },
 ];
 
 if (import.meta.main) {

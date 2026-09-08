@@ -49,6 +49,12 @@ export const GATES: readonly Gate[] = [
   },
   {
     args: [],
+    name: "the guideline index says what is there",
+    number: 10,
+    script: "scripts/check-guidelines.ts",
+  },
+  {
+    args: [],
     name: "no SQL is built by interpolation",
     number: 13,
     script: "scripts/check-sql-literals.ts",
@@ -58,6 +64,12 @@ export const GATES: readonly Gate[] = [
     name: "migrations expand before they contract",
     number: 14,
     script: "scripts/check-migrations.ts",
+  },
+  {
+    args: ["--check"],
+    name: "the decisions index matches the directory",
+    number: 15,
+    script: "scripts/decisions-index.ts",
   },
 ];
 
