@@ -688,10 +688,31 @@ around 500 word *types* drawn by frequency from a real corpus, each tagged
 Latinate or not, checked in as a fixture. The classifier's precision and recall
 against that set are a test output, and they decide where the measure lands:
 
-| Precision on the validation set | What ships |
+**It is scored, and it carries its own provenance.** The measure ships as one of
+the five scored measures (§9.1) from the start, and the `FitMeasure` it produces
+carries a `classifier` field naming what produced it:
+
+```ts
+classifier?: {
+  kind: "suffix-proxy";
+  /** Measured against the validation set. Absent until it has been. */
+  precision?: number;
+  validated: boolean;
+};
+```
+
+Until the validation set exists the UI reads `latinate ratio (suffix proxy,
+unvalidated)`; once it does, the qualifier becomes the number —
+`latinate ratio (suffix proxy, precision 0.89)`. A reader is never shown a
+verdict without being told what produced it, which is what makes scoring an
+admitted proxy honest rather than a claim the product cannot support.
+
+The precision gate then decides whether it *stays*:
+
+| Precision on the validation set | What happens |
 |---|---|
-| At or above 0.85 | One of the five scored measures (§9.1), reported with a band and a verdict |
-| Below 0.85 | Evidence only: it goes into the drafting prompt as a register hint and out of the report entirely |
+| At or above 0.85 | Stays scored. `validated: true`, `precision` filled in, and the UI's qualifier becomes the number |
+| Below 0.85 | **Demoted**: it leaves the report entirely and goes into the drafting prompt as a register hint only. The demotion is one line, because §9.1's scored set reads `prosody`'s exported gate result rather than a literal |
 
 Two properties make that gate honest. The validation set is drawn by frequency,
 so it weights the words that actually occur rather than the dictionary's tail.
@@ -700,8 +721,9 @@ rather than a quiet fit — and a suffix list tuned until it passes is a fit to
 500 labels, which the fixture's own comment says.
 
 A deterministic proxy applied identically to corpus and draft is what the
-comparison needs. What it does not need is a proxy nobody measured, presented
-next to four measures that mean something.
+comparison needs. What it must not do is sit unlabelled next to four measures
+that are counts rather than guesses — which is what the `classifier` block above
+prevents, and why it is on this measure and on no other.
 
 `commonBigrams` are the 25 most frequent adjacent-word pairs after dropping
 pairs where both words are stopwords. They are the one measure here that is more
@@ -1787,13 +1809,17 @@ type FitMeasure = {
   targetValue: number;            // what the draft aimed at
   targetOrigin: Origin;           // always "measured" in v1 (§4.6)
   status: "pass" | "drift" | "fail" | "insufficient-length";
+  /** Present only where a measure is a declared proxy rather than a count. §4.3 */
+  classifier?: { kind: "suffix-proxy"; precision?: number; validated: boolean };
 };
 ```
 
 **Five measures are scored**, which is `PRD.md` §10's list with §4.3's
 substitution: mean sentence length, punctuation rate (semicolon, em dash and
-colon, each separately), dialogue ratio, MATTR and — subject to §4.3's
-precision gate — latinate ratio. The rest of
+colon, each separately), dialogue ratio, MATTR and latinate ratio. The last is
+the only one that is a proxy rather than a count, so it is the only one whose
+`FitMeasure` carries a `classifier`, and §4.3's precision gate can demote it out
+of this list. The rest of
 `ProsodyBlock` is evidence for the drafting prompt and is not scored —
 `commonBigrams` because it is a lexicon rather than a measure (§4.3), and
 `paragraphLength` because a beat sheet decides it more than a voice does.
@@ -2037,7 +2063,7 @@ Three further decisions this document makes that the PRD leaves implicit:
 |---|---|
 | A second `ModelClient` for direct Anthropic is deferred, not built | §2, "Not taken" |
 | Type-token ratio is replaced by MATTR | §4.3 |
-| The latinate proxy is scored only if it passes a hand-labelled precision gate | §4.3 |
+| The latinate proxy is scored, carrying its own provenance, and demoted only if it fails a hand-labelled precision gate | §4.3 |
 | Nothing writes a card overlay in v1; the draft prompt states the conflict | §4.6 |
 | Confidence is citation coverage; the other three strength facts are shown, not blended | §4.5 |
 | A tier with no structured-output model is a startup error, not a repair loop | §6.4 |

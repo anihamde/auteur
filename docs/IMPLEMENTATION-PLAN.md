@@ -520,38 +520,49 @@ Gates WP-F5, and through it the report's measure count.
 This one cannot be faked at all. A validation set drawn from a corpus this
 session cannot fetch would be a list of words I wrote down, and measuring a
 classifier against a set assembled to match it is the exact failure
-`ARCHITECTURE.md` §4.3 built the gate to prevent. So the classifier ships and
-**the gate's answer defaults to the conservative branch**.
+`ARCHITECTURE.md` §4.3 built the gate to prevent.
+
+**So the measure ships scored, and carries its own provenance.** The honesty is
+not in withholding the verdict — it is in never showing one without saying what
+produced it. Every `FitMeasure` the classifier produces carries
+`classifier: { kind: "suffix-proxy", validated: false }`, and the UI renders
+`latinate ratio (suffix proxy, unvalidated)`. When the validation set exists,
+`validated` becomes true and the qualifier becomes the measured precision. If
+precision comes back below 0.85, the measure is demoted out of the report
+entirely — one line, because the scored set reads the exported gate result
+rather than a literal.
 
 **Offline half, built now.** The classifier, its suffix and exception lists,
 `scripts/draw-word-types.ts` (draws ~500 word *types* by frequency from a
-cleaned corpus), and the precision harness that will score it. The classifier is
-exported as **`hint-only`** — `latinateRatio` goes into the draft prompt as a
-register hint and **is not scored**, so the report ships with **four** scored
-measures. That is `ARCHITECTURE.md` §4.3's own below-threshold branch, taken as
-the default rather than as an outcome.
+cleaned corpus), and the precision harness that will score it. `latinateRatio`
+is scored, so the report ships with **five** measures, and the fifth is the only
+one whose `FitMeasure` carries a `classifier` block.
 
 **Live half, deferred to WP-X0.** Fetch a real corpus, run the draw script,
 hand-label the 500 types, and run the harness. The fixture carries a comment
 stating that the labels are hand-applied and that a suffix list tuned against
 them is a fit to 500 labels.
 
-**The branch this decides** (`ARCHITECTURE.md` §4.3): precision ≥ 0.85 promotes
-the measure to scored and the report goes to **five**; below 0.85 it stays where
-it already is and nothing changes. Written as decision `0003` with the measured
-precision and recall in it.
+**The branch this decides** (`ARCHITECTURE.md` §4.3): precision ≥ 0.85 fills in
+`precision`, flips `validated` to true, and the measure stays; below 0.85 it is
+demoted to a draft-prompt hint and the report drops to four. Written as decision
+`0003` with the measured precision and recall in it.
 
-**Why this default and not the optimistic one.** Shipping four measures and
-promoting to five is a one-line change to a set that WP-T2 already reads from
-the classifier's exported gate result. Shipping five and demoting to four means
-the report claimed a verdict it could not support, on every story generated in
-between. The measure count is the report's own honesty, so the conservative
-direction is the only defensible one.
+**Why this is defensible when withholding the measure would also have been.**
+The risk of scoring an unvalidated proxy is that a reader takes a `drift`
+verdict for a fact about the prose when it may be a fact about the suffix list.
+That risk is addressed by the `classifier` block rather than by silence: the
+verdict is never rendered without `(suffix proxy, unvalidated)` beside it, which
+is more information than a missing measure gives. `ARCHITECTURE.md` §4.3 already
+required the proxy to be labelled wherever it appears; this makes the label
+carry the validation state too.
 
 **Proof of the offline half, now:** the harness scores the classifier against a
 small hand-checked sample committed as `latinate-sample.json` and **prints**
-precision and recall without gating on them; a test asserts the exported gate
-result is `hint-only` and that WP-T2's scored set therefore has four entries.
+precision and recall without gating on them; a test asserts that every
+`FitMeasure` for `latinateRatio` carries `validated: false` and no `precision`,
+and that **no other measure carries a `classifier` block at all** — the five
+counts must not acquire a hedge they do not need.
 
 ---
 
@@ -645,15 +656,43 @@ question: does this work outlive an HTTP request?**
 | **Fly** | `apps/auteur-runner` | The pipeline engine, the SSE stream, `/cancel`, and the signed internal dispatch |
 | **Neon** | — | Postgres. The only thing both units share |
 
-**Is there really anything for Fly?** Yes, exactly one thing, and it is the
-biggest thing in the product: a pipeline run. Two properties put it out of a
+**What a "pipeline run" is.** `ARCHITECTURE.md` §6.2's stage graph, executed
+once. `POST /advance` says which step the session should reach; the engine walks
+the stages between here and there that are stale (§7.5) and runs each one in
+order, streaming events as it goes. For a session going from author-chosen to
+finished story that is:
+
+```
+corpus-select    cheap      one model call — which twelve works, and why
+work-fetch       —          twelve HTTP fetches to Project Gutenberg, cleaned
+prosody-compute  —          the deterministic metrics over ~200k words
+style-extract    balanced   one model call over ~40 passages — the card
+clarify          balanced   one call per round, up to three rounds
+outline          balanced   one model call — the beat sheet
+draft            strong     one call, or one per beat under sequential-scene
+critique         cheap      one model call over the finished draft
+revise           strong     one model call
+style-fit        —          the deterministic report
+```
+
+Order-of-magnitude, and these are estimates rather than measurements — WP-X1 is
+what replaces them with real numbers: a flash story is seven or eight model
+calls plus a corpus fetch, and `ARCHITECTURE.md` §10 targets a median under four
+minutes to the first prose token. A novelette runs `sequential-scene`, which is
+one draft call, one summary call and one critique call **per beat** — on the
+order of ninety calls, which is tens of minutes.
+
+That whole sequence is one server-side operation. It starts when `/advance`
+dispatches and ends when the story exists, and the browser is a spectator: it
+opens the SSE stream and watches events arrive.
+
+**So is there really anything for Fly?** Yes, exactly that, and it is the
+biggest thing in the product. Two properties put it out of a
 function's reach, and either alone would be enough.
 
-- **It is minutes, not seconds.** `ARCHITECTURE.md` §10 targets a median under
-  four minutes to first token; a novelette under `sequential-scene` is one model
-  call per beat and runs far longer. No function ceiling covers that, and
-  stretching one to try is what the `deployment` guideline names as the wrong
-  move.
+- **It is minutes, not seconds** — four for a flash story, tens for a
+  novelette. No function ceiling covers that, and stretching one to try is what
+  the `deployment` guideline names as the wrong move.
 - **It must outlive the client.** A run driven by the browser's own request dies
   when the tab closes. `ARCHITECTURE.md` §7.3's durability design — the event
   log, the cursor, the replay on reconnect — exists precisely so a client can
@@ -765,7 +804,7 @@ Their live halves are WP-X0 (§4, §5.4). Nothing here needs network.
 |---|---|---|---|---|
 | **S1** | §4/S1's **offline half**: the declared catalogue table, synthesised SSE fixtures, and `scripts/probe-router-responses.ts` ready to run but unrun | `scripts/probe-router-responses.ts`, `packages/provider-router/tests/fixtures/**` | §4/S1's offline proof: fixtures replay with zero network; the `no-measured-rows-yet` test passes | A5 |
 | **S2** | §4/S2's **offline half**: the zod schema from `ARCHITECTURE.md` §5.2's field names, rejecting unknown keys, and a fixture named `*.synthetic.json` | `scripts/probe-gutendex.ts`, `packages/corpus-gutenberg/tests/fixtures/**` | §4/S2's offline proof: the schema parses the synthetic fixture; an unknown key fails; a missing required field fails naming it | A5 |
-| **S3** | §4/S3's **offline half**: the classifier, the draw script, the precision harness, and the `hint-only` default | `scripts/draw-word-types.ts`, `packages/prosody/tests/fixtures/latinate-sample.json` | §4/S3's offline proof: the harness prints precision and recall; the gate result is `hint-only` | A5 |
+| **S3** | §4/S3's **offline half**: the classifier, the draw script, the precision harness, and the unvalidated-but-scored default | `scripts/draw-word-types.ts`, `packages/prosody/tests/fixtures/latinate-sample.json` | §4/S3's offline proof: the harness prints precision and recall; every `latinateRatio` measure carries `validated: false` | A5 |
 
 ### Wave B — foundation. Fully parallel after A5.
 
@@ -827,7 +866,7 @@ Twelve independent branches; none shares a file with another.
 | **F2** | Punctuation rates per 1,000 words | `packages/prosody/src/punctuation.ts` | Property: rates are invariant under concatenating a text with itself | E1 |
 | **F3** | Dialogue ratio, measured against the detected marker | `packages/prosody/src/dialogue.ts` | An em-dash fixture reports a non-zero ratio; a `mixed` corpus returns the marker and no ratio | E6 |
 | **F4** | MATTR over a 1,000-word window, stride 100 | `packages/prosody/src/mattr.ts` | Property: MATTR is invariant under repeating a text (this is the property raw TTR fails, and the test asserts raw TTR *does* fail it on the same fixture); a text under one window returns its whole-length value flagged `insufficient-length` | E1 |
-| **F5** | The latinate classifier, its suffix and exception lists, the precision harness, and the exported gate result | `packages/prosody/src/latinate.ts`, `src/latinate-lists.ts`, `src/latinate-gate.ts` | The harness **prints** precision and recall against the hand-checked sample without gating on them. The exported gate result is `hint-only` by default (§4/S3), asserted by a test, so the scored set has four measures until WP-X0 promotes it. A test asserts `latinateRatio` is absent from T2's scored set and present in the draft prompt's evidence | E1 |
+| **F5** | The latinate classifier, its suffix and exception lists, the precision harness, and the exported gate result | `packages/prosody/src/latinate.ts`, `src/latinate-lists.ts`, `src/latinate-gate.ts` | The harness **prints** precision and recall against the hand-checked sample without gating on them. The exported gate result is `scored` with `validated: false` (§4/S3), asserted by a test; a second test sets the gate to `hint-only` on a fixture and asserts `latinateRatio` disappears from T2's scored set and appears in the draft prompt's evidence — the demotion path exercised before it is ever needed | E1 |
 | **F6** | `commonBigrams`: 25 most frequent adjacent pairs, dropping pairs where both are stopwords | `packages/prosody/src/bigrams.ts` | Table against a fixture; ties broken deterministically, asserted by running twice | E1 |
 | **F7** | `ProsodyBlock` assembly, `perWork` aggregation, `prosodyVersion` | `packages/prosody/src/index.ts`, `src/version.ts` | A real cleaned Gutenberg work produces a full block whose numbers are asserted against hand-counts for two of the seven measures; `perWork` shares sum to 1 | F1–F6 |
 
@@ -950,7 +989,7 @@ Each screen WP owns its screen directory and its own `copy` module.
 | WP | Delivers | Files owned | Proof | Deps |
 |---|---|---|---|---|
 | **T1** | Bands: interquartile over sentences, or over `perWork`; `bandBasis: "range"` under four works | `packages/style-fit/src/bands.ts` | A card from three works records `bandBasis: "range"` and the report says so; a card from twelve records `"iqr"`; the two thresholds (`pass` inside, `drift` within 1.5 band widths, `fail` beyond) are one constant with a table test at each boundary | F7, B7 |
-| **T2** | The scored measures and `FitMeasure[]` assembly | `packages/style-fit/src/measures.ts` | The test reads F5's exported gate result rather than hardcoding a count, so the two cannot disagree — four while the gate is `hint-only`, five the moment WP-X0 promotes it, with no edit here; `commonBigrams` and `paragraphLength` are asserted absent from the scored set | T1, F5 |
+| **T2** | The scored measures and `FitMeasure[]` assembly | `packages/style-fit/src/measures.ts` | The test reads F5's exported gate result rather than hardcoding a count, so the two cannot disagree — five now, four if WP-X0 demotes, with no edit here; `latinateRatio`'s measure carries its `classifier` block and **no other measure carries one**; `commonBigrams` and `paragraphLength` are asserted absent from the scored set | T1, F5 |
 | **T3** | The two-verdict path for an edited target | `packages/style-fit/src/edited.ts` | With a hand-built overlay, an edited measure appears **twice** in `FitMeasure[]`, once `edited` and once `measured`; a type-level test that there is no single-verdict return for an edited measure | T2, K2 |
 | **T4** | `critique` finding validation and the `revise` handoff | `packages/style-fit/src/findings.ts` | A finding whose `text` contains no digit is dropped; a finding citing a path absent from the card and the measures is rejected; `revise` receives only findings with `status !== "pass"` | T2, J7, J8 |
 | **U1** | `export`: `renderExport(story, label)` | `packages/export/src/**` | `label` is a required parameter — a type-level test that the call does not compile without it; a fixture export contains the §7.6 sentence verbatim, and the document carries the label, the author and card version, the fit summary and the decisions log | K2, T2 |
@@ -1035,10 +1074,11 @@ Applied as written; each is reversible and none blocks. Every one gets a
    offline hardcodes a value the live half establishes: it is a `source:
    "declared"` row read at run time, and the verification pass fails on any row
    that moved.
-2. **`latinateRatio` ships `hint-only`, so the report scores four measures, not
-   five** (§4/S3). The conservative direction is the only defensible one: a
-   promotion is one line, whereas shipping five and demoting means every story
-   in between carried a verdict the classifier could not support.
+2. **`latinateRatio` ships scored, carrying its own provenance** (§4/S3). Every
+   verdict it produces renders as `(suffix proxy, unvalidated)` until the
+   validation set measures it, which is more information than withholding the
+   measure would give. Precision below 0.85 demotes it in one line, and that
+   path is tested before it is needed.
 3. **A1's handover does not block A2** (§2.6). CI reports retroactively when you
    activate the file; every gate is a script that runs locally in the meantime.
 4. **The document-index regime, reversing `ARCHITECTURE.md` §11.1** (§1.7).
