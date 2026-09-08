@@ -8,11 +8,12 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/config/stages`
 
 ```ts
-export const unimplemented = (): never =>
+export const DEFAULT_PIPELINE: Pipeline =
+export const STAGE_IDS = DEFAULT_PIPELINE.stages.map((stage) => stage.id)
 ```
 
 ## `@auteur/config/tiers`
 
 ```ts
-export const unimplemented = (): never =>
+export const TIER_CANDIDATES: Readonly<Record<Tier, readonly string[]>> =
 ```

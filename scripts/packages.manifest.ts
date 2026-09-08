@@ -520,11 +520,14 @@ export const PACKAGES: readonly PackageSpec[] = [
   },
   {
     coverage: 0.9,
-    deps: [],
+    // `clarify.ts` parses the stage's structured output at the boundary, which
+    // is invariant 4 and wants a schema rather than a cast.
+    deps: ["zod"],
     description:
       "Stage graph, tier resolution, one-stage execution, streaming and usage accounting.",
     devDeps: [],
     exports: {
+      clarify: src("clarify.ts"),
       drift: src("drift.ts"),
       engine: src("engine.ts"),
       extract: src("extract.ts"),
@@ -547,12 +550,14 @@ export const PACKAGES: readonly PackageSpec[] = [
       "logger",
       "model-provider",
       "prompt",
+      "provider-router",
       "prosody",
       "session-store",
       "stage-queue",
       "style-card",
       "style-fit",
     ],
+    workspaceDevDeps: ["test-support"],
   },
 
   // ----------------------------------------------------------------------- api
