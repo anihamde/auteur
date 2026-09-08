@@ -26,6 +26,7 @@ export const readPins = async (
 ```ts
 export const answerQuestion = async (
 export const answerSetFor = async (
+export const invalidateDescendants = async (
 export const invalidateFromRound = async (
 export const listQuestions = async (
 export const putQuestionRound = async (
