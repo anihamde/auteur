@@ -18,11 +18,18 @@ export type StageKey = {
   readonly stageId: string;
   readonly inputKey: string;
   readonly completedAt: Date;
+  /** What the stage produced, when it produced something small. Decision 0007. */
+  readonly output: unknown;
 };
 
-type Row = { stage_id: string; input_key: string; completed_at: Date };
+type Row = {
+  stage_id: string;
+  input_key: string;
+  completed_at: Date;
+  output: unknown;
+};
 
-const COLUMNS = ["stage_id", "input_key", "completed_at"];
+const COLUMNS = ["stage_id", "input_key", "completed_at", "output"];
 
 /**
  * Record that a stage completed with this key.
@@ -36,14 +43,45 @@ export const recordStageKey = async (
   sessionId: string,
   stageId: string,
   inputKey: string,
+  output?: unknown,
 ): Promise<void> => {
   await db.query(
-    `INSERT INTO stage_keys (session_id, stage_id, input_key)
-     VALUES ($1, $2, $3)
+    `INSERT INTO stage_keys (session_id, stage_id, input_key, output)
+     VALUES ($1, $2, $3, $4::jsonb)
      ON CONFLICT (session_id, stage_id) DO UPDATE
-       SET input_key = EXCLUDED.input_key, completed_at = now()`,
-    [sessionId, stageId, inputKey],
+       SET input_key = EXCLUDED.input_key,
+           output = EXCLUDED.output,
+           completed_at = now()`,
+    [
+      sessionId,
+      stageId,
+      inputKey,
+      output === undefined ? null : JSON.stringify(output),
+    ],
   );
+};
+
+/**
+ * What a stage produced, parsed against the schema that stage declares.
+ *
+ * Parsed and not cast: the row came back over a connection, written by a
+ * version of this code that may not be this one. A stage whose output no longer
+ * matches its schema is a real failure, and turning it into `undefined` would
+ * present as the upstream stage never having run.
+ */
+export const readStageOutput = async <Value>(
+  db: Db,
+  sessionId: string,
+  stageId: string,
+  parse: (value: unknown) => Value,
+): Promise<Value | undefined> => {
+  const result = await db.query<{ output: unknown }>(
+    `SELECT output FROM stage_keys WHERE session_id = $1 AND stage_id = $2`,
+    [sessionId, stageId],
+  );
+  const row = result.rows[0];
+  if (row === undefined || row["output"] === null) return undefined;
+  return parse(row["output"]);
 };
 
 /** Every completed stage's key, by stage id. */

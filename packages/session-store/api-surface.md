@@ -46,5 +46,6 @@ export const updateSession = async (
 
 ```ts
 export const readStageKeys = async (
+export const readStageOutput = async <Value>(
 export const recordStageKey = async (
 ```
