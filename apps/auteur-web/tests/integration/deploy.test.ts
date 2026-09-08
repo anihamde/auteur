@@ -1,0 +1,122 @@
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { pathFor } from "@auteur/api-contract/contract";
+import { ROUTE_NAMES, specOf } from "@auteur/api-contract/routes";
+import { newId } from "@auteur/ids/new-id";
+import { createSession } from "@auteur/session-store/sessions";
+import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
+import { createApp } from "../../api/_app.ts";
+import {
+  GUARDED_PATHS,
+  SIGNED_PATHS,
+  UNGUARDED_PATHS,
+} from "../../api/_auth.ts";
+
+/**
+ * WP-R11's proof, enumerated from the contract rather than spot-checked.
+ *
+ * A list of routes written by hand is a list a sixteenth route joins without
+ * anyone noticing, and the one that joins unguarded is the one that matters.
+ */
+
+const TOKEN = "a-token-of-at-least-16-chars";
+const SECRET = "a-stage-secret-of-16-plus";
+
+let harness: TestDb;
+let sessionId: string;
+let app: ReturnType<typeof createApp>;
+
+beforeAll(async () => {
+  harness = await createTestDb();
+  const session = await createSession(harness.db, {
+    id: newId(),
+    idea: "a lighthouse keeper",
+    lengthPreset: "flash",
+  });
+  sessionId = session.id;
+  app = createApp({
+    apiToken: TOKEN,
+    db: harness.db,
+    internalStage: {
+      runStageBody: async () => undefined,
+      stageSecret: SECRET,
+    },
+  });
+});
+
+afterAll(async () => {
+  await harness.close();
+});
+
+const urlFor = (name: (typeof ROUTE_NAMES)[number]): string =>
+  pathFor(name, { id: sessionId });
+
+describe("every public route requires the bearer token", () => {
+  test("the guarded list is derived from the contract and covers all but health", () => {
+    expect(GUARDED_PATHS).toHaveLength(ROUTE_NAMES.length - 2);
+    expect(UNGUARDED_PATHS).toEqual(["/api/health"]);
+    expect(SIGNED_PATHS).toEqual(["/internal/stage"]);
+  });
+
+  test("a request with no token is 401 on every one of them", async () => {
+    for (const name of ROUTE_NAMES) {
+      const spec = specOf(name);
+      if (spec.internal === true || name === "health") continue;
+      const response = await app.request(urlFor(name), {
+        method: spec.method,
+        ...(spec.body === undefined
+          ? {}
+          : {
+              body: "{}",
+              headers: { "content-type": "application/json" },
+            }),
+      });
+      expect({ name, status: response.status }).toEqual({
+        name,
+        status: 401,
+      });
+    }
+  });
+
+  test("health answers without one", async () => {
+    expect((await app.request("/api/health")).status).toBe(200);
+  });
+});
+
+describe("the stage secret and the bearer token are different keys", () => {
+  test("/internal/stage rejects a valid bearer token", async () => {
+    // A browser holding the client's token must not be able to drive the
+    // pipeline directly.
+    const response = await app.request("/internal/stage", {
+      body: JSON.stringify({
+        queueId: newId(),
+        sessionId,
+        stageId: "outline",
+      }),
+      headers: {
+        authorization: `Bearer ${TOKEN}`,
+        "content-type": "application/json",
+      },
+      method: "POST",
+    });
+    expect(response.status).toBe(401);
+  });
+});
+
+describe("the deploy configuration", () => {
+  test("the cron entry names the sweep and no other route", async () => {
+    const config = (await Bun.file(
+      `${import.meta.dir}/../../../../vercel.json`,
+    ).json()) as { crons: { path: string; schedule: string }[] };
+    expect(config.crons).toHaveLength(1);
+    expect(config.crons[0]?.path).toContain("sweep");
+    // Every minute: §5.3's sweep interval.
+    expect(config.crons[0]?.schedule).toBe("* * * * *");
+  });
+
+  test("the build output is the client's bundle", async () => {
+    const config = (await Bun.file(
+      `${import.meta.dir}/../../../../vercel.json`,
+    ).json()) as { outputDirectory: string };
+    expect(config.outputDirectory).toBe("apps/auteur-web/dist");
+  });
+});

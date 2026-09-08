@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <title>auteur</title>
+    <!-- The theme, resolved before first paint. A deferred module here is a
+         flash of the wrong ground on every load; see src/shell/theme-script.ts,
+         which a test asserts this copy agrees with. -->
+    <script>
+      (() => {
+        var k = "auteur.theme",
+          r = document.documentElement;
+        function t() {
+          var h = new Date().getHours();
+          return h >= 6 && h < 18 ? "light" : "dark";
+        }
+        var m = "auto";
+        try {
+          m = localStorage.getItem(k) || "auto";
+        } catch {}
+        r.dataset.theme = m === "auto" ? t() : m;
+        r.dataset.themeMode = m;
+      })();
+    </script>
+    <link href="./src/styles.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="./src/main.tsx" type="module"></script>
+  </body>
+</html>

@@ -725,6 +725,7 @@ export const APPS: readonly AppSpec[] = [
     ],
     name: "auteur-web",
     scripts: {
+      build: "vite build",
       "start:dev": "vite dev",
       "test:coverage": "bun ../../scripts/package-tests.ts coverage",
       "test:types": "tsc --noEmit",
@@ -747,6 +748,7 @@ export const APPS: readonly AppSpec[] = [
       "event-store",
       "export",
       "formatting",
+      "icons",
       "ids",
       "logger",
       "migrations",
