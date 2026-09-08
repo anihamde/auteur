@@ -8,29 +8,67 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/component-library/core`
 
 ```ts
-export const unimplemented = (): never =>
+Badge
+Button
+Card
+CardHeader
+Icon
 ```
 
 ## `@auteur/component-library/forms`
 
 ```ts
-export const unimplemented = (): never =>
+Field
+Input
+Select
+Textarea
 ```
 
 ## `@auteur/component-library/pipeline`
 
 ```ts
-export const unimplemented = (): never =>
+ProsodyStat
+ProvenanceMark
+Thinking
+WizardRail
+positionOn
 ```
 
 ## `@auteur/component-library/prose`
 
 ```ts
-export const unimplemented = (): never =>
+Exemplar
+Markdown
+parseBlocks
+renderInline
+```
+
+## `@auteur/component-library/styles`
+
+```ts
+export const CONTROL_HEIGHTS =
+export const DISABLED: CSSProperties =
+export const FOCUS_RING: CSSProperties =
+export const GROUNDS =
+export const STATUS_COLOURS =
+export const TONES =
+export const controlSurface: CSSProperties =
+export const token = (name: string): string => `var(--${name})`
 ```
 
 ## `@auteur/component-library/theme`
 
 ```ts
-export const unimplemented = (): never =>
+LIGHT_FROM_HOUR
+LIGHT_UNTIL_HOUR
+RESOLVE_INTERVAL_MS
+THEME_KEY
+THEME_MODES
+ThemeToggle
+browserStore
+byTime
+createThemeController
+isThemeMode
+readMode
+resolveTheme
 ```

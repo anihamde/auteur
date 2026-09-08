@@ -601,7 +601,7 @@ export const PACKAGES: readonly PackageSpec[] = [
 
   // ------------------------------------------------------------------------ ui
   {
-    deps: ["@base-ui-components/react", "@pandacss/dev", "react", "react-dom"],
+    deps: ["@base-ui-components/react", "react", "react-dom"],
     description: "The fifteen design-system primitives.",
     devDeps: [
       "@testing-library/react",
@@ -615,6 +615,7 @@ export const PACKAGES: readonly PackageSpec[] = [
       forms: src("forms/index.ts"),
       pipeline: src("pipeline/index.ts"),
       prose: src("prose/index.ts"),
+      styles: src("styles.ts"),
       theme: src("theme/index.ts"),
     },
     layer: "ui",
@@ -622,6 +623,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     react: true,
     testPreload: ["@auteur/test-support/happy-dom"],
     workspaceDeps: ["copy", "core", "formatting", "icons", "tokens"],
+    workspaceDevDeps: ["test-support"],
   },
 
   // ---------------------------------------------------------------------- test
