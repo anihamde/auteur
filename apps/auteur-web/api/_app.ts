@@ -5,6 +5,7 @@ import type { Logger } from "@auteur/logger/logger";
 import { Hono } from "hono";
 import { healthRoutes } from "./_routes/health.ts";
 import { modelRoutes } from "./_routes/models.ts";
+import { sessionRoutes } from "./_routes/sessions.ts";
 
 /**
  * The one Hono app. Every route is mounted here and nowhere else.
@@ -89,6 +90,7 @@ export const createApp = (deps: AppDeps): Hono => {
 
   app.route("/", healthRoutes());
   app.route("/", modelRoutes());
+  app.route("/", sessionRoutes({ db: deps.db }));
 
   return app;
 };

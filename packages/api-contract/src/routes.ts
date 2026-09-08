@@ -8,6 +8,7 @@ import {
   questionSchema,
   sessionSchema,
   stepSchema,
+  storySchema,
 } from "@auteur/core/session";
 import { styleCardSchema } from "@auteur/core/style-card";
 import { z } from "zod";
@@ -80,13 +81,7 @@ export const sessionViewSchema = z.object({
   outline: outlineSchema.nullable(),
   report: styleFitReportSchema.nullable(),
   session: sessionSchema,
-  story: z
-    .object({
-      markdown: z.string(),
-      title: z.string().nullable(),
-      wordCount: z.number().int().nonnegative(),
-    })
-    .nullable(),
+  story: storySchema.nullable(),
 });
 
 export const METHODS = ["GET", "POST", "PATCH", "PUT", "DELETE"] as const;

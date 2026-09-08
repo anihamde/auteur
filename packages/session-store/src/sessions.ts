@@ -159,3 +159,21 @@ export const updateSession = async (
   }
   return toSession(row);
 };
+
+/**
+ * Delete a session and everything that hangs off it.
+ *
+ * The cascade is the schema's, not this function's: `questions`, `artifacts`,
+ * `events`, `stage_queue` and `session_runs` all reference `sessions` with
+ * `ON DELETE CASCADE`, so there is exactly one statement here and no order of
+ * deletion to get wrong. Cards are not session-scoped and survive — they are
+ * cached per author (§4.6), and deleting a session must not throw away a corpus
+ * measurement that cost forty passages to build.
+ *
+ * Returns whether a row was actually deleted, so `DELETE` on an unknown id is a
+ * `false` the route turns into a 404 rather than a silent 200.
+ */
+export const deleteSession = async (db: Db, id: string): Promise<boolean> => {
+  const result = await db.query(`DELETE FROM sessions WHERE id = $1`, [id]);
+  return (result.rowCount ?? 0) > 0;
+};

@@ -115,6 +115,24 @@ export const ARTIFACT_KINDS = [
 export const artifactKindSchema = z.enum(ARTIFACT_KINDS);
 export type ArtifactKind = z.infer<typeof artifactKindSchema>;
 
+/**
+ * The `draft` artifact's body, and the story the session view returns.
+ *
+ * One schema for both, because they are the same value read twice — and a
+ * response shape written separately from the artifact it is read out of is two
+ * descriptions of one thing that agree until they do not.
+ *
+ * `title` is nullable rather than optional: a draft produced before the outline
+ * named the story has no title, and that is a fact worth carrying rather than a
+ * field to omit.
+ */
+export const storySchema = z.object({
+  markdown: z.string(),
+  title: z.string().nullable(),
+  wordCount: z.number().int().nonnegative(),
+});
+export type Story = z.infer<typeof storySchema>;
+
 export const outlineSchema = z.object({
   beats: z
     .array(

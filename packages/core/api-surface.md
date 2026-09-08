@@ -71,6 +71,7 @@ export const outlineSchema = z.object(
 export const questionSchema = z.object(
 export const sessionSchema = z.object(
 export const stepSchema = z.enum(STEPS)
+export const storySchema = z.object(
 ```
 
 ## `@auteur/core/style-card`

@@ -740,6 +740,7 @@ export const APPS: readonly AppSpec[] = [
       "event-store",
       "export",
       "formatting",
+      "ids",
       "logger",
       "migrations",
       "model-provider",

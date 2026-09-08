@@ -1,5 +1,12 @@
 import { AuteurError } from "@auteur/errors/auteur-error";
-import { type Method, ROUTE_NAMES, type RouteName, specOf } from "./routes.ts";
+import type { z } from "zod";
+import {
+  type Method,
+  ROUTE_NAMES,
+  type RouteName,
+  type Routes,
+  specOf,
+} from "./routes.ts";
 
 /**
  * Reading the contract: paths, parsing, and the one place a path is built.
@@ -41,34 +48,86 @@ export const methodFor = (name: RouteName): Method => specOf(name).method;
  * log. A zod issue list rendered into a user-facing sentence is a sentence
  * nobody can act on.
  */
+type Spec<Name extends RouteName> = Routes[Name];
+
+/**
+ * What a route's body, query and response are, per route name.
+ *
+ * These live here rather than in either client because both halves of the wire
+ * need them: `api-client` types its `call` options from `BodyOf`, and a Hono
+ * handler types the value `parseBody` hands it from the same alias. Two
+ * definitions of "what this route's body is" would be two things that agree
+ * until one of them is edited.
+ *
+ * `z.input` for the request halves and `z.output` for the response: a request
+ * is described before coercion (a cursor may arrive as a string) and a response
+ * after it.
+ */
+export type BodyOf<Name extends RouteName> =
+  Spec<Name> extends { body: infer Schema }
+    ? Schema extends z.ZodType
+      ? z.output<Schema>
+      : never
+    : undefined;
+
+export type QueryOf<Name extends RouteName> =
+  Spec<Name> extends { query: infer Schema }
+    ? Schema extends z.ZodType
+      ? z.output<Schema>
+      : never
+    : undefined;
+
+export type BodyInputOf<Name extends RouteName> =
+  Spec<Name> extends { body: infer Schema }
+    ? Schema extends z.ZodType
+      ? z.input<Schema>
+      : never
+    : undefined;
+
+export type QueryInputOf<Name extends RouteName> =
+  Spec<Name> extends { query: infer Schema }
+    ? Schema extends z.ZodType
+      ? z.input<Schema>
+      : never
+    : undefined;
+
+export type ResponseOf<Name extends RouteName> = z.output<
+  Spec<Name>["response"]
+>;
+
 export const parseBody = <Name extends RouteName>(
   name: Name,
   payload: unknown,
-): unknown => {
+): BodyOf<Name> => {
   const schema = specOf(name).body;
-  if (schema === undefined) return undefined;
+  if (schema === undefined) return undefined as BodyOf<Name>;
   const parsed = schema.safeParse(payload);
   if (!parsed.success) {
     throw new AuteurError("invalid_input", "The request body is not valid.", {
       detail: { issues: parsed.error.issues, route: name },
     });
   }
-  return parsed.data;
+  // The parse above is what proves this: `specOf(name).body` *is* the schema
+  // `BodyOf<Name>` is derived from, and it just succeeded. The compiler cannot
+  // follow that through the generic index into a union of sixteen shapes, which
+  // is the one thing this cast stands in for.
+  return parsed.data as BodyOf<Name>;
 };
 
 export const parseQuery = <Name extends RouteName>(
   name: Name,
   payload: unknown,
-): unknown => {
+): QueryOf<Name> => {
   const schema = specOf(name).query;
-  if (schema === undefined) return undefined;
+  if (schema === undefined) return undefined as QueryOf<Name>;
   const parsed = schema.safeParse(payload);
   if (!parsed.success) {
     throw new AuteurError("invalid_input", "The request query is not valid.", {
       detail: { issues: parsed.error.issues, route: name },
     });
   }
-  return parsed.data;
+  // As above: the schema that just parsed is the one the type is derived from.
+  return parsed.data as QueryOf<Name>;
 };
 
 /**
