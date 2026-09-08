@@ -6,7 +6,7 @@ import {
 } from "@auteur/component-library/theme";
 import { COPY } from "@auteur/copy/index";
 import type { Step } from "@auteur/core/session";
-import { type ReactElement, useEffect, useMemo, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { AuthorScreen } from "../screens/author.tsx";
 import { ClarifyScreen } from "../screens/clarify.tsx";
 import { DraftScreen } from "../screens/draft.tsx";
@@ -34,21 +34,53 @@ import {
 
 const token = (name: string): string => `var(--${name})`;
 
+/** Where a reload finds the session it was in the middle of. */
+export const SESSION_KEY = "auteur.session";
+
+export const readStoredSession = (): string | undefined => {
+  try {
+    return globalThis.localStorage.getItem(SESSION_KEY) ?? undefined;
+  } catch {
+    // Private browsing and blocked storage both throw. A session that cannot
+    // be remembered is still usable; it just does not survive a reload.
+    return undefined;
+  }
+};
+
+export const storeSession = (id: string): void => {
+  try {
+    globalThis.localStorage.setItem(SESSION_KEY, id);
+  } catch {
+    // As above.
+  }
+};
+
 export type AppProps = {
   readonly transport: Transport;
   /** Injected so a test can mount from a serialized session. */
   readonly initial?: SessionState;
+  /** Overrides the id the session view carries. Tests only. */
   readonly sessionId?: string;
 };
 
 export const App = ({
   initial = EMPTY,
-  sessionId,
+  sessionId: override,
   transport,
 }: AppProps): ReactElement => {
   const [state, setState] = useState<SessionState>(initial);
   const [mode, setMode] = useState<ThemeMode>("auto");
   const [overlay, setOverlay] = useState(false);
+
+  /**
+   * The session this app is driving.
+   *
+   * **Derived from the view, not held beside it.** A separate piece of state
+   * would be a second source for the same id, and the first thing it does is
+   * disagree — which is what happened before this: nothing set it, so every
+   * screen's actions returned early and the app looked alive and did nothing.
+   */
+  const sessionId = override ?? state.view?.session.id;
 
   useEffect(() => {
     const controller = createThemeController({
@@ -57,6 +89,52 @@ export const App = ({
     setMode(controller.get());
     return controller.stop;
   }, []);
+
+  // Resume the stored session on first mount. `GET /api/sessions/:id` carries
+  // everything a reload needs (§7.1), so this is one request and not a
+  // reconstruction.
+  useEffect(() => {
+    if (state.view !== undefined) return;
+    const stored = readStoredSession();
+    if (stored === undefined) return;
+    void transport.client
+      .call("session", { params: { id: stored } })
+      .then((view) => {
+        setState((previous) => ({ ...previous, view }));
+      })
+      .catch(() => undefined);
+  }, [state.view, transport]);
+
+  useEffect(() => {
+    if (sessionId === undefined) return;
+    storeSession(sessionId);
+  }, [sessionId]);
+
+  /**
+   * The highest seq held, read by the stream effect without depending on it.
+   *
+   * A ref rather than a dependency: keying the effect on the event list would
+   * close and reopen the stream on every delta, which is a reconnect per token.
+   * Reading `state.events` inside an effect keyed only on the session would be
+   * a stale closure — correct on the first open and wrong on every reopen.
+   */
+  const cursor = useRef(0);
+  cursor.current = state.events.at(-1)?.seq ?? cursor.current;
+
+  // One stream per session, resumed from the highest seq already held — so a
+  // reload replays what it missed and nothing it already has.
+  useEffect(() => {
+    if (sessionId === undefined) return;
+    const stream = transport.openStream(sessionId, cursor.current, (event) => {
+      setState((previous) => ({
+        ...previous,
+        events: [...previous.events, event],
+      }));
+    });
+    return () => {
+      stream.close();
+    };
+  }, [sessionId, transport]);
 
   const step: Step = state.view?.session.step ?? "idea";
   const current = stepIndex(step);

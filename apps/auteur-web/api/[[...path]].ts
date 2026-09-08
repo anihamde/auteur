@@ -73,6 +73,10 @@ const db = createDb({ endpoint: "pooled", url: env().DATABASE_URL });
 
 const app = createApp({
   apiToken: env().AUTEUR_API_TOKEN,
+  cron: {
+    invokeStage,
+    stageSecret: env().AUTEUR_STAGE_SECRET,
+  },
   db,
   // The one place `LISTEN` gets the connection it needs. §7.
   events: {
@@ -86,6 +90,9 @@ const app = createApp({
   },
   invokeStage,
   logger: createLogger({ bound: { component: "api" } }),
+  // No release phase on this platform: the schema comes up to date on the
+  // first request, under `ensureSchema`'s lock.
+  migrateOnBoot: true,
 });
 
 export const GET = app.fetch;

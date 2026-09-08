@@ -9,13 +9,13 @@ import {
 } from "./contract.ts";
 import { ROUTE_NAMES, specOf } from "./routes.ts";
 
-describe("the sixteen routes", () => {
-  test("sixteen, counted from the object rather than written down", () => {
-    // §7.1 says "fourteen" and lists sixteen — fourteen browser routes, the
+describe("the seventeen routes", () => {
+  test("seventeen, counted from the object rather than written down", () => {
+    // §7.1 says "fourteen" and lists seventeen — fourteen browser routes, the
     // SSE route, and the internal one. `docs/decisions/0005` works through it.
     // Counting from the object is what makes the number a property of the
     // contract rather than a comment that goes stale the same way.
-    expect(ROUTE_NAMES).toHaveLength(16);
+    expect(ROUTE_NAMES).toHaveLength(17);
   });
 
   test("every §7.1 path is present, exactly once", () => {
@@ -41,19 +41,22 @@ describe("the sixteen routes", () => {
         "GET /api/sessions/:id/export",
         "GET /api/sessions/:id/events",
         "POST /internal/stage",
+        "POST /internal/cron/sweep",
       ].sort(),
     );
   });
 
-  test("exactly one route is internal, and it is the stage runner", () => {
-    // The one a browser never calls, which makes it the one whose body is most
-    // tempting to trust — and invariant 4 has no exception for callers you
-    // wrote yourself.
+  test("two routes are internal: the stage runner and the sweep", () => {
+    // The two a browser never calls, which makes them the ones whose bodies
+    // are most tempting to trust — and invariant 4 has no exception for
+    // callers you wrote yourself. Both carry the stage secret rather than the
+    // bearer token: a caller that can release a claim can disrupt a run.
     const internal = ROUTE_NAMES.filter(
       (name) => specOf(name).internal === true,
     );
-    expect(internal).toEqual(["internalStage"]);
+    expect(internal.sort()).toEqual(["internalStage", "internalSweep"]);
     expect(publicRoutes()).not.toContain("internalStage");
+    expect(publicRoutes()).not.toContain("internalSweep");
   });
 
   test("exactly one route streams, and it is the events route", () => {
