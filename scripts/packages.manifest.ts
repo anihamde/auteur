@@ -410,6 +410,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     layer: "service",
     name: "corpus-gutenberg",
     workspaceDeps: ["core", "corpus-store", "errors", "ids", "logger", "text"],
+    workspaceDevDeps: ["test-db"],
   },
   {
     coverage: 0.9,

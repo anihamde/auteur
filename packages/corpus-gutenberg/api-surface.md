@@ -8,31 +8,49 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/corpus-gutenberg/authors`
 
 ```ts
-export const unimplemented = (): never =>
+export const PROVIDER = "gutenberg"
+export const foldAuthors = (books: readonly GutendexBook[]): FoldedAuthor[] =>
+export const mintAuthorId = (person: GutendexPerson): string =>
+export const slugifyName = (name: string): string =>
 ```
 
 ## `@auteur/corpus-gutenberg/fetch`
 
 ```ts
-export const unimplemented = (): never =>
+export const MAX_CONCURRENCY = 4
+export const RETRY_DELAYS_MS = [2000, 4000] as const
+export const fetchWork = async (
+export const fetchWorks = async (
+export const plainTextUrl = (book: GutendexBook): string | undefined =>
 ```
 
 ## `@auteur/corpus-gutenberg/gutendex`
 
 ```ts
-export const unimplemented = (): never =>
+export const GUTENDEX_BASE = "https://gutendex.com"
+export const searchBooks = async (
+export const searchPage = async (
 ```
 
 ## `@auteur/corpus-gutenberg/passages`
 
 ```ts
-export const unimplemented = (): never =>
+export const MARGIN = 0.05
+export const MAX_WORDS = 900
+export const MIN_WORDS = 400
+export const TARGET_CANDIDATES = 40
+export const insideMargins = (
+export const selectPassages = (
+export const spread = <Entry>(
 ```
 
 ## `@auteur/corpus-gutenberg/provider`
 
 ```ts
-export const unimplemented = (): never =>
+export const createGutenbergProvider = (
+export const detailLine = (author: AuthorResult): string =>
+export const searchAll = async (
+export const withLocalFacts = async (
 ```
 
 ## `@auteur/corpus-gutenberg/schema`

@@ -89,13 +89,40 @@ if (testFiles.length === 0 && !hasIntegration) {
   process.exit(1);
 }
 
-// Only a package that can actually reach Postgres needs the database. A
-// package whose integration tests exercise some other real dependency — the
-// Blob store, say — has integration tests but no database, and demanding one
-// would make its suite unrunnable for the wrong reason.
-const needsDatabase = ["db", "migrations", "test-db"].some(
-  (name) => packageName === name || spec.workspaceDeps.includes(name),
-);
+/**
+ * Whether this package can actually reach Postgres.
+ *
+ * **Transitive, and through devDependencies too.** The first version read only
+ * `workspaceDeps` and only for a direct edge, which missed both of the ways a
+ * package actually gets there: `corpus-gutenberg` reaches the database through
+ * `corpus-store`, and every suite that uses the harness reaches it through
+ * `test-db` — a devDependency by construction, since layering forbids a runtime
+ * edge to a test package.
+ *
+ * That was not a theoretical gap. It shipped, and CI caught it as
+ * ECONNREFUSED: the suite ran with no server because nothing had started one,
+ * while the same run passed locally on a cluster that happened to be up.
+ *
+ * A package with integration tests that exercise some other real dependency
+ * still gets no database, which is right — demanding one would make its suite
+ * unrunnable for the wrong reason.
+ */
+const reachesDatabase = (name: string, seen = new Set<string>()): boolean => {
+  if (["db", "migrations", "test-db"].includes(name)) return true;
+  if (seen.has(name)) return false;
+  seen.add(name);
+  const found = PACKAGES.find((candidate) => candidate.name === name);
+  if (found === undefined) return false;
+  return [...found.workspaceDeps, ...(found.workspaceDevDeps ?? [])].some(
+    (dependency) => reachesDatabase(dependency, seen),
+  );
+};
+
+const needsDatabase = [
+  packageName,
+  ...spec.workspaceDeps,
+  ...(spec.workspaceDevDeps ?? []),
+].some((name) => reachesDatabase(name));
 
 // A package with integration tests gets a real server, started here if one is
 // not already configured. Not having one is a failure and never a skip: a
