@@ -28,17 +28,25 @@ export const WORD_TARGET: Readonly<Record<LengthPreset, number>> = {
   short: 4000,
 };
 
+/**
+ * Timestamps are **coerced**, not required to be `Date`.
+ *
+ * The same schema parses a row from `pg` — where these are real `Date`s — and a
+ * JSON body off the wire, where they are ISO strings. `z.coerce.date()` accepts
+ * both, which is what lets one schema be the boundary parser on both sides
+ * rather than two that have to agree.
+ */
 export const sessionSchema = z.object({
   authorId: z.string().nullable(),
   cardId: z.uuid().nullable(),
   constraints: z.string().nullable(),
-  createdAt: z.date(),
+  createdAt: z.coerce.date(),
   id: z.uuid(),
   /** Verbatim. Nothing rewrites this before it reaches the pipeline. */
   idea: z.string().min(1),
   lengthPreset: lengthPresetSchema,
   step: stepSchema,
-  updatedAt: z.date(),
+  updatedAt: z.coerce.date(),
 });
 export type Session = z.infer<typeof sessionSchema>;
 

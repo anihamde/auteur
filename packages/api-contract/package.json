@@ -10,7 +10,8 @@
   },
   "exports": {
     "./contract": "./src/contract.ts",
-    "./routes": "./src/routes.ts"
+    "./routes": "./src/routes.ts",
+    "./transport": "./src/transport.ts"
   },
   "files": [
     "src/**/*"

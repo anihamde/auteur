@@ -565,13 +565,17 @@ export const PACKAGES: readonly PackageSpec[] = [
     deps: ["zod"],
     description: "One zod source of truth for every route.",
     devDeps: [],
-    exports: { contract: src("contract.ts"), routes: src("routes.ts") },
+    exports: {
+      contract: src("contract.ts"),
+      routes: src("routes.ts"),
+      transport: src("transport.ts"),
+    },
     layer: "api",
     name: "api-contract",
     workspaceDeps: ["core", "errors"],
   },
   {
-    deps: [],
+    deps: ["zod"],
     description: "The typed fetch client, derived from the contract.",
     devDeps: [],
     exports: { client: src("client.ts") },
@@ -581,7 +585,7 @@ export const PACKAGES: readonly PackageSpec[] = [
   },
   {
     coverage: 0.9,
-    deps: [],
+    deps: ["zod"],
     description:
       "The browser half of the SSE stream: cursor, replay, reconnect.",
     devDeps: [],

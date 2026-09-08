@@ -2,7 +2,8 @@
   "dependencies": {
     "@auteur/api-contract": "workspace:*",
     "@auteur/core": "workspace:*",
-    "@auteur/errors": "workspace:*"
+    "@auteur/errors": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
