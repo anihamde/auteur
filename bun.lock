@@ -511,6 +511,7 @@
       "name": "@auteur/text",
       "version": "0.0.0",
       "dependencies": {
+        "@auteur/core": "workspace:*",
         "@auteur/errors": "workspace:*",
       },
       "devDependencies": {

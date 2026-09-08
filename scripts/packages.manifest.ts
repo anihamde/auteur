@@ -186,7 +186,11 @@ export const PACKAGES: readonly PackageSpec[] = [
     },
     layer: "foundation",
     name: "text",
-    workspaceDeps: ["errors"],
+    // `core` is same-layer and below in the graph (it depends only on `ids`),
+    // so this edge is legal. It is here so `DialogueMarker` has one
+    // definition: `text` detects the convention and `core` schematizes it,
+    // and two unions that must agree is a drift waiting to happen.
+    workspaceDeps: ["core", "errors"],
   },
   {
     coverage: 0.9,
