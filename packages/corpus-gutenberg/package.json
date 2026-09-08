@@ -9,6 +9,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@auteur/test-db": "workspace:*",
     "@types/bun": "catalog:",
     "typescript": "catalog:"
   },
