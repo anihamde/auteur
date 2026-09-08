@@ -220,7 +220,9 @@ log that makes the SSE stream replayable (§7.3) needs somewhere to live. In
   and the pipeline writer coexist; `foreign_keys` is off by default in SQLite
   and every `ON DELETE CASCADE` below is silently inert without it.
 - **One writer.** The server is one process, so there is no write-contention
-  design to do. `busy_timeout` covers the reader.
+  design to do. `busy_timeout` covers the reader. Hosting does not change this:
+  the deploy is one machine, and `docs/IMPLEMENTATION-PLAN.md` §5.3 makes that
+  a checked property of `fly.toml` rather than a convention.
 
 ### 3.2 Schema
 
@@ -1286,11 +1288,36 @@ Two constraints, both from the same reasoning:
 
 ## 7. The server
 
-`apps/auteur-server` is one Hono process. It owns the database, the pipeline and
-the SSE fan-out. There is no second service and no queue: `PRD.md` §4 puts
-hosting out of scope, so the process the user started is the process that runs
-the pipeline, and a turn's lifetime is bounded by that process rather than by an
+`apps/auteur-server` is one Hono process running on the user's own machine. It
+owns the database, the pipeline and the SSE fan-out. There is no second service
+and no queue: the process the user started is the process that runs the
+pipeline, and a turn's lifetime is bounded by that process rather than by an
 HTTP request.
+
+**One narrow correction to `PRD.md` §4, which puts hosting out of scope.**
+Running locally stays the default and is what the rest of this document assumes.
+But the same process is *deployable* without changing: **one Fly.io machine with
+a persistent volume, and the `bun:sqlite` file on the volume**, also serving the
+client's static build, so there is one origin and no CORS. Whether to deploy it
+is a decision taken after the product runs — `docs/IMPLEMENTATION-PLAN.md` §5.3
+makes it two work packages at the end that touch five files nothing else
+touches.
+
+What this deliberately is not: a serverless split. A Vercel function's
+filesystem is ephemeral and per-invocation, so of the fourteen routes below only
+the two that touch no database could ever be functions, and the pipeline could
+not be one at any ceiling. Choosing a machine instead means **nothing in §3 or
+§7 changes** — one process, one writer, the SSE fan-out and the pipeline in the
+same place, no queue, no second service, and no managed database to operate.
+The deploy target moved; the design did not.
+
+Three constraints follow from the volume, and they are in
+`docs/IMPLEMENTATION-PLAN.md` §5.3 with what each costs: exactly one machine
+with auto-stop off, because a volume attaches to one machine and a stopped
+machine drops an in-flight run; a single shared bearer token on every route,
+because a public listener with the gateway key behind it is otherwise a bill
+anyone can run up; and a boot-time reconciliation, because a machine restart is
+now possible mid-run in a way a laptop process was not — see §7.3.
 
 ### 7.1 Routes
 
@@ -1382,6 +1409,16 @@ pipeline and the SSE endpoint are the same process, so a dead process is a dead
 server and the browser's reconnect is the whole recovery path. What survives a
 crash is what is in `events` and `artifacts`, which is what `GET /api/sessions/:id`
 returns on the next load.
+
+**One thing hosting adds, and it is not a heartbeat.** A deploy or a machine
+restart can now interrupt a run, where a laptop process could not be replaced
+under itself. The `stage_runs` rows of the interrupted run would stay `running`
+for ever and the session would never advance. So `ensureSchema()`'s caller
+follows it with one statement: every `stage_runs` row still `running` at boot
+becomes `error` with code `internal`, and its session gets a `stage_error`
+event. That is a reconciliation at startup, not a sweeper on a timer — there is
+still exactly one process, so a row that is `running` when it boots is by
+definition orphaned.
 
 ### 7.4 Errors
 
@@ -1912,6 +1949,7 @@ of a seven-step wizard is a maintenance cost that catches less than the axe audi
 |---|---|
 | §12 — adopt argo's `AGENTS.md` regime? | **Yes in shape: the document-index regime, seeded from `agent-guidelines` rather than copied from argo.** §11.1, and decision 0001. The index's cost is accepted and bounded; nexus's contribution is §11.2's gates, which is the half that does not decay. |
 | §12 — persistence via `bun:sqlite`? | **Yes.** §3. Cards are expensive, a half-finished wizard must survive a reload, and the replayable event log needs somewhere to live. |
+| §4 — hosting out of scope | **Corrected.** §7. The same one-process server deploys to a single Fly.io machine with the SQLite file on a persistent volume, serving the client from the same origin. Nothing about §3 or §7's design changes; a serverless split would have changed both. |
 | §9 — the living-author tier's legal position | **Left open. Not an architecture decision.** §5.5 puts the seam and the type distinction in place, and no v1 code path ingests in-copyright primary text. The review the PRD asks for is needed before the v2 tier is built, and this document does not pre-empt it. |
 
 Three further decisions this document makes that the PRD leaves implicit:
@@ -2051,6 +2089,9 @@ gate and the design port given its own step.
     (§8.6), because it exercises both grounds and the live measurement.
 11. **`style-fit`, `export`, `provenance-suite`.** The report, the label, and
     gate 8.
+12. **The deploy, if it is taken.** One Fly machine, one volume, the boot
+    reconciliation, the bearer token, and the client served from the same
+    origin (§7). Optional, and last, because nothing before it depends on it.
 
 Steps 3, 4 and 6 are the product. Steps 1, 2, 5 and 8 are plumbing and should
 not absorb more than they need. Step 9 is the one that can be worked in

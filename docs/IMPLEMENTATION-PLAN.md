@@ -70,27 +70,28 @@ for, and the new profile is then reusable."*
 ```yaml
 # profiles/local-app.md
 extends: [base, typescript]
-include: [react, styling, icons, accessibility, database, migrations, http-api, ci]
+include: [react, styling, icons, accessibility, database, migrations, http-api,
+          ci, deployment]
 vars: [PKG_SCOPE, COMPONENT_LIBRARY, TEST_COMMAND]
 ```
 
 For: a local-first product application — a client and a server that ship
-together, no deploy target, no accounts, no Next.js.
+together, a hosted client, no accounts, no Next.js.
 
 Every `requires` edge is satisfied without adding anything: `react` needs
 `functions` and `types` (in `typescript`), `styling`/`icons`/`accessibility`
 need `react`, `database` needs `data-boundaries` (in `typescript`), `migrations`
 needs `database`, `http-api` needs `data-boundaries` and `security` (in `base`),
-`ci` needs `tooling`. Nothing requires `nextjs`, `auth`, `deployment` or `rust`,
-so excluding them orphans nothing. Every variable the selected set declares is
-bound.
+`ci` needs `tooling`, and `deployment` requires nothing. Nothing requires
+`nextjs`, `auth` or `rust`, so excluding them orphans nothing. Every variable
+the selected set declares is bound.
 
 **Proof (WP-A0):** `bun run validate` and `bun run test` pass in
 `agent-guidelines` — its validator is what rejects an unbound variable, an
 omitted `requires`, an `include` a bundle already provides, and a profile
 extending a bundle that does not exist. Then `bun run port --profile local-app`
-against a scratch directory writes 24 guideline files and an index naming all
-24.
+against a scratch directory writes 25 guideline files and an index naming all
+25.
 
 ### 1.3 What the port writes into auteur
 
@@ -99,14 +100,14 @@ AGENTS.md                          generated index: authority levels,
                                    precedence, the post-edit audit, the PR
                                    "Guidelines audited" requirement
 CLAUDE.md                          three lines pointing at AGENTS.md
-docs/guidelines/*.md               24 seeded documents, flat, variables bound
+docs/guidelines/*.md               25 seeded documents, flat, variables bound
 docs/guidelines/local/README.md    how to author a repo-specific guideline
 docs/templates/package-AGENTS.md   starting point for a package addendum
 .agent-guidelines.lock             profile, source commit, bindings, sha256 per
                                    written file
 ```
 
-### 1.4 The 24 seeded documents
+### 1.4 The 25 seeded documents
 
 They arrive carrying the tier and trigger their own front matter declares. This
 table does not restate `covers` or `trigger` — the ported files carry those, and
@@ -130,26 +131,27 @@ by `local/invariants.md` (§1.5). `discriminated-unions` governs `SessionEvent`,
 `Evidence`, `ClarifyResult` and `ErrorCode`. `option-result` is relevant at three
 seams: provider calls, gutendex fetches, and `resolveCard`.
 
-**Included individually (8):** `react`, `styling`, `icons`, `accessibility`,
-`database`, `migrations`, `http-api`, `ci`.
+**Included individually (9):** `react`, `styling`, `icons`, `accessibility`,
+`database`, `migrations`, `http-api`, `ci`, `deployment`.
 
 `migrations` is already the architecture's design (§3.3) — the server converges
 the schema on access and nobody applies one by hand. `ci`'s failure and speed
-rules are what §2.2 and WP-A1 implement.
+rules are what §2.2 and WP-A1 implement. `deployment` is taken because auteur
+now deploys (§5.3); which half of it applies is inverted from the guideline's
+default, and `local/deploy-split.md` says so.
 
 ### 1.5 Not taken, and the four seeded documents auteur overrides
 
-**Not taken (4).** These are absent from the profile, so they are absent from
+**Not taken (3).** These are absent from the profile, so they are absent from
 `docs/guidelines/` and from the index.
 
 | Guideline | Why |
 |---|---|
 | `nextjs` | Vite SPA, one route. Every rule describes machinery auteur does not have, and its trigger would fire on Hono route work. |
 | `auth` | Single-user, no accounts, no sessions, no protected routes. |
-| `deployment` | Runs locally. No Vercel, no Fly, no preview environments. |
 | `rust` | No crate and none plausible: the two hot paths are a set lookup per word over a few million words. |
 
-**Overridden (4 + 2 additions).** The index model has a mechanism for auteur's
+**Overridden (5 + 2 additions).** The index model has a mechanism for auteur's
 deviations that the one-file model did not: a local document with `overrides:`
 in its front matter. **The seeded file is never edited** — an in-place edit shows
 as drift in `.agent-guidelines.lock` on the next refresh, and the whole point of
@@ -162,6 +164,7 @@ the lock is that it stays readable. WP-A5 writes:
 | `local/http-hono.md` | if-touched | `http-api` | Steps 1 and 2 (authenticate, authorize) do not exist. Steps 3–5 stand verbatim: parse before doing work, status codes that mean what happened, one error shape, never a 200 carrying an error. |
 | `local/react-spa.md` | if-touched | `react` | Strikes "Server Components by default"; everything else stands. |
 | `local/invariants.md` | **always** | — | `ARCHITECTURE.md` §0's four invariants, the instruction to resolve ambiguity toward them, and the repository-wide promotion of `data-boundaries`: its trigger fires on nearly every diff in a product that is seven model calls and two HTTP clients, so it is in scope for every change rather than re-decided per diff. |
+| `local/deploy-split.md` | if-touched | `deployment` | Inverts the guideline's default. Fly is not the overflow for long-running work — it is the whole deploy, one machine with a volume, and the serverless rules Vercel's half states (no in-process state, no local filesystem writes, connections pooled) are exactly what auteur does not obey and must not be made to. Vercel keeps one job: preview deployments of the client in demo mode. There is no queue, no job idempotency requirement, no worker, and no third platform. |
 | `local/ink-paper-and-copy.md` | if-touched | — | The UI and content rules `ARCHITECTURE.md` §11.1 lists that no seeded guideline covers: tokens only, the two ink/paper mechanisms (§8.3), every user-facing string in `copy`, and the content rules §8.4 asserts as tests. `styling` is seeded unmodified and this sits beside it. |
 
 ### 1.6 Per-package addenda
@@ -187,22 +190,22 @@ An addendum never weakens a root rule.
 `ARCHITECTURE.md` §11.1 chose the one-file regime for a reason that has not gone
 away: *"argo's `AGENTS.md` is an index of nine guideline documents with authority
 levels and a mandatory post-edit audit — a strong regime that costs a re-read of
-several documents per change."* auteur's index is 24 documents plus six local
+several documents per change."* auteur's index is 25 documents plus seven local
 ones, which is more than nine.
 
 That cost is real and it is accepted. Three things bound it:
 
 - **Tiers do the filtering.** 12 documents are ALWAYS (11 seeded plus
-  `local/invariants.md`); the other 18 are `if-touched` or `reference` and their
+  `local/invariants.md`); the other 20 are `if-touched` or `reference` and their
   triggers decide. A typical `packages/prosody` diff is in scope for the ALWAYS
   set and nothing else.
 - **Per-package addenda make the common case local.** A `component-library` WP
-  reads its addendum's four promotions rather than re-deriving which of 24 apply.
-- **Most rules are gates anyway.** §2.2's ten gates enforce the load-bearing
+  reads its addendum's four promotions rather than re-deriving which of 25 apply.
+- **Most rules are gates anyway.** §2.2's eleven gates enforce the load-bearing
   half. The documents explain; CI decides.
 
 What is gained over the compressed one-file version: the rationale and worked
-examples travel with the rules, `local/*.md` gives auteur's four adaptations a
+examples travel with the rules, `local/*.md` gives auteur's five adaptations a
 place that does not require editing a seeded file, `.agent-guidelines.lock` makes
 a later refresh a readable diff rather than an archaeology exercise, and the
 post-edit audit and the PR "Guidelines audited" line are protocol steps the
@@ -248,10 +251,12 @@ it was scoped wrong — split it and add the split to this file in the same PR.
 Branch names are the WP id and its subject: `wp-e04-sentence-segmentation`.
 Never a generated name.
 
-### 2.2 The ten CI gates
+### 2.2 The eleven CI gates
 
-Nine from `ARCHITECTURE.md` §11.2, plus the guideline gate from §1.5. All
-blocking, all on every PR.
+Nine from `ARCHITECTURE.md` §11.2, plus the guideline gate from §1.8 and the
+build gate the deploy makes worth having. All blocking, all on every PR. Gate 11 lands with WP-R1, the first WP that produces a bundle: it is the
+only gate that resolves the whole graph through a bundler, so a package nothing
+else exercises is invisible until it fails a deploy.
 
 | # | Gate | Command |
 |---|---|---|
@@ -265,6 +270,7 @@ blocking, all on every PR.
 | 8 | Provenance | `@auteur/provenance-suite` |
 | 9 | Dependency release age | `scripts/check-min-age.ts` |
 | 10 | Guideline index and seed integrity | `scripts/check-guidelines.ts --check` (§1.8) |
+| 11 | The client bundles as the deploy will build it | `turbo build` on `apps/auteur-web` |
 
 Each gate carries a case in `scripts/gate-self-test.ts` that proves it rejects
 its own defect. A gate nobody has watched reject something is a gate nobody
@@ -362,6 +368,8 @@ race to add one.
 | `bun.lock` | same | Follows the catalog PR. Regenerate after rebase, never hand-merge. |
 | `turbo.json` | WP-A1, then WP-Z2 | Task graph lands complete at A1. One late tuning PR. |
 | `ci/workflows/ci.yml` | WP-A1 only | Staged, then handed over (§2.6). |
+| `fly.toml`, `Dockerfile` | WP-R11 | Land once, with the deploy. |
+| `vercel.json` | WP-R10 | Preview-only, and configured through Vercel's GitHub integration rather than the workflow, so it needs no second handover. |
 | `.github/workflows/ci.yml` | **nobody, after the handover** | Changing it means another staged file and another handover, so it is written complete once and the gates register themselves in `scripts/gates.ts` instead. |
 | `scripts/gates.ts` | WP-A1, then one line per gate | Each gate script appends its own registration. Appends collide rarely and take both sides. |
 | `biome.json` | WP-A1 | Never edited again. A rule that needs disabling gets a decision file first. |
@@ -462,7 +470,7 @@ precision and recall in it.
 
 ---
 
-## 5. Two things the architecture leaves open
+## 5. Two open items, and the hosting boundary
 
 ### 5.1 Prompt contents
 
@@ -541,6 +549,80 @@ sessions, so its mistakes are the longest-lived. It stays at `balanced` because
 `config/tiers.ts` is data and WP-X1 measures the alternative for the price of a
 config edit, which is the experiment `ARCHITECTURE.md` §6.3 asks for.
 
+### 5.3 Local by default; the Fly deploy is additive and last
+
+**Local is the default and it is what every work package before R11 assumes.**
+`bun run dev`, the SQLite file on your own disk, the key never leaving your
+machine, no listener to secure and no bill. For v1 as `PRD.md` §1–§4 specifies
+it — single-user, interactive, no sharing, no scheduled work, no second client —
+that is the whole requirement, and hosting buys close to nothing against it.
+
+**So the deploy is two work packages at the very end that change nothing before
+them.** R11 and R12 add `fly.toml`, a `Dockerfile`, a bearer-token middleware, a
+static-file handler and a boot reconciliation — five files nothing else touches.
+Landing them is a decision that can be taken after the product runs, or not
+taken; skipping them costs the plan nothing. **What flips it is wanting the app
+reachable when your laptop is not**: from a phone, by someone you are showing it
+to, or through a novelette-length run you do not want to sit in front of. None
+of those is in v1's requirements, and all three are plausible reasons to want it
+anyway.
+
+**When it is taken, it is one Fly.io machine with the `bun:sqlite` file on a
+persistent volume, serving the client's static build from the same origin.** No
+managed database, no second service, no queue.
+
+The alternative considered and rejected is a serverless split. `bun:sqlite` is a
+file on a disk; a Vercel function's filesystem is ephemeral and per-invocation
+and instances are plural, so of `ARCHITECTURE.md` §7.1's fourteen routes only
+`GET /api/health` and `GET /api/models` touch no database and could ever be
+functions — and the pipeline could not be one at any ceiling, being minutes of
+work behind a long-lived connection. A machine keeps §3's one-writer design and
+§7's one-process design exactly as written. **The deploy target moves and the
+architecture does not**, which is the whole argument for it.
+
+Four things follow from the volume, each with what it costs.
+
+**One machine, auto-stop off.** A Fly volume attaches to one machine in one
+region, so `fly.toml` declares exactly one and does not scale. A second machine
+would not see the database; a stopped machine drops an in-flight run and its SSE
+subscribers. Cost: a few dollars a month for a machine that is idle most of the
+time, and no horizontal headroom — neither of which a single-user product needs.
+
+**A bearer token on every route.** The listener is public and the Ramp Router key
+sits behind it, so an unauthenticated deployment is a bill anyone who finds the
+URL can run up. One shared token in an env var, checked by one middleware, is
+the whole mechanism: no accounts, no sessions, no schema, which keeps `PRD.md`
+§4's "no accounts" intact and leaves `auth` out of the guideline selection.
+Cost: one header on every client request, and a token to rotate by hand.
+
+**A boot-time reconciliation.** A restart or a deploy can now interrupt a run.
+`ARCHITECTURE.md` §7.3 adds it: every `stage_runs` row still `running` at boot
+becomes `error` with code `internal` and its session gets a `stage_error` event.
+It is one statement after `ensureSchema()`, not nexus's heartbeat and sweeper —
+there is still exactly one process, so a `running` row at boot is orphaned by
+definition. Cost: nothing, but it is a real defect if it is skipped, which is
+why it is its own WP with its own test.
+
+**The volume is single-copy.** Fly snapshots it daily; it is not replicated.
+Losing it loses cached style cards and session history. That is money and
+minutes rather than unrecoverable data — the corpus texts re-fetch and the cards
+rebuild from them (`ARCHITECTURE.md` §4.2's whole point) — so the plan does not
+build a backup path, and says so rather than leaving it unsaid.
+
+**Vercel keeps one job, and only one: preview deployments of the client in demo
+mode.** WP-R10 gives the client a runtime API base and a demo mode that renders
+every screen from a recorded event log with no server. Pointed at Vercel, that
+is a per-pull-request preview of the seven screens — which for a product whose
+differentiator is a measured design system is the thing reviewers most need to
+look at. It is a review surface, not a second production surface: it never talks
+to the Fly machine, so there is no CORS to configure and no mixed content to
+work around. If previews ever need to hit a real server, that is a third thing
+and this plan does not build it.
+
+This corrects `PRD.md` §4, which puts hosting out of scope. The correction is
+recorded in `ARCHITECTURE.md` §7 rather than by editing the PRD, which is how §2
+already handles the PRD's other corrections.
+
 ---
 
 ## 6. Work packages
@@ -548,6 +630,7 @@ config edit, which is the experiment `ARCHITECTURE.md` §6.3 asks for.
 Legend: **Deps** are WP ids. **[mech]** = mechanical, no review round.
 **[net]** = needs network. **[key]** = needs a real Ramp Router key.
 **[handover]** = ends by handing a file to you and stopping (§2.6).
+**[optional]** = the plan is complete without it; see §5.3.
 Every Proof names a test or a gate.
 
 ### Wave A — CI, then the conflict magnets. Strictly serial.
@@ -558,11 +641,11 @@ different repository and can be worked from the start; it blocks only A4.
 
 | WP | Delivers | Files owned | Proof | Deps |
 |---|---|---|---|---|
-| **A0** | **In `ac-zeitgeist/agent-guidelines`**, not auteur: `profiles/local-app.md` per §1.2 | `profiles/local-app.md`, plus the profile's row in that repo's `README.md` and `meta/PORTING.md` tables | That repository's own `bun run validate` and `bun run test` — the validator is what rejects an unbound variable, an omitted `requires`, and an `include` a bundle already provides. Then a scratch port writes 24 guideline files and an index naming all 24 | — |
-| **A1** **[handover]** | **CI, and the toolchain it needs to run.** The complete workflow — ten gate jobs, concurrency group keyed on the ref, turbo cache restored on the lockfile hash, `--concurrency=100%`, `--affected` on pull requests, independent jobs in parallel — written to the **staging path** `ci/workflows/ci.yml`, never to `.github/`. Plus `docs/CI-HANDOVER.md`, `scripts/gates.ts` (§2.6's indirection), and the root toolchain: bun workspaces, the complete catalog, `turbo.json`, `biome.json`, `bunfig.toml` (`minimumReleaseAge = 604800`), base `tsconfig`, `packages/tsconfig`, `packages/biome-config` | `ci/workflows/ci.yml`, `docs/CI-HANDOVER.md`, `scripts/gates.ts`, `/package.json`, `/bun.lock`, `/turbo.json`, `/biome.json`, `/bunfig.toml`, `/tsconfig.json`, `/.gitignore`, `/.nvmrc`, `packages/tsconfig/**`, `packages/biome-config/**` | **A green Actions run on this PR, after the file is live.** Locally-passing `bun install --frozen-lockfile`, `biome check` and `tsc --noEmit` are necessary and are not the proof: the thing being proved is that CI runs, on this repository, on a pull request. Until the run exists this WP is not done | — |
+| **A0** | **In `ac-zeitgeist/agent-guidelines`**, not auteur: `profiles/local-app.md` per §1.2 | `profiles/local-app.md`, plus the profile's row in that repo's `README.md` and `meta/PORTING.md` tables | That repository's own `bun run validate` and `bun run test` — the validator is what rejects an unbound variable, an omitted `requires`, and an `include` a bundle already provides. Then a scratch port writes 25 guideline files and an index naming all 25 | — |
+| **A1** **[handover]** | **CI, and the toolchain it needs to run.** The complete workflow — eleven gate jobs, concurrency group keyed on the ref, turbo cache restored on the lockfile hash, `--concurrency=100%`, `--affected` on pull requests, independent jobs in parallel — written to the **staging path** `ci/workflows/ci.yml`, never to `.github/`. Plus `docs/CI-HANDOVER.md`, `scripts/gates.ts` (§2.6's indirection), and the root toolchain: bun workspaces, the complete catalog, `turbo.json`, `biome.json`, `bunfig.toml` (`minimumReleaseAge = 604800`), base `tsconfig`, `packages/tsconfig`, `packages/biome-config` | `ci/workflows/ci.yml`, `docs/CI-HANDOVER.md`, `scripts/gates.ts`, `/package.json`, `/bun.lock`, `/turbo.json`, `/biome.json`, `/bunfig.toml`, `/tsconfig.json`, `/.gitignore`, `/.nvmrc`, `packages/tsconfig/**`, `packages/biome-config/**` | **A green Actions run on this PR, after the file is live.** Locally-passing `bun install --frozen-lockfile`, `biome check` and `tsc --noEmit` are necessary and are not the proof: the thing being proved is that CI runs, on this repository, on a pull request. Until the run exists this WP is not done | — |
 | **A2** | `scripts/packages.manifest.ts`: all 35 packages and both apps from `ARCHITECTURE.md` §1 plus the two named below, with layer, `workspaceDeps`, subpath `exports`, coverage floors. `core` and `copy` split into per-area subpaths so §3.2's partition holds | `scripts/packages.manifest.ts`, `scripts/packages.manifest.test.ts` | A test asserting every package named in `ARCHITECTURE.md` §1's table is present, that `LAYERS` matches §1's order, and that `component-library`'s `workspaceDeps` are exactly `tokens, icons, copy, formatting, core` | A1 |
 | **A3** | Gate scripts ported from nexus: `check-dependencies`, `api-surface`, `new-package`, `package-tests`, `check-catalog`, `check-bun-version`, `preflight`, `gate-self-test`; plus `check-min-age` (argo's `dependency-min-age`, as `packages/dependency-min-age`) and `check-guidelines`. Each registers itself in `scripts/gates.ts` rather than in the workflow | `scripts/*.ts` except the manifest, `packages/dependency-min-age/**` | `bun run gate-self-test` green, with a case per gate 4, 5, 6, 9, 10: a cycle, a layer violation, a `component-library` import past its five, a widened export with no manifest edit, a drifted skeleton, an under-age dependency, an edited seeded guideline. The same run in CI, on the job A1 already created, with no workflow edit | A2 |
-| **A4** | The port run per §1.1: `AGENTS.md`, `CLAUDE.md`, 24 files under `docs/guidelines/`, `docs/guidelines/local/README.md`, `docs/templates/package-AGENTS.md`, `.agent-guidelines.lock`. Plus the six `local/*.md` documents of §1.5, `docs/decisions/0001-document-index-regime.md`, and the `decisions:index` script | `/AGENTS.md`, `/CLAUDE.md`, `/.agent-guidelines.lock`, `docs/guidelines/**`, `docs/templates/**`, `docs/decisions/**`, `scripts/decisions-index.ts` | Gate 10's five assertions (§1.8), each with a `gate-self-test.ts` case: a byte changed in a ported file, an id deleted from the index, a `local` doc overriding an unported id, an addendum promoting an `always` document | A3, A0 |
+| **A4** | The port run per §1.1: `AGENTS.md`, `CLAUDE.md`, 25 files under `docs/guidelines/`, `docs/guidelines/local/README.md`, `docs/templates/package-AGENTS.md`, `.agent-guidelines.lock`. Plus the seven `local/*.md` documents of §1.5, `docs/decisions/0001-document-index-regime.md`, and the `decisions:index` script | `/AGENTS.md`, `/CLAUDE.md`, `/.agent-guidelines.lock`, `docs/guidelines/**`, `docs/templates/**`, `docs/decisions/**`, `scripts/decisions-index.ts` | Gate 10's five assertions (§1.8), each with a `gate-self-test.ts` case: a byte changed in a ported file, an id deleted from the index, a `local` doc overriding an unported id, an addendum promoting an `always` document | A3, A0 |
 | **A5** **[mech]** | Every package and app skeleton materialised from the manifest: `package.json`, `tsconfig.json`, `bunfig.toml`, `README.md`. No `src/`. A package with no `src/` is *declared, not materialised*; gates 3 and 4 skip it | `packages/*/package.json`, `packages/*/tsconfig.json`, `packages/*/README.md`, `apps/*/…` | Gate 6 (`new-package.ts --check`) passes on a clean tree; deleting one generated line fails it | A3 |
 
 The two packages A2 adds to `ARCHITECTURE.md` §1's list: `dependency-min-age`
@@ -667,7 +750,7 @@ Twelve independent branches; none shares a file with another.
 | **I2** | Author folding and id minting (`gutenberg:<slug>-<birthYear>`) | `packages/corpus-gutenberg/src/authors.ts` | Two authors sharing a display name and differing in birth year mint distinct ids; a changed upstream name mints a second id rather than rewriting the first; an author with no birth year mints a stable id without one | I1 |
 | **I3** | Text fetch: plain-text format preference, ≤4 concurrent, one retry on 5xx/timeout at 2s then 4s, none on 4xx | `packages/corpus-gutenberg/src/fetch.ts` | Against a scripted fetch: a 500 retries exactly once then throws `corpus_unavailable`; a 404 throws immediately with no retry; a book with no plain-text format is dropped from selection rather than fetched as HTML; concurrency never exceeds 4 | I1, E2 |
 | **I4** | Passage selection: 400–900 word windows on paragraph boundaries, sampled uniformly, first and last 5% excluded | `packages/corpus-gutenberg/src/passages.ts` | Deterministic: the same work yields byte-identical passages across two runs; every passage starts and ends on a block boundary; none overlaps the excluded margins; roughly forty candidates from a twelve-work corpus | E5, I3 |
-| **I5** | The `CorpusProvider` seam and `AuthorResult`'s three detail-line states | `packages/corpus-gutenberg/src/provider.ts` | The three §5.3 states are three tests over the same author at three cache states; a `secondary`-kind provider registered alongside unions into search results without changing the builder | I2, H3 |
+| **I5** | The `CorpusProvider` seam and `AuthorResult`'s three detail-line states | `packages/corpus-gutenberg/src/provider.ts` | The three `ARCHITECTURE.md` §5.3 states are three tests over the same author at three cache states; a `secondary`-kind provider registered alongside unions into search results without changing the builder | I2, H3 |
 
 ### Wave J — `prompt`. J2–J8 fully parallel after J1.
 
@@ -724,7 +807,7 @@ Twelve independent branches; none shares a file with another.
 | **M3** | `stream-client`: cursor, replay, de-duplicate, reconnect | `packages/stream-client/src/**` | Four named tests, one per §7.3 failure row: a drop reconnects from the cursor and delivers each missed event exactly once with no duplicate; a 404 is fatal at once; an unparseable frame is fatal at once rather than reconnecting into the same frame forever; `close()` is idempotent and aborts the in-flight request | M1, B8 |
 | **N1** | Server skeleton, `GET /api/health`, `GET /api/models` | `apps/auteur-server/src/app.ts`, `src/routes/health.ts`, `src/routes/models.ts` | An HTTP-level test per route; a malformed query returns 400 in the contract's error shape, never a 200 carrying an error | M1, L3, C4 |
 | **N2** | Session routes: create, read, patch, delete | `apps/auteur-server/src/routes/sessions.ts` | `GET /api/sessions/:id` after a reload returns idea, step, answers, artifacts and the three result tabs' data in one response; an unknown id is 404 | N1, H1 |
-| **N3** | `GET /api/authors` — search unioned across providers | `apps/auteur-server/src/routes/authors.ts` | The three §5.3 detail-line states appear in the response as three distinct shapes; a provider throwing does not fail the union, and its absence is reported | N1, I5 |
+| **N3** | `GET /api/authors` — search unioned across providers | `apps/auteur-server/src/routes/authors.ts` | The three `ARCHITECTURE.md` §5.3 detail-line states appear in the response as three distinct shapes; a provider throwing does not fail the union, and its absence is reported | N1, I5 |
 | **N4** | `POST /api/sessions/:id/advance` and the staleness computation | `apps/auteur-server/src/routes/advance.ts`, `src/staleness.ts` | **Six named tests, one per §7.5 consequence**: changing an answer restales `outline` onward and not the card; changing the author restales everything after `corpus-select` and keeps the idea; changing the preset restales `outline` and `draft` and not the card; pinning a different model for `outline` restales `outline` onward; re-entering a step and changing nothing restales nothing; `advance` runs exactly the stale stages in graph order | N2, L5 |
 | **N5** | Answers and regenerate | `apps/auteur-server/src/routes/answers.ts`, `src/routes/regenerate.ts` | Editing an answer marks every transitive descendant `invalidated` and keeps the rows; a selection above 60% of the word count is refused with `invalid_input`; a selection is snapped outward to sentence boundaries before it reaches the prompt, asserted on the prompt input | N4, L6, E7 |
 | **N6** | `PUT /api/sessions/:id/pins` | `apps/auteur-server/src/routes/pins.ts` | Writing seven pins at once (the "one model for every stage" path) is validated per stage: a non-strict model is refused for the six typed stages with the reason, and the whole write is rejected rather than partially applied | N4, L4 |
@@ -737,15 +820,18 @@ Each screen WP owns its screen directory and its own `copy` module.
 
 | WP | Delivers | Files owned | Proof | Deps |
 |---|---|---|---|---|
-| **R1** | App shell: the 236px rail, the main column, the seven-step routing, the theme script in `<head>` | `apps/auteur-web/src/shell/**`, `packages/copy/src/shell.ts` | The rail's mono notes derive from session state in one selector and survive a reload — asserted by mounting from a serialized session; completed rows clickable, pending not; no flash of the wrong ground, asserted by the attribute being set before first render | Q2–Q6, M2 |
+| **R1** | App shell: the 236px rail, the main column, the seven-step routing, the theme script in `<head>`. **Registers gate 11** in `scripts/gates.ts` | `apps/auteur-web/src/shell/**`, `packages/copy/src/shell.ts`, one line in `scripts/gates.ts` | The rail's mono notes derive from session state in one selector and survive a reload — asserted by mounting from a serialized session; completed rows clickable, pending not; no flash of the wrong ground, asserted by the attribute being set before first render. Gate 11 green, and its `gate-self-test.ts` case — a package the manifest declares but no test imports — fails the build | Q2–Q6, M2 |
 | **R2** | Draft screen — built first, because it exercises both grounds and the live measurement | `apps/auteur-web/src/screens/draft/**`, `packages/copy/src/draft.ts` | Prose renders on a paper card and the drift aside on ink, in one view; `drift` events update the aside without re-rendering the prose; the caret animation collapses to `0ms` under `prefers-reduced-motion` | R1, L10, M3 |
 | **R3** | Idea screen | `.../screens/idea/**`, `packages/copy/src/idea.ts` | The Length field's hint is the **resolved** strategy, not the preset's suggestion — asserted for a `long` preset against a model whose `maxOutputTokens` would allow `single-call` | R1, L7 |
-| **R4** | Author screen | `.../screens/author/**`, `packages/copy/src/author.ts` | Search debounces at 250ms and aborts on the next keystroke; the three §5.3 detail-line states render distinctly; the `secondary` row is disabled with its reason stated | R1, N3 |
+| **R4** | Author screen | `.../screens/author/**`, `packages/copy/src/author.ts` | Search debounces at 250ms and aborts on the next keystroke; the three `ARCHITECTURE.md` §5.3 detail-line states render distinctly; the `secondary` row is disabled with its reason stated | R1, N3 |
 | **R5** | Research screen and the style card | `.../screens/research/**`, `packages/copy/src/research.ts` | Three `Thinking` rows including `prosody-compute` with a null tier badge; detail lines come from `stage_detail` events and are never composed in the browser — asserted by rendering from a recorded event log and diffing the text against it | R1, N7 |
 | **R6** | Clarify screen | `.../screens/clarify/**`, `packages/copy/src/clarify.ts` | "Generate now" is live from the end of round 1 and jumps to `outline` client-side; every rendered question shows its why-asked line; the budget meter's spent segments equal the question count | R1, N5 |
 | **R7** | Outline screen | `.../screens/outline/**`, `packages/copy/src/outline.ts` | The beat sheet renders on a paper card; the footer caption names the model and tier the draft will run on, read from resolution rather than from the tier map | R1, N4 |
 | **R8** | Result screen: three tabs | `.../screens/result/**`, `packages/copy/src/result.ts` | The three tabs are three reads of one `GET /api/sessions/:id`, asserted by a single-request test; the provenance label renders on the story tab; selecting a span turns the ghost button into "Regenerate selection" | R1, N5, T2 |
 | **R9** | Model overlay, including "use one model for every stage" | `.../screens/models/**`, `packages/copy/src/models.ts` | The one-model control writes seven pins in one request and surfaces a per-stage refusal with its reason rather than applying partially; "Follow tier defaults" clears every pin; the panel scrolls inside the viewport with its footer reachable | R1, N6 |
+| **R10** | API-base indirection and demo mode (§5.3) | `apps/auteur-web/src/api-base.ts`, `src/demo/**` | With `VITE_API_BASE` unset the client renders every screen from a recorded event log — the same log R5's test uses — and issues **zero** network requests, asserted by a fetch spy; with it set, every request goes to that origin and none to a hardcoded host | R5, R8 |
+| **R11** **[optional]** | The deploy (§5.3): `fly.toml`, `Dockerfile`, the volume mount, the bearer-token middleware, and the server serving the client's static build from the same origin | `fly.toml`, `Dockerfile`, `apps/auteur-server/src/auth.ts`, `apps/auteur-server/src/static.ts` | A test asserting `fly.toml` declares exactly one machine with auto-stop off and a volume mounted at the database path — the one-writer property of `ARCHITECTURE.md` §3.1 as a checked fact rather than a convention; a request with no bearer token gets 401 on **every** route including `/api/health`, asserted by enumerating the contract's fourteen rather than by a spot check; the client loads from the server's own origin with no CORS header set | R10, N8, V1 |
+| **R12** **[optional]** | Boot-time reconciliation of orphaned runs (`ARCHITECTURE.md` §7.3) | `apps/auteur-server/src/reconcile.ts` | A database seeded with a `running` `stage_runs` row is reconciled on boot: the row becomes `error` with code `internal` and a `stage_error` event is appended to that session, so a reconnecting client sees why its run stopped. A row already `ok` or `cancelled` is untouched | R11, H4 |
 
 ### Wave T/U/V — the report, the export, and gate 8.
 
@@ -861,7 +947,30 @@ Applied as written; each is reversible and none blocks. Every one gets a
    output, and WP-X2 measures the alternative rather than arguing about it.
 12. **Base UI is the headless kit** for `Select`, `Textarea` and the overlay,
     as both reference repos use.
-13. **Two packages are added to `ARCHITECTURE.md` §1's list**: `dependency-min-age`
+13. **Local is the default and the deploy is additive** (§5.3). R11 and R12
+    touch five files nothing else touches, so hosting is a decision taken after
+    the product runs rather than one the plan is built around. **When taken it
+    is one Fly machine with a volume, not a serverless split** — `bun:sqlite`
+    decides that, and the payoff is that `ARCHITECTURE.md` §3 and §7 are
+    unchanged: one process, one writer, no queue, no managed database. One
+    machine with auto-stop off is a checked property of `fly.toml`, not a
+    convention.
+14. **A single shared bearer token on every route**, rather than accounts. The
+    listener is public and the gateway key is behind it. No sessions, no
+    schema, so `PRD.md` §4's "no accounts" and the exclusion of the `auth`
+    guideline both stand.
+15. **Vercel keeps preview deployments of the client in demo mode, and nothing
+    else.** A review surface, not a second production surface — it never talks
+    to the Fly machine, so there is no CORS and no mixed content.
+16. **No backup path for the volume.** Fly snapshots it daily and it is
+    single-copy; losing it costs cached cards and session history, which are
+    money and minutes rather than unrecoverable data, because the corpus texts
+    re-fetch and the cards rebuild from them.
+17. **Gate 11, the production build**, lands with WP-R1 rather than WP-A1 —
+    there is no bundle to build before then, and nexus's reason for the gate
+    (a package invisible to every other gate until it fails a deploy) starts
+    biting exactly when the app first bundles.
+18. **Two packages are added to `ARCHITECTURE.md` §1's list**: `dependency-min-age`
     (gate 9's implementation, taken from argo) and `config` (foundation, holding
     `tiers.ts`, which §6.3 already treats as data rather than engine).
 
@@ -893,7 +1002,7 @@ Everything else is decided and written to `docs/decisions/`.
 
 v1 is done when:
 
-- Every WP merged; all ten gates green on `main`.
+- Every WP merged; all eleven gates green on `main`.
 - One real session runs idea to export against the live gateway, and
   `docs/BASELINE.md` reports all five `PRD.md` §10 measures with their sources —
   including any the build missed, stated as a number.
@@ -907,3 +1016,5 @@ v1 is done when:
 - `bun run preflight` passes against a complete `.env`.
 - Every gate runs from `scripts/gates.ts` on the workflow A1 handed over, with
   no second handover having been needed.
+- R11 and R12 are landed or explicitly declined (§5.3). v1 is done either way;
+  what is not acceptable is leaving it unsaid.
