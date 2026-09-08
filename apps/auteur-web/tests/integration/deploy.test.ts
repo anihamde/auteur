@@ -52,9 +52,16 @@ const urlFor = (name: (typeof ROUTE_NAMES)[number]): string =>
 
 describe("every public route requires the bearer token", () => {
   test("the guarded list is derived from the contract and covers all but health", () => {
-    expect(GUARDED_PATHS).toHaveLength(ROUTE_NAMES.length - 2);
+    // Derived from the three lists rather than from a literal, so a route
+    // added to the contract has to land in exactly one of them.
+    expect(GUARDED_PATHS).toHaveLength(
+      ROUTE_NAMES.length - UNGUARDED_PATHS.length - SIGNED_PATHS.length,
+    );
     expect(UNGUARDED_PATHS).toEqual(["/api/health"]);
-    expect(SIGNED_PATHS).toEqual(["/internal/stage"]);
+    expect([...SIGNED_PATHS].sort()).toEqual([
+      "/internal/cron/sweep",
+      "/internal/stage",
+    ]);
   });
 
   test("a request with no token is 401 on every one of them", async () => {

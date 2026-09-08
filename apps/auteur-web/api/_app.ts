@@ -4,7 +4,9 @@ import type { Db } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { toHttpResponse } from "@auteur/errors/to-http-response";
 import type { Logger } from "@auteur/logger/logger";
+import { ensureSchema } from "@auteur/migrations/ensure-schema";
 import { Hono } from "hono";
+import { type CronRoutesDeps, cronRoutes } from "./_cron/route.ts";
 import {
   type InternalStageDeps,
   internalStageRoutes,
@@ -51,6 +53,21 @@ export type AppDeps = {
    */
   readonly internalStage?: Omit<InternalStageDeps, "db" | "invokeStage">;
   /**
+   * `POST /internal/cron/sweep`. Absent in a test that does not sweep, and the
+   * route is then not mounted — the same rule the stage route follows.
+   */
+  readonly cron?: Omit<CronRoutesDeps, "db">;
+  /**
+   * Apply outstanding migrations before the first request touches a table.
+   *
+   * Nobody runs a migration by hand, in any environment, and the platform has
+   * no release phase to run one in — so the schema is brought up to date on
+   * access, under `ensureSchema`'s lock. Off by default because a route test
+   * runs against a database `createTestDb` has already migrated, and doing it
+   * twice is a lock acquired for nothing.
+   */
+  readonly migrateOnBoot?: boolean;
+  /**
    * The SSE route's **direct** connection. Absent in a test that does not
    * stream, and the route is then not mounted — which is stricter than mounting
    * it against the pooled handle, where `LISTEN` is accepted and never
@@ -76,7 +93,16 @@ const unauthenticatedPaths = new Set(
 export const createApp = (deps: AppDeps): Hono => {
   const app = new Hono();
 
+  // One promise, awaited by the first request and shared by every request
+  // that arrives during it. A per-request call would serialise a cold start's
+  // whole burst behind one lock.
+  let migrated: Promise<void> | undefined;
+
   app.use("*", async (context, next) => {
+    if (deps.migrateOnBoot === true) {
+      migrated ??= ensureSchema(deps.db);
+      await migrated;
+    }
     if (
       unauthenticatedPaths.has(context.req.path) ||
       context.req.path.startsWith("/internal/")
@@ -146,6 +172,9 @@ export const createApp = (deps: AppDeps): Hono => {
   app.route("/", exportRoutes({ db: deps.db }));
   app.route("/", healthRoutes());
   app.route("/", modelRoutes());
+  if (deps.cron !== undefined) {
+    app.route("/", cronRoutes({ db: deps.db, ...deps.cron }));
+  }
   if (deps.internalStage !== undefined) {
     app.route(
       "/",

@@ -14,7 +14,7 @@ import { styleCardSchema } from "@auteur/core/style-card";
 import { z } from "zod";
 
 /**
- * The sixteen routes, described once (decision 0005).
+ * The seventeen routes, described once (decisions 0005 and 0010).
  *
  * `api-client` is generated from this same object, so a contract change breaks
  * both sides' compile together rather than one side at run time. That is the
@@ -199,6 +199,17 @@ export const ROUTES = {
     response: z.object({
       claimed: z.boolean(),
       enqueued: z.array(z.string().min(1)),
+    }),
+  },
+  internalSweep: {
+    body: z.object({}),
+    internal: true,
+    method: "POST",
+    path: "/internal/cron/sweep",
+    response: z.object({
+      failed: z.array(z.string().min(1)),
+      reinvoked: z.array(z.string().min(1)),
+      released: z.array(z.string().min(1)),
     }),
   },
   models: {
