@@ -150,14 +150,15 @@ describe("the seam", () => {
       ],
     };
 
-    const results = await searchAll(
+    const union = await searchAll(
       [respondingWithFixture(), secondary],
       "chekhov",
     );
-    expect(results.map((author) => author.kind)).toEqual([
+    expect(union.results.map((author) => author.kind)).toEqual([
       "full-text",
       "secondary",
     ]);
+    expect(union.unavailable).toEqual([]);
   });
 
   test("order is provider order, so adding one appends rather than reshuffles", async () => {
@@ -170,6 +171,35 @@ describe("the seam", () => {
       [empty, respondingWithFixture()],
       "chekhov",
     );
-    expect(withEmptyFirst[0]?.kind).toBe("full-text");
+    expect(withEmptyFirst.results[0]?.kind).toBe("full-text");
+  });
+
+  test("a provider that throws is named, and the other tier still returns", async () => {
+    // One tier being down is an ordinary Tuesday. A search that returns
+    // nothing because a third-party service is slow is worse than one that
+    // returns the other tier and says which half is missing.
+    const failing: CorpusProvider = {
+      id: "secondary",
+      kind: "secondary",
+      search: () =>
+        Promise.reject(new Error("upstream refused the connection")),
+    };
+    const union = await searchAll(
+      [respondingWithFixture(), failing],
+      "chekhov",
+    );
+    expect(union.results.length).toBeGreaterThan(0);
+    expect(union.unavailable).toEqual(["secondary"]);
+  });
+
+  test("every provider failing is an empty list and two names, not a throw", async () => {
+    const failing = (id: string): CorpusProvider => ({
+      id,
+      kind: "secondary",
+      search: () => Promise.reject(new Error("down")),
+    });
+    const union = await searchAll([failing("a"), failing("b")], "chekhov");
+    expect(union.results).toEqual([]);
+    expect(union.unavailable).toEqual(["a", "b"]);
   });
 });

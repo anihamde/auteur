@@ -1,8 +1,10 @@
 import { type RouteName, specOf } from "@auteur/api-contract/routes";
+import type { CorpusProvider } from "@auteur/corpus-gutenberg/provider";
 import type { Db } from "@auteur/db/db";
 import { toHttpResponse } from "@auteur/errors/to-http-response";
 import type { Logger } from "@auteur/logger/logger";
 import { Hono } from "hono";
+import { authorRoutes } from "./_routes/authors.ts";
 import { healthRoutes } from "./_routes/health.ts";
 import { modelRoutes } from "./_routes/models.ts";
 import { sessionRoutes } from "./_routes/sessions.ts";
@@ -21,6 +23,11 @@ export type AppDeps = {
   /** Every `/api` route but `health` requires this as a bearer token. */
   readonly apiToken: string;
   readonly logger?: Logger;
+  /**
+   * Corpus providers for `GET /api/authors`. Injected so a route test runs
+   * offline against a fixture; the default is the one provider that exists.
+   */
+  readonly providers?: readonly CorpusProvider[];
 };
 
 /**
@@ -88,6 +95,13 @@ export const createApp = (deps: AppDeps): Hono => {
     ),
   );
 
+  app.route(
+    "/",
+    authorRoutes({
+      db: deps.db,
+      ...(deps.providers !== undefined && { providers: deps.providers }),
+    }),
+  );
   app.route("/", healthRoutes());
   app.route("/", modelRoutes());
   app.route("/", sessionRoutes({ db: deps.db }));

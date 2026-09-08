@@ -125,19 +125,44 @@ export const createGutenbergProvider = (
     foldAuthors(await searchBooks(query, config)).map(toResult),
 });
 
+export type SearchUnion = {
+  readonly results: readonly AuthorResult[];
+  /** The providers that threw, by id. Named, never silently dropped. */
+  readonly unavailable: readonly string[];
+};
+
 /**
  * Union several providers' results.
  *
  * Order is provider order then each provider's own, so registering the
  * secondary tier appends rather than reorders — a list that reshuffles when a
  * provider is added is a list nobody can point at.
+ *
+ * **A provider that throws does not fail the union.** Search across two tiers
+ * where one is a third-party service means one of them being down is an
+ * ordinary Tuesday, and a search that returns nothing because Gutendex is slow
+ * is worse than one that returns the other tier and says which half is missing.
+ * The failure is not swallowed either: `unavailable` names it, the screen
+ * renders it, and a reader knows the list is short rather than concluding the
+ * author does not exist.
  */
 export const searchAll = async (
   providers: readonly CorpusProvider[],
   query: string,
-): Promise<AuthorResult[]> => {
-  const perProvider = await Promise.all(
+): Promise<SearchUnion> => {
+  const settled = await Promise.allSettled(
     providers.map(async (provider) => provider.search(query)),
   );
-  return perProvider.flat();
+  const results: AuthorResult[] = [];
+  const unavailable: string[] = [];
+  for (const [index, outcome] of settled.entries()) {
+    const provider = providers[index];
+    if (provider === undefined) continue;
+    if (outcome.status === "fulfilled") {
+      results.push(...outcome.value);
+      continue;
+    }
+    unavailable.push(provider.id);
+  }
+  return { results, unavailable };
 };
