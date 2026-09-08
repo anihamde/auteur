@@ -36,14 +36,34 @@
     },
     "//#test:types": {
       "dependsOn": ["//#build:install-modules"],
-      "inputs": ["scripts/**/*", "tsconfig.json", "packages/tsconfig/*.json"]
+      "inputs": [
+        "scripts/**/*",
+        "tsconfig.json",
+        "packages/tsconfig/*.json",
+        "packages/*/src/**"
+      ]
     },
     "//#test:unit": {
       "dependsOn": ["//#build:install-modules"],
       "inputs": [
         "scripts/**/*",
         "packages/*/package.json",
-        "apps/*/package.json"
+        "apps/*/package.json",
+        "package.json",
+        "turbo.json",
+        "vercel.json",
+        "docs/decisions/**",
+        "docs/DECISIONS.md",
+        "docs/guidelines/**",
+        "AGENTS.md",
+        ".agent-guidelines.lock",
+        "packages/db/src/**",
+        "packages/env/src/**",
+        "packages/event-store/src/**",
+        "packages/provider-router/src/**",
+        "packages/corpus-gutenberg/src/**",
+        "packages/prosody/src/**",
+        "packages/migrations/sql/**"
       ]
     },
     "build": {
