@@ -8,53 +8,63 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/prosody/bigrams`
 
 ```ts
-export const unimplemented = (): never =>
+export const commonBigrams = (text: string): readonly string[] =>
 ```
 
 ## `@auteur/prosody/dialogue`
 
 ```ts
-export const unimplemented = (): never =>
+export const dialogueRatio = (
 ```
 
 ## `@auteur/prosody/latinate`
 
 ```ts
-export const unimplemented = (): never =>
+export const isLatinate = (word: string): boolean =>
+export const latinateRatio = (text: string): number =>
+export const scoreClassifier = (
 ```
 
 ## `@auteur/prosody/latinate-gate`
 
 ```ts
-export const unimplemented = (): never =>
+export const PRECISION_THRESHOLD = 0.85
+export const latinateGate = (): LatinateGate => (
 ```
 
 ## `@auteur/prosody/lengths`
 
 ```ts
-export const unimplemented = (): never =>
+export const distribution = (values: readonly number[]): Distribution =>
+export const paragraphLengths = (text: string): readonly number[] =>
+export const percentile = (
+export const sentenceLengths = (text: string): readonly number[] =>
 ```
 
 ## `@auteur/prosody/mattr`
 
 ```ts
-export const unimplemented = (): never =>
+export const MATTR_WINDOW = 1000
+export const mattr = (text: string): MattrResult =>
+export const rawTypeTokenRatio = (text: string): number =>
 ```
 
 ## `@auteur/prosody/prosody`
 
 ```ts
-export const unimplemented = (): never =>
+export const measureCorpus = (works: readonly WorkText[]): ProsodyBlock =>
+export const measureWork = (
+export const targetFrom = (block: ProsodyBlock): ProsodyTarget => (
 ```
 
 ## `@auteur/prosody/punctuation`
 
 ```ts
-export const unimplemented = (): never =>
+export const punctuationRates = (text: string): PunctuationRates =>
 ```
 
 ## `@auteur/prosody/version`
 
 ```ts
-export const unimplemented = (): never =>
+export const prosodyVersion = (): string =>
 ```

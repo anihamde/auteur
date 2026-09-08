@@ -47,6 +47,18 @@ export const GATES: readonly Gate[] = [
     number: 12,
     script: "scripts/check-bun-version.ts",
   },
+  {
+    args: [],
+    name: "no SQL is built by interpolation",
+    number: 13,
+    script: "scripts/check-sql-literals.ts",
+  },
+  {
+    args: [],
+    name: "migrations expand before they contract",
+    number: 14,
+    script: "scripts/check-migrations.ts",
+  },
 ];
 
 const run = async (gate: Gate): Promise<boolean> => {
