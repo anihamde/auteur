@@ -38,5 +38,8 @@ export const unimplemented = (): never =>
 ## `@auteur/corpus-gutenberg/schema`
 
 ```ts
-export const unimplemented = (): never =>
+export const gutendexBookSchema = z
+export const gutendexPersonSchema = z
+export const gutendexSearchSchema = z
+export const parseSearch = (payload: unknown): GutendexSearch =>
 ```

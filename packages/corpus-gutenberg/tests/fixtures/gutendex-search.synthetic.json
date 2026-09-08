@@ -1,0 +1,97 @@
+{
+  "count": 3,
+  "next": "https://gutendex.com/books?languages=en&page=2&search=chekhov",
+  "previous": null,
+  "results": [
+    {
+      "authors": [
+        {
+          "birth_year": 1860,
+          "death_year": 1904,
+          "name": "Chekhov, Anton Pavlovich"
+        }
+      ],
+      "bookshelves": ["Browsing: Fiction"],
+      "copyright": false,
+      "download_count": 4211,
+      "formats": {
+        "application/epub+zip": "https://www.gutenberg.org/ebooks/13415.epub3.images",
+        "image/jpeg": "https://www.gutenberg.org/cache/epub/13415/pg13415.cover.medium.jpg",
+        "text/html": "https://www.gutenberg.org/ebooks/13415.html.images",
+        "text/plain; charset=us-ascii": "https://www.gutenberg.org/ebooks/13415.txt.utf-8"
+      },
+      "id": 13415,
+      "languages": ["en"],
+      "media_type": "Text",
+      "subjects": ["Short stories"],
+      "summaries": [],
+      "title": "The Schoolmistress and Other Stories",
+      "translators": [
+        {
+          "birth_year": 1861,
+          "death_year": 1946,
+          "name": "Garnett, Constance"
+        }
+      ]
+    },
+    {
+      "authors": [
+        {
+          "birth_year": 1860,
+          "death_year": 1904,
+          "name": "Chekhov, Anton Pavlovich"
+        }
+      ],
+      "bookshelves": ["Browsing: Fiction"],
+      "copyright": false,
+      "download_count": 4211,
+      "formats": {
+        "application/epub+zip": "https://www.gutenberg.org/ebooks/1732.epub3.images",
+        "image/jpeg": "https://www.gutenberg.org/cache/epub/1732/pg1732.cover.medium.jpg",
+        "text/html": "https://www.gutenberg.org/ebooks/1732.html.images",
+        "text/plain; charset=us-ascii": "https://www.gutenberg.org/ebooks/1732.txt.utf-8"
+      },
+      "id": 1732,
+      "languages": ["en"],
+      "media_type": "Text",
+      "subjects": ["Short stories"],
+      "summaries": [],
+      "title": "The Darling and Other Stories",
+      "translators": [
+        {
+          "birth_year": 1861,
+          "death_year": 1946,
+          "name": "Garnett, Constance"
+        }
+      ]
+    },
+    {
+      "authors": [
+        {
+          "birth_year": 1860,
+          "death_year": 1904,
+          "name": "Chekhov, Anton Pavlovich"
+        }
+      ],
+      "bookshelves": ["Browsing: Fiction"],
+      "copyright": false,
+      "download_count": 4211,
+      "formats": {
+        "text/html": "https://www.gutenberg.org/ebooks/57333.html.images"
+      },
+      "id": 57333,
+      "languages": ["en"],
+      "media_type": "Text",
+      "subjects": ["Short stories"],
+      "summaries": [],
+      "title": "Plays by Anton Chekhov, Second Series",
+      "translators": [
+        {
+          "birth_year": 1861,
+          "death_year": 1946,
+          "name": "Garnett, Constance"
+        }
+      ]
+    }
+  ]
+}
