@@ -6,11 +6,11 @@
     "@auteur/icons": "workspace:*",
     "@auteur/tokens": "workspace:*",
     "@base-ui-components/react": "catalog:",
-    "@pandacss/dev": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@auteur/test-support": "workspace:*",
     "@testing-library/react": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/bun": "catalog:",
@@ -24,6 +24,7 @@
     "./forms": "./src/forms/index.ts",
     "./pipeline": "./src/pipeline/index.ts",
     "./prose": "./src/prose/index.ts",
+    "./styles": "./src/styles.ts",
     "./theme": "./src/theme/index.ts"
   },
   "files": [
