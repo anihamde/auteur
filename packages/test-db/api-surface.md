@@ -8,11 +8,12 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/test-db/seed-session`
 
 ```ts
-export const unimplemented = (): never =>
+export const fixtureId = (label: string): string =>
+export const seedSession = async (
 ```
 
 ## `@auteur/test-db/test-db`
 
 ```ts
-export const unimplemented = (): never =>
+export const createTestDb = async (): Promise<TestDb> =>
 ```

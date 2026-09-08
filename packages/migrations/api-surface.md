@@ -8,11 +8,12 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/migrations/ensure-schema`
 
 ```ts
-export const unimplemented = (): never =>
+export const ensureSchema = async (db: Db): Promise<void> =>
+export const resetSchemaMemoForTest = (db: Db): void =>
 ```
 
 ## `@auteur/migrations/manifest`
 
 ```ts
-export const unimplemented = (): never =>
+export const MIGRATIONS: readonly Migration[] = [
 ```

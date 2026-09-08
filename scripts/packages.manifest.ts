@@ -292,6 +292,12 @@ export const PACKAGES: readonly PackageSpec[] = [
     integration: true,
     layer: "infra",
     name: "db",
+    // Deliberately does not devDepend on `test-db`, which the rest of the
+    // workspace uses. `test-db` is built on `db` and `migrations`, so the edge
+    // would be a cycle — and turbo's task graph, unlike the layering check,
+    // does not distinguish a devDependency from a runtime one. `db` is the
+    // bottom of the stack and its integration suite creates its own database,
+    // which is nine lines and needs no schema.
     workspaceDeps: ["env", "errors", "logger"],
   },
   {
@@ -308,6 +314,9 @@ export const PACKAGES: readonly PackageSpec[] = [
     integration: true,
     layer: "infra",
     name: "migrations",
+    // No devDependency on `test-db`: that harness exists to apply *these*
+    // migrations, so the edge would be a cycle. This package's suites create
+    // their own database — see `tests/integration/harness.ts`.
     workspaceDeps: ["db", "errors", "logger"],
   },
 

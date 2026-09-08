@@ -11,6 +11,7 @@
  * `bun test`, whose negative control is the tool's own output rather than a
  * defect this script synthesizes.
  */
+import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { GATES } from "./gates.ts";
@@ -58,22 +59,58 @@ const patchFile = async (
 };
 
 /**
- * Writes a file that did not exist and returns the undo.
+ * Writes a file into a directory that did not exist, and removes both again.
  *
- * The undo removes the whole directory `Bun.write` created, not just the file.
+ * The undo removes the directory `Bun.write` created, not just the file.
  * Deleting only the file leaves an empty directory behind, which the orphan
  * check still reads — so the gate stays red after the undo and the case reports
  * a failure that is the harness's, not the gate's. This self-test found that in
  * itself on its first run.
+ *
+ * It **refuses a directory that already exists**, which is the other half of
+ * the same lesson: this deletes recursively, and pointed at a real package it
+ * takes the package with it. It did exactly that once, to `packages/ids`, on
+ * the run that materialized it — the case was written when `ids` was still
+ * declared-and-not-materialized and quietly became destructive the day it was
+ * built. Use `addAndRemoveFile` for a file inside a directory that exists.
  */
 const addFile = async (
   relative: string,
   contents: string,
 ): Promise<() => Promise<void>> => {
   const path = join(ROOT, relative);
+  const directory = dirname(path);
+  if (existsSync(directory)) {
+    throw new Error(
+      `${relative} sits in a directory that already exists. addFile's undo ` +
+        "removes that directory recursively; use addAndRemoveFile instead.",
+    );
+  }
   await Bun.write(path, contents);
   return async () => {
-    await rm(dirname(path), { force: true, recursive: true });
+    await rm(directory, { force: true, recursive: true });
+  };
+};
+
+/**
+ * Writes a file into a directory that already exists, and removes just that
+ * file. `addFile`'s undo takes the whole directory with it, which is right for
+ * a package it invented and catastrophic for one holding real content.
+ */
+const addAndRemoveFile = async (
+  relative: string,
+  contents: string,
+): Promise<() => Promise<void>> => {
+  const path = join(ROOT, relative);
+  if (existsSync(path)) {
+    throw new Error(
+      `${relative} already exists. This undo deletes the file rather than ` +
+        "restoring it; use patchFile to modify one that is already there.",
+    );
+  }
+  await Bun.write(path, contents);
+  return async () => {
+    await rm(path, { force: true });
   };
 };
 
@@ -93,17 +130,14 @@ export const CASES: readonly SelfTestCase[] = [
     // The defect gate 6 exists for: `bunfig.toml` carries the coverage floor,
     // so editing it on disk sets a package's floor to zero while the manifest
     // still says 0.9 and every other gate stays green.
-    breaks: async () => {
-      const undoPackage = await addFile(
+    breaks: () =>
+      patchFile(
         "packages/ids/package.json",
-        '{ "name": "@auteur/ids", "private": true }\n',
-      );
-      return async () => {
-        await undoPackage();
-      };
-    },
+        '"name": "@auteur/ids",',
+        '"name": "@auteur/ids",\n  "sideEffects": false,',
+      ),
     gate: 6,
-    name: "a materialized package.json the manifest did not generate",
+    name: "a hand-edited package.json the manifest did not generate",
   },
   {
     // A file nobody exports is not in the contract — the surface comes from
@@ -112,32 +146,14 @@ export const CASES: readonly SelfTestCase[] = [
     // match. Materializing a manifest-declared package with a real export and
     // no committed api-surface.md is exactly that, and it is the shape every
     // future package arrives in.
-    breaks: async () => {
-      const undoManifest = await addFile(
-        "packages/ids/package.json",
-        `${JSON.stringify(
-          {
-            exports: { "./new-id": "./src/new-id.ts" },
-            name: "@auteur/ids",
-            private: true,
-            type: "module",
-            version: "0.0.0",
-          },
-          null,
-          2,
-        )}\n`,
-      );
-      const undoSource = await addFile(
-        "packages/ids/src/new-id.ts",
-        "export const newId = (): string => crypto.randomUUID();\n",
-      );
-      return async () => {
-        await undoSource();
-        await undoManifest();
-      };
-    },
+    breaks: () =>
+      patchFile(
+        "packages/ids/src/parse-id.ts",
+        "export const",
+        "export const widenedTheContract = (): number => 1;\n\nexport const",
+      ),
     gate: 4,
-    name: "an exported subpath with no committed snapshot",
+    name: "an exported name with no committed snapshot",
   },
   {
     breaks: () =>
@@ -187,6 +203,44 @@ export const CASES: readonly SelfTestCase[] = [
       ),
     gate: 5,
     name: "a package on disk that the manifest does not declare",
+  },
+  {
+    // The injection that reads exactly like the parameterized form. `sql.ts`
+    // is chosen because it is the file most likely to be edited by someone
+    // adding a query helper, and it is not a test.
+    breaks: () =>
+      patchFile(
+        "packages/db/src/sql.ts",
+        "export const oneRow =",
+        "export const byId = (id: string): string =>\n  `SELECT * FROM sessions WHERE id = ${id}`;\n\nexport const oneRow =",
+      ),
+    gate: 13,
+    name: "a value interpolated into a query instead of bound",
+  },
+  {
+    // Expand and contract in one file. This is the shape that breaks a rollout
+    // with two deploy units live: the migration runs, the new code works, and
+    // every request still served by the previous version fails on a column
+    // that is no longer there.
+    // Written with `Bun.write` rather than `addFile`, whose undo removes the
+    // containing directory — which here holds the real migrations.
+    breaks: () =>
+      addAndRemoveFile(
+        "packages/migrations/sql/0003_self_test.sql",
+        "ALTER TABLE sessions ADD COLUMN idea_text text;\n" +
+          "ALTER TABLE sessions DROP COLUMN idea;\n",
+      ),
+    gate: 14,
+    name: "a migration that drops a column in the file that adds its replacement",
+  },
+  {
+    breaks: () =>
+      addAndRemoveFile(
+        "packages/migrations/sql/0004_gap.sql",
+        "-- a version with no 0003 before it\n",
+      ),
+    gate: 14,
+    name: "a gap in the migration versions",
   },
 ];
 

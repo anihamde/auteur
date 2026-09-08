@@ -22,7 +22,7 @@
       "outputs": ["bun.lock"]
     },
     "//#test": {
-      "with": ["//#test:lint", "//#test:types"]
+      "with": ["//#test:lint", "//#test:types", "//#test:unit"]
     },
     "//#test:lint": {
       "dependsOn": ["//#build:install-modules"],
@@ -37,6 +37,14 @@
     "//#test:types": {
       "dependsOn": ["//#build:install-modules"],
       "inputs": ["scripts/**/*", "tsconfig.json", "packages/tsconfig/*.json"]
+    },
+    "//#test:unit": {
+      "dependsOn": ["//#build:install-modules"],
+      "inputs": [
+        "scripts/**/*",
+        "packages/*/package.json",
+        "apps/*/package.json"
+      ]
     },
     "build": {
       "dependsOn": ["^build"],
