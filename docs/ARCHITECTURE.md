@@ -16,9 +16,9 @@ Where those three disagree with each other, §13 says what is built and why.
 
 Stack: Bun + Turborepo + Biome · TypeScript · Postgres on Neon, hand-written
 SQL, no ORM · Vite + React + PandaCSS on Vercel with eleven routes as functions
-· Hono + SSE on one Fly machine for the pipeline · Ramp Router as the model
-gateway behind a provider seam. Single-user, no accounts; deployed rather than
-local (§7).
+· one function invocation per pipeline stage, chained through a durable queue ·
+Ramp Router as the model gateway behind a provider seam. Single-user, no
+accounts; deployed rather than local (§7).
 
 ---
 
@@ -51,8 +51,7 @@ seven-stage pipeline from being undebuggable.
 
 ```
 apps/
-  auteur-web/             Vite + React client and eleven routes, on Vercel
-  auteur-runner/          Hono: the pipeline, SSE and cancel, on Fly
+  auteur-web/             Vite + React client and all fourteen routes, on Vercel
 packages/
   foundation:  ids  core  errors  env  logger  text  prosody
                tokens  icons  copy  formatting
@@ -171,7 +170,7 @@ named here. `pattern` means the approach is copied and the code is not.
 | `api-contract` / `api-client` | nexus | **pattern.** One zod object, routes enumerated from it, client generated from it — so a contract change breaks both sides' compile at once. auteur has 14 routes rather than 31. |
 | `stream-client` | nexus `loop-client` | **adapted.** The cursor / replay / de-duplicate contract verbatim; the events are auteur's. |
 | `run-store` | nexus | **pattern into `event-store`.** Append to the table, then fan out — never the reverse — and a gap-free per-session `seq` (§7.3). |
-| `deployment` topology | nexus | **pattern.** Vercel for the routes, Fly for the long-running process, one signed internal dispatch between them, Postgres shared. §7. |
+| `deployment` topology | nexus | **not taken.** nexus splits Vercel and Fly because its agent loop is a tool loop of unbounded length. auteur's stages are individually bounded (§7), so one function per stage replaces the machine. What is taken is nexus's *reason* for having a durable log at all. |
 | `migrations` | nexus | **verbatim in approach and close to it in code.** The inlined-manifest-plus-checksum ledger applied by `ensureSchema()` on access under `pg_advisory_lock`, with nobody running a migration by hand. §3.3. |
 | `db` | nexus | **adapted.** `pg` primitives verbatim; auteur adds the pooled-versus-direct distinction §3.1 needs and drops the scope argument it has no use for. |
 | `run-store` heartbeat and sweeper | nexus | **adapted into `event-store` and `session_runs`.** §7.3. Taken because §7's two units reintroduce the failure it exists for. |
@@ -215,7 +214,7 @@ Three things this buys back, each of which was a cost in the SQLite draft:
   server converging the schema on access.
 - **Serverless connection discipline is a solved problem here**, where under
   SQLite it was an unsolvable one: Vercel functions use Neon's pooled endpoint,
-  the Fly runner uses the direct endpoint with its own small pool.
+  a streaming `LISTEN` connection uses the direct endpoint (§7).
 
 ### 3.1 Conventions
 
@@ -235,13 +234,13 @@ Three things this buys back, each of which was a cost in the SQLite draft:
   Anything that *is* queried — a session's step, an author id, a card version —
   is a real column. `jsonb` rather than `json` so equality and containment work
   if a query ever needs them, at no cost on write.
-- **Two connection modes, and the seam between them is `env`.** A Vercel
+- **Two connection modes, and the seam between them is `env`.** Almost every
   function opens against Neon's **pooled** endpoint, because instances are
   plural and short-lived and a direct connection per invocation exhausts the
-  server. The Fly runner opens against the **direct** endpoint with a small
-  pool it keeps for its lifetime, because it holds transactions across a
-  streaming call and pooled-mode PgBouncer does not support that. `env` exposes
-  both and each app reads the one it is allowed.
+  server. The one exception is the SSE route, which opens the **direct**
+  endpoint because `LISTEN` is a session-level feature that pooled-mode
+  PgBouncer does not support, and holds it for the life of the stream. `env`
+  exposes both; a test asserts no route but the SSE one reads the direct URL.
 - **One writer per session, not per database.** Postgres has real concurrency,
   so the SQLite draft's "one writer" simplification is gone. What replaces it is
   narrower and is the property that actually matters: a session's stages run in
@@ -395,12 +394,26 @@ CREATE TABLE stage_runs (
 -- heartbeat live here; a session with no row has no run in flight.
 CREATE TABLE session_runs (
   session_id    uuid PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-  runner_id     text NOT NULL,              -- the fly machine that claimed it
+  claimed_by    text NOT NULL,              -- the invocation that claimed it
   status        text NOT NULL CHECK (status IN ('running','done','error','cancelled')),
   cancel_requested boolean NOT NULL DEFAULT false,
   heartbeat_at  timestamptz NOT NULL DEFAULT now(),
   started_at    timestamptz NOT NULL DEFAULT now(),
   finished_at   timestamptz
+);
+
+-- The durable stage chain. A stage's last act is to enqueue the next one;
+-- a cron sweep re-invokes anything a lost invocation left behind. §7.
+CREATE TABLE stage_queue (
+  id            uuid PRIMARY KEY,
+  session_id    uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  stage_id      text NOT NULL,
+  status        text NOT NULL CHECK (status IN ('queued','claimed','done','error')),
+  attempt       integer NOT NULL DEFAULT 0,
+  claimed_by    text,                       -- the invocation holding it
+  claimed_at    timestamptz,
+  enqueued_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (session_id, stage_id, attempt)
 );
 
 CREATE TABLE stories (
@@ -425,10 +438,11 @@ Four properties worth naming:
   on the card holding quotation text that a write could reach.
 - **`style_cards.build_key` is unique.** Rebuilding a card with identical
   inputs is a cache hit, not a version 4 (§4.4).
-- **`session_runs` is the whole of the distributed-systems surface.** It is the
-  one table that exists because the pipeline runs in a different process from
-  the routes that start and observe it. Everything else in this schema would be
-  identical in a single-process design.
+- **`session_runs` and `stage_queue` are the whole of the distributed-systems
+  surface.** They are the two tables that exist because a stage runs in a
+  different invocation from the route that started it and from the stream
+  watching it. Everything else in this schema would be identical in a
+  single-process design.
 
 ### 3.3 Migrations
 
@@ -447,12 +461,11 @@ it was written for:
   `pg_advisory_lock(<constant>)`, re-read the ledger, verify checksums, and apply
   each pending migration in its own transaction with its ledger row written
   inside it. The advisory lock is what serialises every Vercel function
-  instance, the Fly runner and a developer's laptop pointed at the same branch —
-  which is precisely the situation SQLite's `BEGIN IMMEDIATE` could not have
-  covered.
-- It is called from three places: the Vercel request handler's first use, the
-  Fly runner's boot sequence, and a build-time step, so a bad migration fails
-  the deploy rather than the first request after it.
+  instance and a developer's laptop pointed at the same branch — which is
+  precisely the situation SQLite's `BEGIN IMMEDIATE` could not have covered.
+- It is called from two places: a request handler's first use, and a build-time
+  step, so a bad migration fails the deploy rather than the first request after
+  it.
 - **Never edit an applied migration.** Checksums are verified on every boot and
   a mismatch aborts. Rollback is a new forward migration.
 - `bun run migration:new` scaffolds a file. It does not apply one.
@@ -1356,61 +1369,78 @@ Two constraints, both from the same reasoning:
 
 ## 7. The server
 
-auteur deploys as **two units and one database**, which is nexus's topology
-and is taken for nexus's reason.
+auteur deploys as **one unit and one database**: `apps/auteur-web` on Vercel —
+the Vite client as a static build, every route as a function — and Postgres on
+Neon. There is no second service and no machine.
 
-| Unit | Runs | Holds |
-|---|---|---|
-| `apps/auteur-web` on **Vercel** | The Vite client as a static build, and eleven of the fourteen routes as functions | Every read and every short synchronous write. Nothing that outlives a request. |
-| `apps/auteur-runner` on **Fly.io** | One long-lived Hono process | The pipeline engine, the SSE fan-out, `/cancel`, and the internal dispatch endpoint. |
-| **Neon** | Postgres | Everything in §3. The only thing both units share. |
+**The pipeline runs as one function invocation per stage**, not as one
+long-running process. That is the non-obvious part of this design and it is
+worth stating why it works, because the naive reading of §6.2 says otherwise.
 
-**Why the runner is not a function**, which is the whole argument for the
-split: a run is minutes of work — §10 targets a median under four minutes to
-first token, and a novelette under `sequential-scene` is far longer — and it
-must survive the client closing the tab, which a handler driven by the client's
-own request cannot. The SSE fan-out is the same problem from the other side: it
-pushes from an in-memory broker in the process that is running the stages, and
-an ephemeral plural instance has neither the process nor the broker.
+A run is minutes end to end. But the unit of execution is the **stage**, not the
+run, and every stage is bounded:
 
-**Why the rest is not on Fly.** Eleven routes are a query and a small write.
-Putting them on the machine would mean the machine is in the request path for
-every keystroke of author search, and it buys nothing: they are exactly what a
-function is for.
+| Stage | Bounded by |
+|---|---|
+| `corpus-select`, `clarify`, `critique` | one model call |
+| `work-fetch` | twelve HTTP fetches at four concurrent |
+| `prosody-compute`, `style-fit` | pure CPU over a few hundred thousand words |
+| `style-extract`, `outline`, `revise` | one model call |
+| `draft` | one model call under `single-call`; **one call per beat** under `sequential-scene`, which §6.6 already selects for anything long |
 
-The seam between the two is one signed internal call. `POST /advance` on Vercel
-computes what is stale (§7.5), writes the intent, dispatches to the runner over
-an HTTP call authenticated with a shared secret, and **returns immediately**.
-It never blocks on the run. The client then opens the SSE stream against the
-runner and watches.
+Nothing carries in memory between stages: a stage reads its inputs from
+`artifacts` and the session row, writes its output back, and appends events.
+That was already true — it is what §7.5's `input_key` staleness is computed
+over — so making each stage a separate invocation costs no design change.
 
-Three costs this topology has that a single process did not, each paid
-explicitly rather than discovered:
+**Chaining is durable, not fire-and-forget.** A stage's last act inside its
+transaction is to enqueue the next stage in `stage_queue`; it then asks Vercel
+to invoke the next one and returns. If that invocation is lost — a cold start
+that fails, a deploy mid-run — the row is still queued, and a one-minute cron
+sweep picks it up. Claiming a row is a conditional update, so a sweep racing a
+live invocation cannot run a stage twice.
 
-- **The client talks to two origins.** Vercel for the routes, Fly for `/events`
-  and `/cancel`. That is a CORS configuration and a second base URL in the
-  client. The alternative — SSE on Vercel polling the `events` table — replaces
-  a push with a poll and gives up token-latency streaming, which is the draft
-  screen's entire point. Rejected.
-- **A heartbeat and a stale-run sweeper.** §7.3. An earlier draft of this
-  document said auteur needed neither, because the pipeline and the SSE endpoint
-  were the same process as everything else. They are not any more, so nexus's
-  reason for having them is now auteur's reason.
-- **Expand / migrate / contract on every schema change** (§3.3), because two
-  deploy units are live at once during a rollout.
+**Streaming works because the durable log already came first.** §7.3's ordering
+rule — every event is written to `events` before it is pushed to any subscriber
+— means the table, not a broker, is the source of truth. So `GET /events` is a
+streaming function that replays from the cursor and then waits on Postgres
+`LISTEN`/`NOTIFY` for the session's channel; the stage function `NOTIFY`s after
+each append. No in-memory broker, no polling.
+
+Three consequences, each a real cost rather than a footnote:
+
+- **Deltas are batched, not per token.** The drafting stage accumulates the
+  provider's deltas and flushes an event every ~250ms or at a paragraph
+  boundary, whichever comes first. One row per flush rather than one per token,
+  which keeps the write rate sane and the caret's advance smooth enough to read
+  as streaming. §6.7's live drift is already computed per paragraph, so it is
+  unaffected.
+- **An SSE connection ends at the function's ceiling, routinely.** §7.3's
+  failure table already specifies reconnect-from-cursor, and `stream-client`
+  already de-duplicates by `seq`. What changes is that this path is the common
+  case rather than the exceptional one, so it is tested as such.
+- **`LISTEN` needs a direct, unpooled connection**, which §3.1's two connection
+  modes already provide, and holds one for the life of each open stream. For a
+  single-user product that is one connection. **This is the one assumption in
+  this section that has not been verified against Neon**; if `LISTEN`/`NOTIFY`
+  is unavailable, the fallback is polling `events` on the cursor every 300ms,
+  which costs latency and no architecture.
+
+**Cancellation is a flag, not a signal.** `POST /cancel` sets
+`session_runs.cancel_requested`; the running stage checks it between delta
+flushes and aborts its provider call. Worst-case latency is one flush.
 
 `PRD.md` §4 puts hosting out of scope. This corrects it, and the correction is
-the reason §3 resolves to Postgres rather than to a file.
+the reason §3 resolves to Postgres rather than to a file: a function's
+filesystem is ephemeral and per-invocation.
 
 ### 7.1 Routes
 
 Fourteen, described once in `api-contract` as zod, with `api-client` generated
 from the same object so a contract change breaks both sides' compile together.
-The contract records which unit serves each one, so the client's two base URLs
-are derived from it rather than remembered.
+
 
 ```
-── Vercel (apps/auteur-web) ────────────────────────────────────────────
 GET    /api/health
 GET    /api/models                                  the catalog, per tier
 
@@ -1425,23 +1455,21 @@ POST   /api/sessions/:id/author                     { authorId } — starts rese
 POST   /api/sessions/:id/answers                    { questionId, answer | skip }
 POST   /api/sessions/:id/advance                    { to: Step } — runs what is stale
 POST   /api/sessions/:id/regenerate                 { kind: 'outline' } | { kind: 'selection', from, to }
+POST   /api/sessions/:id/cancel
 
 PUT    /api/sessions/:id/pins                       { [stageId]: modelId }
 GET    /api/sessions/:id/export                     text/markdown
 
-── Fly (apps/auteur-runner) ────────────────────────────────────────────
 GET    /api/sessions/:id/events?cursor=N            text/event-stream
-POST   /api/sessions/:id/cancel
 
 ── internal, signed, never reached by a browser ────────────────────────
-POST   /internal/dispatch                           { sessionId, stages }
+POST   /internal/stage                              { sessionId, stageId }
 ```
 
-`/cancel` is on the runner because the `AbortSignal` it aborts lives in that
-process. A cancel routed through Vercel could only set a flag the runner would
-have to poll, which turns an immediate stop into a delayed one for no gain.
-`session_runs.cancel_requested` still exists, as the record of what happened and
-as the path a sweeper uses; the live cancel does not depend on it.
+`/internal/stage` is the one route a browser never calls: it runs exactly one
+stage and is invoked by the previous stage or by the cron sweep, authenticated
+with a shared secret. It is in `api-contract` like every other route, so its
+request shape is parsed rather than trusted.
 
 `POST /advance` is the only route that starts work, and it starts **exactly the
 stages that are stale** (§7.5). That is what makes every step re-enterable
@@ -1485,7 +1513,7 @@ replay. `seq` is gap-free per session, from 1, allocated inside the same
 transaction as the insert.
 
 `GET /api/sessions/:id/events?cursor=N` replays from `events` at the cursor and
-then continues live from the in-memory broker. `stream-client` remembers the
+then continues live by waiting on the session's `LISTEN` channel (§7). `stream-client` remembers the
 highest `seq` it delivered, reconnects with it, and drops anything at or below
 it — so delivery is exactly-once from the consumer's point of view whether the
 server replays from the cursor or after it.
@@ -1499,27 +1527,27 @@ Failure behaviour, adapted from nexus's table:
 | A frame that will not parse | Fatal at once. Reconnecting from the same cursor refetches the same bad frame forever |
 | `close()` | Idempotent, aborts the in-flight request, stops reconnecting |
 
-**A heartbeat and a sweeper, which an earlier draft of this document said were
-unnecessary.** That draft's reasoning was that the pipeline and the SSE endpoint
-were the same process as everything else, so a dead process was a dead server
-and the browser's reconnect was the whole recovery path. Under §7's topology the
-runner dies independently of the client and of the routes, so nexus's reason for
-having them is now auteur's:
+**A sweep, for a lost invocation rather than a dying machine.** An earlier draft
+of this document said auteur needed neither a heartbeat nor a sweeper, because
+everything ran in one process. §7's stage-per-invocation model brings the need
+back for a different reason: an invocation can be lost — a failed cold start, a
+deploy mid-run — leaving a `stage_queue` row claimed and never completed.
 
-- The runner writes `session_runs.heartbeat_at` every few seconds while a run is
-  in flight.
-- A run whose heartbeat is older than a small multiple of that interval is
-  reaped: `session_runs.status` becomes `error`, every `stage_runs` row of that
-  session still `running` becomes `error` with code `internal`, and a
-  `stage_error` event is appended so a reconnecting client is told why its run
-  stopped rather than watching a stream that never advances.
-- The sweep runs on the runner's own boot and on a timer, and it is idempotent,
-  so two runners sweeping at once is not a race.
+- A stage claims its queue row with a conditional update and stamps
+  `claimed_at`. Two invocations of the same row cannot both proceed, which is
+  what stops a cron sweep racing a live invocation from running a stage twice.
+- A one-minute Vercel cron sweeps two things: rows queued and never claimed
+  (re-invoke), and rows claimed longer than any stage could plausibly take
+  (release for one retry, then fail the run).
+- A failed run marks `session_runs.status = 'error'`, marks its `running`
+  `stage_runs` rows `error` with code `internal`, and **appends a `stage_error`
+  event**, so a reconnecting client is told why its run stopped rather than
+  watching a stream that never advances.
 
-**The dispatch lock is the same row.** `session_runs.session_id` is the primary
-key, so a claim is an insert that either succeeds or conflicts. Two dispatches
-for one session cannot both start a run, which is what stops a double-clicked
-"advance" from running the pipeline twice against one event log.
+**The claim is also the lock against a double start.** `session_runs.session_id`
+is the primary key, so beginning a run is an insert that either succeeds or
+conflicts — a double-clicked "advance" cannot run the pipeline twice against one
+event log.
 
 ### 7.4 Errors
 
@@ -2054,7 +2082,7 @@ of a seven-step wizard is a maintenance cost that catches less than the axe audi
 |---|---|
 | §12 — adopt argo's `AGENTS.md` regime? | **Yes in shape: the document-index regime, seeded from `agent-guidelines` rather than copied from argo.** §11.1, and decision 0001. The index's cost is accepted and bounded; nexus's contribution is §11.2's gates, which is the half that does not decay. |
 | §12 — persistence via `bun:sqlite`? | **No — Postgres on Neon.** §3. The reasons for persistence stand: cards are expensive, a half-finished wizard must survive a reload, and the replayable event log needs somewhere to live. The store changed because §7 puts the short routes on functions, which cannot reach a file. |
-| §4 — hosting out of scope | **Corrected.** §7. Two deploy units and one database: the client and eleven routes on Vercel, the pipeline and the SSE stream on one Fly machine, Postgres on Neon. This is nexus's topology, taken for nexus's reason. |
+| §4 — hosting out of scope | **Corrected.** §7. One deploy unit and one database: the client and all fourteen routes on Vercel, one function invocation per pipeline stage chained through a durable queue, Postgres on Neon. No machine. |
 | §9 — the living-author tier's legal position | **Left open. Not an architecture decision.** §5.5 puts the seam and the type distinction in place, and no v1 code path ingests in-copyright primary text. The review the PRD asks for is needed before the v2 tier is built, and this document does not pre-empt it. |
 
 Three further decisions this document makes that the PRD leaves implicit:
@@ -2186,10 +2214,9 @@ gate and the design port given its own step.
    `clarify` re-entry, both draft strategies. Tested against the scripted fake
    provider; then one real end-to-end flash story with the cost read off
    `stage_runs`.
-8. **The two apps' server halves.** `api-contract`, the eleven Vercel routes,
-   `advance` and the staleness computation (§7.5); then `apps/auteur-runner` —
-   the event log, SSE, cancel, the signed dispatch, the heartbeat and the
-   sweeper (§7.3).
+8. **The routes.** `api-contract`, the fourteen functions, `advance` and the
+   staleness computation (§7.5), the stage queue and its cron sweep, the
+   `LISTEN`-backed SSE route, and cancel (§7.3).
 9. **`tokens` and `component-library`.** The preset with its gate, then the
    fifteen components against their `.d.ts` contracts. This is the step that can
    run in parallel with 6 through 8 — it touches no file they touch.
@@ -2197,8 +2224,8 @@ gate and the design port given its own step.
     (§8.6), because it exercises both grounds and the live measurement.
 11. **`style-fit`, `export`, `provenance-suite`.** The report, the label, and
     gate 8.
-12. **The deploy.** `vercel.json`, `fly.toml`, the Neon project, the signed
-    dispatch secret and the bearer token (§7).
+12. **The deploy.** `vercel.json`, the cron schedule, the Neon project, the
+    stage secret and the bearer token (§7).
 
 Steps 3, 4 and 6 are the product. Steps 1, 2, 5 and 8 are plumbing and should
 not absorb more than they need. Step 9 is the one that can be worked in

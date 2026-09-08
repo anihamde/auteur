@@ -142,9 +142,12 @@ The expand/migrate/contract rule in `migrations` is load-bearing here in a way
 it would not have been in a single process: two deploy units are live at once
 during a rollout.
 
-`deployment` likewise applies whole: Vercel by default, Fly.io for the one thing
-that does not fit a request lifetime, and its "do not add a third platform
-without a design doc" is the reason §5.3 is written down rather than assumed.
+`deployment` likewise applies whole. Its "Vercel is the default" half is the
+whole deploy, and its serverless rules — a handler is short-lived, no
+in-process state between requests, no local filesystem writes, connections
+pooled — are load-bearing rather than incidental: §5.3's stage-per-invocation
+model obeys every one of them, which is what makes it work. Its Fly half never
+fires, because no work here outlives a request once the unit is a stage.
 `ci`'s failure and speed rules are what §2.2 and WP-A1 implement.
 
 ### 1.5 Not taken, and the three seeded documents auteur overrides
@@ -186,7 +189,7 @@ first WP, not by A5:
 | `packages/db`, the four stores | `database` | — |
 | `packages/text`, `packages/prosody` | — | The versioning rule: these two carry version strings that are part of the card's cache key, so a change to either invalidates every cached card |
 | `apps/auteur-web` (routes) | `http-api` (via `local/http-hono.md`), `deployment` | — |
-| `apps/auteur-runner` | `http-api`, `deployment` | The one thing on Fly, and why: minutes of work behind a stream that must outlive the client |
+| `apps/auteur-web/api` | `http-api`, `deployment` | The stage-queue contract: a stage function claims before it works, enqueues inside its transaction, and is safe to invoke twice |
 | `apps/auteur-web` | `react`, `styling`, `accessibility`, `icons` | — |
 
 An addendum never weakens a root rule.
@@ -366,7 +369,7 @@ else. The exceptions are enumerated below and each is a WP of its own that
 lands alone.
 
 This is what WP-A2 and WP-A5 buy: the complete manifest declaring all 37
-packages and both apps up front, and one mechanical PR materialising every
+packages and the app up front, and one mechanical PR materialising every
 skeleton from it. No later PR creates a `package.json`, and no two branches
 race to add one.
 
@@ -378,7 +381,7 @@ race to add one.
 | `bun.lock` | same | Follows the catalog PR. Regenerate after rebase, never hand-merge. |
 | `turbo.json` | WP-A1, then WP-Z2 | Task graph lands complete at A1. One late tuning PR. |
 | `ci/workflows/ci.yml` | WP-A1 only | Staged, then handed over (§2.6). |
-| `vercel.json`, `fly.toml`, `Dockerfile` | WP-R11 | Land once, with the deploy. |
+| `vercel.json` | WP-R11, plus one line from WP-N8 for the cron entry | Lands with the deploy; N8 appends its cron schedule. |
  | `.github/workflows/ci.yml` | **nobody, after the handover** | Changing it means another staged file and another handover, so it is written complete once and the gates register themselves in `scripts/gates.ts` instead. |
 | `scripts/gates.ts` | WP-A1, then one line per gate | Each gate script appends its own registration. Appends collide rarely and take both sides. |
 | `biome.json` | WP-A1 | Never edited again. A rule that needs disabling gets a decision file first. |
@@ -645,22 +648,16 @@ sessions, so its mistakes are the longest-lived. It stays at `balanced` because
 `config/tiers.ts` is data and WP-X1 measures the alternative for the price of a
 config edit, which is the experiment `ARCHITECTURE.md` §6.3 asks for.
 
-### 5.3 The topology, and the one thing that needs Fly
+### 5.3 The topology: Vercel and Neon, one function per stage
 
-**Three platforms, and the split is not a judgement call — it falls out of one
-question: does this work outlive an HTTP request?**
+**Two platforms. `apps/auteur-web` on Vercel — the client as a static build and
+all fourteen routes as functions — and Postgres on Neon. No machine.**
 
-| | Runs | Serves |
-|---|---|---|
-| **Vercel** | `apps/auteur-web` | The Vite client as a static build, and eleven of the fourteen routes as functions |
-| **Fly** | `apps/auteur-runner` | The pipeline engine, the SSE stream, `/cancel`, and the signed internal dispatch |
-| **Neon** | — | Postgres. The only thing both units share |
+#### What a "pipeline run" is
 
-**What a "pipeline run" is.** `ARCHITECTURE.md` §6.2's stage graph, executed
-once. `POST /advance` says which step the session should reach; the engine walks
-the stages between here and there that are stale (§7.5) and runs each one in
-order, streaming events as it goes. For a session going from author-chosen to
-finished story that is:
+`ARCHITECTURE.md` §6.2's stage graph, executed once. `POST /advance` says which
+step the session should reach; the engine runs the stages between here and there
+that are stale (§7.5), in order, streaming events as it goes:
 
 ```
 corpus-select    cheap      one model call — which twelve works, and why
@@ -675,66 +672,73 @@ revise           strong     one model call
 style-fit        —          the deterministic report
 ```
 
-Order-of-magnitude, and these are estimates rather than measurements — WP-X1 is
-what replaces them with real numbers: a flash story is seven or eight model
-calls plus a corpus fetch, and `ARCHITECTURE.md` §10 targets a median under four
-minutes to the first prose token. A novelette runs `sequential-scene`, which is
-one draft call, one summary call and one critique call **per beat** — on the
-order of ninety calls, which is tens of minutes.
+#### Why that is not a long-running service
 
-That whole sequence is one server-side operation. It starts when `/advance`
-dispatches and ends when the story exists, and the browser is a spectator: it
-opens the SSE stream and watches events arrive.
+An earlier draft of this plan put the pipeline on a Fly machine, arguing from
+the run's total duration — four minutes for a flash story, tens of minutes for a
+novelette at roughly ninety calls. **That argument was wrong, and it is worth
+saying why, because the same mistake is easy to repeat.** It reasoned from the
+duration of the *sequence* when the unit of execution is the *stage*. Every
+stage is individually bounded:
 
-**So is there really anything for Fly?** Yes, exactly that, and it is the
-biggest thing in the product. Two properties put it out of a
-function's reach, and either alone would be enough.
+| Stage | Bounded by | Rough |
+|---|---|---|
+| `corpus-select`, `clarify`, `critique` | one model call | 10–40s |
+| `work-fetch` | twelve fetches at four concurrent | 30–90s |
+| `prosody-compute`, `style-fit` | pure CPU | seconds |
+| `style-extract`, `outline`, `revise` | one model call | 30–120s |
+| `draft` | one call under `single-call`; **one per beat** under `sequential-scene` | minutes at most |
 
-- **It is minutes, not seconds** — four for a flash story, tens for a
-  novelette. No function ceiling covers that, and stretching one to try is what
-  the `deployment` guideline names as the wrong move.
-- **It must outlive the client.** A run driven by the browser's own request dies
-  when the tab closes. `ARCHITECTURE.md` §7.3's durability design — the event
-  log, the cursor, the replay on reconnect — exists precisely so a client can
-  come back to a run still in progress, which requires the run not to have been
-  the client's request.
+And nothing carries in memory between them. A stage reads from `artifacts` and
+the session row, writes back, appends events — which was already true, because
+it is what §7.5's `input_key` staleness is computed over. So **one function
+invocation per stage** costs no design change at all.
 
-The SSE stream is the same fact from the other side: it pushes from an in-memory
-broker in the process running the stages. An ephemeral plural instance has
-neither the process nor the broker. `/cancel` is there because the `AbortSignal`
-it aborts lives in that process; routing cancel through Vercel could only set a
-flag the runner polls, turning an immediate stop into a delayed one.
+`draft` is the only stage that could exceed a function ceiling, and §6.6 already
+selects `sequential-scene` for anything long. The plan adds one clause to that
+selection: switch on the estimated single-call duration as well as on
+`maxOutputTokens`, so the strategy follows the platform rather than colliding
+with it.
 
-**Everything else is a function, and should be.** Eleven routes are a query and
-a small write. On the machine they would put it in the request path for every
-keystroke of author search and buy nothing.
+#### The three mechanisms this needs
 
-**What this costs, paid explicitly.** This is nexus's topology and it is not
-free:
+- **A durable chain.** `stage_queue`. A stage's last act inside its transaction
+  is to enqueue the next; it then asks Vercel to invoke it and returns. A lost
+  invocation leaves a queued row, and a one-minute cron sweep re-invokes it.
+  Claiming is a conditional update, so a sweep racing a live invocation cannot
+  run a stage twice.
+- **Push without a broker.** §7.3's ordering rule already says every event is
+  written to `events` *before* being pushed, so the table is the source of truth
+  and the in-memory broker was only a latency optimisation. `GET /events` is a
+  streaming function that replays from the cursor and then waits on Postgres
+  `LISTEN`; the stage function `NOTIFY`s after each append.
+- **Cancellation as a flag.** `POST /cancel` sets
+  `session_runs.cancel_requested`; the running stage checks it between delta
+  flushes. Worst-case latency is one flush.
 
-- **Two origins in the client.** Vercel for the routes, Fly for `/events` and
-  `/cancel` — a CORS configuration and a second base URL, both derived from
-  `api-contract` rather than remembered, so the client cannot drift from the
-  deploy. The alternative, SSE on Vercel polling the `events` table, trades a
-  push for a poll and gives up token-latency streaming, which is the draft
-  screen's entire point. Rejected.
-- **A signed internal dispatch.** `POST /advance` on Vercel computes staleness,
-  writes the intent, calls the runner with a shared secret, and returns
-  immediately. It never blocks on the run.
-- **A heartbeat and a stale-run sweeper**, and a dispatch lock — all three on
-  `session_runs` (`ARCHITECTURE.md` §3.2, §7.3). An earlier draft of this plan
-  argued auteur needed none of them because everything was one process. That is
-  no longer true, so nexus's reasons are now auteur's, and nexus's code comes
-  with them.
-- **Expand / migrate / contract on every schema change**, because two deploy
-  units are live at once during a rollout.
+#### What it costs, paid explicitly
 
-**And what it buys back.** `db` and `migrations` stop being rewrites and become
-ports: nexus wrote them against `pg` and the advisory lock, which is now what
-auteur runs. So does the `database` guideline, and `migrations`, and
-`deployment` — three documents that were adaptations in the SQLite draft and are
-verbatim here (§1.4). The runtime has more moving parts; the code has less
-bespoke surface.
+- **Deltas are batched, not per token** — a flush every ~250ms or at a paragraph
+  boundary, whichever comes first. One row per flush rather than one per token.
+  The caret advances in small chunks rather than per character; §6.7's live
+  drift is already per-paragraph and is unaffected.
+- **An SSE connection ends at the function's ceiling, routinely.** §7.3's
+  failure table already specifies reconnect-from-cursor and `stream-client`
+  already de-duplicates by `seq` — but this path is now the common case rather
+  than the exceptional one, so WP-M3 tests it as such.
+- **Cold starts add latency between stages**, which lands directly on §10's
+  four-minute time-to-draft target. WP-X1 measures it; if it dominates, the fix
+  is Vercel's fluid compute rather than a machine.
+- **`LISTEN` needs a direct, unpooled connection**, held for the life of each
+  open stream. **This is the one unverified assumption in this section** — it
+  goes in WP-X0. If Neon does not support it, the fallback is polling `events`
+  on the cursor every 300ms, which costs latency and no architecture.
+
+#### What it buys
+
+One platform fewer, no Dockerfile, no machine to operate, no signed
+service-to-service seam, no second origin in the client and therefore no CORS.
+`api-contract` describes one deploy unit again.
 
 ### 5.4 What I need from you, and when — the whole list
 
@@ -749,8 +753,8 @@ feedback.
 | 2 | `RAMP_ROUTER_API_KEY`, and egress to `api.router.com` | S1's live half, K5, W2, X1 | The catalogue table ships `source: "declared"` and the pipeline runs against a scripted provider |
 | 3 | Egress to `gutendex.com` and `www.gutenberg.org` | S2's live half, S3, I3's real fetches, X1 | Synthetic fixtures, labelled synthetic, with schemas that reject rather than ignore |
 | 4 | A Neon project and its two connection strings, pooled and direct | G1 onward, and every store | An ephemeral local Postgres serves the test suite; nothing is blocked, but nothing runs against Neon |
-| 5 | A Fly.io account and token, and a Vercel account | R11 | Both apps run locally against the same Neon branch |
-| 6 | Values for `AUTEUR_API_TOKEN` and `AUTEUR_DISPATCH_SECRET` | R11 | Only read when deployed |
+| 5 | A Vercel account | R11 | The client and the routes run locally against the same Neon branch |
+| 6 | Values for `AUTEUR_API_TOKEN` and `AUTEUR_STAGE_SECRET` | R11 | Only read when deployed |
 
 **Feedback you give at WP-X0, not before.** The verification pass prints one
 report: every declared-versus-measured discrepancy in the catalogue, the
@@ -783,7 +787,7 @@ start; it blocks only A4.
 |---|---|---|---|---|
 | **A0** | **In `ac-zeitgeist/agent-guidelines`**, not auteur: `profiles/local-app.md` per §1.2 | `profiles/local-app.md`, plus the profile's row in that repo's `README.md` and `meta/PORTING.md` tables | That repository's own `bun run validate` and `bun run test` — the validator is what rejects an unbound variable, an omitted `requires`, and an `include` a bundle already provides. Then a scratch port writes 25 guideline files and an index naming all 25 | — |
 | **A1** **[handover]** | **CI, and the toolchain it needs to run.** The complete workflow — eleven gate jobs, concurrency group keyed on the ref, turbo cache restored on the lockfile hash, `--concurrency=100%`, `--affected` on pull requests, independent jobs in parallel — written to the **staging path** `ci/workflows/ci.yml`, never to `.github/`. Plus `docs/CI-HANDOVER.md`, `scripts/gates.ts` (§2.6's indirection), and the root toolchain: bun workspaces, the complete catalog, `turbo.json`, `biome.json`, `bunfig.toml` (`minimumReleaseAge = 604800`), base `tsconfig`, `packages/tsconfig`, `packages/biome-config` | `ci/workflows/ci.yml`, `docs/CI-HANDOVER.md`, `scripts/gates.ts`, `/package.json`, `/bun.lock`, `/turbo.json`, `/biome.json`, `/bunfig.toml`, `/tsconfig.json`, `/.gitignore`, `/.nvmrc`, `packages/tsconfig/**`, `packages/biome-config/**` | `bun install --frozen-lockfile`, `biome check` and `tsc --noEmit` green locally, and `bun run gates` exiting zero. A green Actions run is the confirmation and arrives when you activate the file; it is not a precondition for A2 | — |
-| **A2** | `scripts/packages.manifest.ts`: all 37 packages and both apps from `ARCHITECTURE.md` §1 plus the two named below, with layer, `workspaceDeps`, subpath `exports`, coverage floors. `core` and `copy` split into per-area subpaths so §3.2's partition holds | `scripts/packages.manifest.ts`, `scripts/packages.manifest.test.ts` | A test asserting every package named in `ARCHITECTURE.md` §1's table is present, that `LAYERS` matches §1's order, and that `component-library`'s `workspaceDeps` are exactly `tokens, icons, copy, formatting, core` | A1 |
+| **A2** | `scripts/packages.manifest.ts`: all 37 packages and the one app from `ARCHITECTURE.md` §1 plus the four named below, with layer, `workspaceDeps`, subpath `exports`, coverage floors. `core` and `copy` split into per-area subpaths so §3.2's partition holds | `scripts/packages.manifest.ts`, `scripts/packages.manifest.test.ts` | A test asserting every package named in `ARCHITECTURE.md` §1's table is present, that `LAYERS` matches §1's order, and that `component-library`'s `workspaceDeps` are exactly `tokens, icons, copy, formatting, core` | A1 |
 | **A3** | Gate scripts ported from nexus: `check-dependencies`, `api-surface`, `new-package`, `package-tests`, `check-catalog`, `check-bun-version`, `preflight`, `gate-self-test`; plus `check-min-age` (argo's `dependency-min-age`, as `packages/dependency-min-age`) and `check-guidelines`. Each registers itself in `scripts/gates.ts` rather than in the workflow | `scripts/*.ts` except the manifest, `packages/dependency-min-age/**` | `bun run gate-self-test` green, with a case per gate 4, 5, 6, 9, 10: a cycle, a layer violation, a `component-library` import past its five, a widened export with no manifest edit, a drifted skeleton, an under-age dependency, an edited seeded guideline. The same run in CI, on the job A1 already created, with no workflow edit | A2 |
 | **A4** | The port run per §1.1: `AGENTS.md`, `CLAUDE.md`, 25 files under `docs/guidelines/`, `docs/guidelines/local/README.md`, `docs/templates/package-AGENTS.md`, `.agent-guidelines.lock`. Plus the five `local/*.md` documents of §1.5, `docs/decisions/0001-document-index-regime.md`, and the `decisions:index` script | `/AGENTS.md`, `/CLAUDE.md`, `/.agent-guidelines.lock`, `docs/guidelines/**`, `docs/templates/**`, `docs/decisions/**`, `scripts/decisions-index.ts` | Gate 10's five assertions (§1.8), each with a `gate-self-test.ts` case: a byte changed in a ported file, an id deleted from the index, a `local` doc overriding an unported id, an addendum promoting an `always` document | A3, A0 |
 | **A5** **[mech]** | Every package and app skeleton materialised from the manifest: `package.json`, `tsconfig.json`, `bunfig.toml`, `README.md`. No `src/`. A package with no `src/` is *declared, not materialised*; gates 3 and 4 skip it | `packages/*/package.json`, `packages/*/tsconfig.json`, `packages/*/README.md`, `apps/*/…` | Gate 6 (`new-package.ts --check`) passes on a clean tree; deleting one generated line fails it | A3 |
@@ -792,9 +796,9 @@ The four packages A2 adds to `ARCHITECTURE.md` §1's list: `dependency-min-age`
 (argo's, gate 9); `config` (foundation, holding `tiers.ts` — §6.3 calls it
 `config/tiers.ts` and treats it as data rather than engine, which makes it a
 package rather than a file inside `pipeline`); `test-db` (the ephemeral-Postgres
-harness §3's resolution to Neon requires, taken from nexus); and `dispatch-client`
-(api layer, the signed call between the two deploy units, so neither app owns
-the signing). All four are recorded as decisions.
+harness §3's resolution to Neon requires, taken from nexus); and `stage-queue`
+(store layer, the durable chain of §5.3, kept out of `pipeline` so the engine
+stays a pure function of one stage). All four are recorded as decisions.
 
 ### Wave S — the spikes' offline halves. Start at A5; do not wait for wave B.
 
@@ -889,7 +893,8 @@ Every store's tests are integration tests against a real Postgres from `test-db`
 | **H1** | `session-store`: sessions, answers, artifacts, `input_key` reads and writes | `packages/session-store/src/**` | An artifact written with one `input_key` reads back stale after a dependency's key changes and fresh when it does not — the two halves of §7.5 as two tests | G3, B5 |
 | **H2** | `card-store`: the versioned card cache | `packages/card-store/src/**` | Inserting a card with an existing `build_key` returns the existing row and does **not** create version 4; a genuinely new key gets `max(version) + 1` for that author | G3, B6 |
 | **H3** | `corpus-store`: `works` and `passages` | `packages/corpus-store/src/**` | The cache key is `(source_url, cleaner_version)`: the same url under a bumped cleaner version is a miss, under the same version a hit; deleting a work cascades its passages | G3 |
-| **H4** | `event-store`: the durable log, and `session_runs` — the dispatch lock, the heartbeat and the sweeper | `packages/event-store/src/**` | **Ordering:** a test with a subscriber that records what it received asserts no delivered event is absent from the table — the append-then-fan-out rule as an assertion, not a convention. **Gaps:** 200 concurrent appends produce `seq` 1..200 with no gap and no duplicate. **Dispatch lock:** two claims on one session — one wins, one conflicts, so a double-clicked advance cannot run the pipeline twice against one log. **Sweeper:** a run whose `heartbeat_at` is stale is reaped to `error`, its `running` `stage_runs` rows with it, and a `stage_error` event appended so a reconnecting client is told why; two sweepers at once is idempotent | G3, B8 |
+| **H5** | `stage-queue`: enqueue, claim, complete, fail, and the sweep query | `packages/stage-queue/src/**` | **Two concurrent claims on one row: exactly one succeeds** — the property N7 and N8 both depend on; a claim older than the stale threshold is returned by the sweep query and a fresh one is not; `attempt` increments on release and a row past the retry limit is returned as failed rather than released again | G3 |
+| **H4** | `event-store`: the durable log, `NOTIFY` on append, and `session_runs` — the run claim and cancel flag | `packages/event-store/src/**` | **Ordering:** a test with a subscriber that records what it received asserts no delivered event is absent from the table — the append-then-fan-out rule as an assertion, not a convention. **Gaps:** 200 concurrent appends produce `seq` 1..200 with no gap and no duplicate. **Run claim:** two claims on one session — one wins, one conflicts, so a double-clicked advance cannot run the pipeline twice against one log. **Notify:** every append emits one `NOTIFY` on the session's channel, and a `LISTEN`ing connection receives it; a test asserts the notify happens **after** the row is committed, since the reverse would push an event a reconnect could not replay | G3, B8 |
 
 ### Wave I — `corpus-gutenberg`. Serial after S2 and E2.
 
@@ -926,12 +931,12 @@ Every store's tests are integration tests against a real Postgres from `test-db`
 | **L2** | Tier resolution, layers 1 and 2 | `packages/pipeline/src/resolve-tier.ts` | A catalogue with no strict-schema `cheap` model makes resolution fail **at startup**, naming the tier and the stage — not at run time; a stage whose `maxOutputTokens` requirement no candidate meets fails the same way | L1, D4 |
 | **L3** | `config/tiers.ts` — §5.2's candidate lists | `packages/config/src/tiers.ts` | Every listed model id exists in the catalogue constant; the first eligible candidate per tier is asserted for the seven stages | L2 |
 | **L4** | Session pins, layer 3 | `packages/pipeline/src/pins.ts` | Pinning a non-strict model to `outline` is refused with the reason in the error; the same pin on `draft` is accepted; a pin for an unknown stage id is refused | L3, H1 |
-| **L5** | The engine loop, event emission, and the no-I/O assertion | `packages/pipeline/src/engine.ts`, `src/no-io.test.ts` | Against B11's scripted provider, a full run's `SessionEvent` sequence is asserted exactly, including a stage failure and a mid-stream cancellation; `no-io.test.ts` asserts the engine imports no `fetch`, no `node:fs`, no clock beyond what it is handed | L1, H4, B11 |
+| **L5** | The engine: run **one** stage given its id and the session, emit its events, return what to enqueue next. No loop — the chain is `stage_queue`'s (§5.3) | `packages/pipeline/src/engine.ts`, `src/no-io.test.ts` | Against B11's scripted provider, a full run's `SessionEvent` sequence is asserted exactly, including a stage failure and a mid-stream cancellation; `no-io.test.ts` asserts the engine imports no `fetch`, no `node:fs`, no clock beyond what it is handed | L1, H4, B11 |
 | **L6** | `clarify` re-entry and the budget | `packages/pipeline/src/clarify.ts` | 3 rounds and 8 questions are constants in code with a test: a scripted provider returning five questions in round 3 is truncated to the remaining budget; a question missing `decision` fails the schema and never reaches the UI; a round-2 question whose `whyNotSettled` references no answered question is dropped | L5, J4 |
-| **L7** | Draft strategy selection | `packages/pipeline/src/strategy.ts` | A table over four presets × three `maxOutputTokens` values asserting the resolved strategy, with `TOKENS_PER_WORD = 1.4` and `SAFETY = 1.15` named constants; the resolved strategy — not the preset's suggestion — is what the returned value carries | L4 |
+| **L7** | Draft strategy selection, on **two** ceilings: `maxOutputTokens` and the estimated single-call duration against the function ceiling (§5.3) | `packages/pipeline/src/strategy.ts` | A table over four presets × three `maxOutputTokens` values asserting the resolved strategy, with `TOKENS_PER_WORD = 1.4` and `SAFETY = 1.15` named constants; **a preset whose token budget fits but whose estimated duration does not resolves to `sequential-scene`**, which is the clause that keeps the platform and the strategy from colliding; the resolved strategy — not the preset's suggestion — is what the returned value carries | L4 |
 | **L8** | `sequential-scene`: per-beat calls, the running summary, per-beat critique | `packages/pipeline/src/sequential.ts` | A four-beat run against the scripted provider makes one draft call per beat, one summary call between beats, and one critique per beat; the last 500 words of beat *n* appear verbatim in beat *n+1*'s prompt | L7, J8 |
 | **L9** | Usage accounting, cost at write time, cancellation | `packages/pipeline/src/usage.ts` | Cached input tokens are priced at the cached rate and excluded from `inputTokens` — asserted with a three-way usage fixture where folding them in would over-report by more than 3×; a cancellation mid-stream writes `status: "cancelled"` with the tokens already billed recorded | L5, D4 |
-| **L10** | Live drift (§6.7) | `packages/pipeline/src/drift.ts` | A scripted draft stream emits one `drift` event per paragraph boundary and none mid-paragraph; `mattr` is absent below 1,000 words and `dialogueRatio` absent until the marker convention has appeared — the two suppressions as two named tests | L5, F7 |
+| **L10** | Live drift (§6.7) and delta batching (§5.3) | `packages/pipeline/src/drift.ts`, `src/flush.ts` | A scripted draft stream emits one `drift` event per paragraph boundary and none mid-paragraph; `mattr` is absent below 1,000 words and `dialogueRatio` absent until the marker convention has appeared — the two suppressions as two named tests. Deltas flush every ~250ms **or** at a paragraph boundary, whichever is first, asserted with an injected clock: a fast stream produces time-bounded flushes and a slow one produces paragraph-bounded ones | L5, F7 |
 
 ### Wave P/Q — design system. Runs from wave B onward, touching nothing waves D–N touch.
 
@@ -947,9 +952,9 @@ Every store's tests are integration tests against a real Postgres from `test-db`
 | **Q5** | `pipeline`: `Thinking`, `ProsodyStat`, `ProvenanceMark`, `WizardRail` | `packages/component-library/src/pipeline/**` | **`ProsodyStat` has no paper variant** — a type-level test that `ground` is not an accepted prop; it renders the target as a hairline tick distinct from the value marker; `WizardRail` renders completed steps clickable and pending steps not; `ProvenanceMark` renders `edited` in amber with a reset affordance | Q1 |
 | **Q6** | `theme`: `ThemeToggle` and the resolver ported from `wizard-handoff/theme.js` | `packages/component-library/src/theme/**` | `auto` resolves to light between 06:00 and 18:00 local and re-checks each minute (asserted with an injected clock); an explicit choice persists under `auteur.theme`; the head script runs before first paint, asserted by a test that the resolved attribute is set before the first render | Q1 |
 
-### Wave M/N — API and the two server halves. Serial after H and L.
+### Wave M/N — API and the routes. Serial after H and L.
 
-N1–N6 are Vercel functions in `apps/auteur-web/api/`; N7–N9 are the Fly runner in `apps/auteur-runner/`. The two never share a file.
+All fourteen routes are Vercel functions in `apps/auteur-web/api/`, one file each, so no two WPs share a file.
 
 | WP | Delivers | Files owned | Proof | Deps |
 |---|---|---|---|---|
@@ -959,12 +964,13 @@ N1–N6 are Vercel functions in `apps/auteur-web/api/`; N7–N9 are the Fly runn
 | **N1** | Server skeleton, `GET /api/health`, `GET /api/models` | `apps/auteur-web/api/_app.ts`, `src/routes/health.ts`, `src/routes/models.ts` | An HTTP-level test per route; a malformed query returns 400 in the contract's error shape, never a 200 carrying an error | M1, L3, C4 |
 | **N2** | Session routes: create, read, patch, delete | `apps/auteur-web/api/sessions.ts` | `GET /api/sessions/:id` after a reload returns idea, step, answers, artifacts and the three result tabs' data in one response; an unknown id is 404 | N1, H1 |
 | **N3** | `GET /api/authors` — search unioned across providers | `apps/auteur-web/api/authors.ts` | The three `ARCHITECTURE.md` §5.3 detail-line states appear in the response as three distinct shapes; a provider throwing does not fail the union, and its absence is reported | N1, I5 |
-| **N4** | `POST /api/sessions/:id/advance`, the staleness computation, and the signed dispatch to the runner | `apps/auteur-web/api/advance.ts`, `apps/auteur-web/api/_staleness.ts` | **Six named tests, one per §7.5 consequence**: changing an answer restales `outline` onward and not the card; changing the author restales everything after `corpus-select` and keeps the idea; changing the preset restales `outline` and `draft` and not the card; pinning a different model for `outline` restales `outline` onward; re-entering a step and changing nothing restales nothing; `advance` dispatches exactly the stale stages in graph order **and returns before any of them runs**, asserted by the response arriving while the fake runner is still holding the dispatch | N2, L1 |
+| **N4** | `POST /api/sessions/:id/advance`, the staleness computation, and enqueuing the first stale stage | `apps/auteur-web/api/advance.ts`, `apps/auteur-web/api/_staleness.ts` | **Six named tests, one per §7.5 consequence**: changing an answer restales `outline` onward and not the card; changing the author restales everything after `corpus-select` and keeps the idea; changing the preset restales `outline` and `draft` and not the card; pinning a different model for `outline` restales `outline` onward; re-entering a step and changing nothing restales nothing; `advance` enqueues exactly the stale stages in graph order **and returns before any of them runs**, asserted by the response arriving with every queue row still `queued` | N2, L1 |
 | **N5** | Answers and regenerate | `apps/auteur-web/api/answers.ts`, `src/routes/regenerate.ts` | Editing an answer marks every transitive descendant `invalidated` and keeps the rows; a selection above 60% of the word count is refused with `invalid_input`; a selection is snapped outward to sentence boundaries before it reaches the prompt, asserted on the prompt input | N4, L6, E7 |
 | **N6** | `PUT /api/sessions/:id/pins` | `apps/auteur-web/api/pins.ts` | Writing seven pins at once (the "one model for every stage" path) is validated per stage: a non-strict model is refused for the six typed stages with the reason, and the whole write is rejected rather than partially applied | N4, L4 |
-| **N7** | The runner: `POST /internal/dispatch` (signed), the run loop, the heartbeat writer | `apps/auteur-runner/src/dispatch.ts`, `src/run.ts` | An unsigned or wrongly-signed dispatch is rejected with no side effect, asserted before any row is written; a dispatch for a session already claimed conflicts rather than starting a second run; `heartbeat_at` advances while a run is in flight and stops when it ends | N4, H4, L5 |
-| **N8** | The runner: `GET /api/sessions/:id/events` — SSE with cursor replay — and `POST /api/sessions/:id/cancel` | `apps/auteur-runner/src/events.ts`, `src/broker.ts`, `src/cancel.ts` | A client disconnecting mid-run and reconnecting at its cursor receives every missed event exactly once; a run completing with no client connected still persists every event; the broker never pushes an event absent from `events`; a cancel aborts the in-flight provider call in the same process rather than setting a flag, asserted by the provider seeing the abort | N7, M3 |
-| **N9** | `GET /api/sessions/:id/export` | `apps/auteur-web/api/export.ts` | Returns `text/markdown` containing the `ARCHITECTURE.md` §7.6 label verbatim; there is no query parameter or code path producing a document without it | N2, U1 |
+| **N7** | `POST /internal/stage` (signed): claim a `stage_queue` row, run exactly one stage, enqueue the next, invoke it | `apps/auteur-web/api/_internal/stage.ts` | An unsigned or wrongly-signed request is rejected before any row is written, asserted by the row count being unchanged; **two invocations racing one queue row — exactly one claims it and the other returns without running the stage**, which is the property the cron sweep depends on; a stage that throws leaves its row `error` with the attempt recorded, never `claimed` for ever | N4, H4, L5 |
+| **N8** | The one-minute cron sweep | `apps/auteur-web/api/_cron/sweep.ts`, `vercel.json` cron entry | A row queued and never claimed is re-invoked; a row claimed longer than any stage could take is released for one retry and then fails the run, appending a `stage_error` event so a reconnecting client is told why; a healthy in-flight row is left alone — asserted, because sweeping a live stage is the failure mode this must not have | N7 |
+| **N9** | `GET /api/sessions/:id/events` — replay from cursor, then `LISTEN` — and `POST /api/sessions/:id/cancel` | `apps/auteur-web/api/events.ts`, `apps/auteur-web/api/cancel.ts` | A client disconnecting mid-run and reconnecting at its cursor receives every missed event exactly once; a run completing with no client connected still persists every event; **the stream ends cleanly at the function ceiling and the client resumes with no gap and no duplicate**, which is now the common case rather than the exceptional one; the SSE route is the only one that reads the direct connection string, asserted by enumerating the routes; a cancel sets the flag and the running stage aborts within one delta flush | N7, M3 |
+| **N10** | `GET /api/sessions/:id/export` | `apps/auteur-web/api/export.ts` | Returns `text/markdown` containing the `ARCHITECTURE.md` §7.6 label verbatim; there is no query parameter or code path producing a document without it | N2, U1 |
 
 ### Wave R — the web app. R2 first; R3–R9 parallel after R1.
 
@@ -982,7 +988,7 @@ Each screen WP owns its screen directory and its own `copy` module.
 | **R8** | Result screen: three tabs | `.../screens/result/**`, `packages/copy/src/result.ts` | The three tabs are three reads of one `GET /api/sessions/:id`, asserted by a single-request test; the provenance label renders on the story tab; selecting a span turns the ghost button into "Regenerate selection" | R1, N5, T2 |
 | **R9** | Model overlay, including "use one model for every stage" | `.../screens/models/**`, `packages/copy/src/models.ts` | The one-model control writes seven pins in one request and surfaces a per-stage refusal with its reason rather than applying partially; "Follow tier defaults" clears every pin; the panel scrolls inside the viewport with its footer reachable | R1, N6 |
 | **R10** | API-base indirection and demo mode | `apps/auteur-web/src/api-base.ts`, `src/demo/**` | With `VITE_API_BASE` unset the client renders every screen from a recorded event log — the same log R5's test uses — and issues **zero** network requests, asserted by a fetch spy; with it set, every request goes to that origin and none to a hardcoded host | R5, R8 |
-| **R11** | The deploy (§5.3): `vercel.json`, `fly.toml`, `Dockerfile`, the bearer-token middleware on both units, and the CORS allowance for exactly the runner's two routes | `vercel.json`, `fly.toml`, `Dockerfile`, `apps/auteur-web/api/_auth.ts`, `apps/auteur-runner/src/auth.ts` | A request with no bearer token gets 401 on **every** route, asserted by enumerating `api-contract`'s fourteen rather than by a spot check; the CORS config allows the client's origin for `/events` and `/cancel` and **no other route and no other origin**, asserted by a table over both dimensions; `fly.toml` declares one machine with auto-stop off | R10, N9, V1 |
+| **R11** | The deploy (§5.3): `vercel.json`, the cron schedule, the bearer-token middleware, and the stage secret | `vercel.json`, `apps/auteur-web/api/_auth.ts` | A request with no bearer token gets 401 on **every** public route, asserted by enumerating `api-contract`'s fourteen rather than by a spot check; `/internal/stage` rejects a valid bearer token and accepts only the stage secret, so a browser holding the client's token cannot drive the pipeline directly; the cron entry names the sweep and no other route | R10, N10, V1 |
 
 ### Wave T/U/V — the report, the export, and gate 8.
 
@@ -1001,7 +1007,7 @@ Each screen WP owns its screen directory and its own `copy` module.
 |---|---|---|---|---|
 | **W1** | `bun run stats` — completion rate and time-to-draft from `sessions` and `stage_runs` | `scripts/stats.ts` | Against a seeded database, completion rate and median time-to-draft match hand-computed values; time-to-draft measures `corpus-select.started_at` to `draft`'s first `stage_delta`, asserted against a recorded event log | H1, L9 |
 | **W2** **[key][net]** | `bun scripts/discrimination.ts` (§10.3) | `scripts/discrimination.ts` | Runs against held-out passages `corpus-select` did not choose — asserted by intersecting the held-out set with the card's `sources` and requiring it empty | K5, W1 |
-| **X0** **[key][net]** | **The verification pass** (§5.4): `bun run verify:live` runs S1's, S2's and S3's live halves in one command and prints one report — every catalogue row whose declared value differs from the measured one, the gutendex schema diff, and the latinate precision with its promote/hold verdict. Rewrites the catalogue tags to `measured`, replaces the synthetic fixtures with recorded ones, and writes the three `docs/spikes/` notes | `scripts/verify-live.ts`, `docs/spikes/**`, `packages/provider-router/src/models.ts`, `packages/provider-router/tests/fixtures/**`, `packages/corpus-gutenberg/tests/fixtures/**`, `packages/prosody/tests/fixtures/latinate-validation.json` | **The pass fails on any discrepancy rather than absorbing it**, so its green run is the claim that every declared value was right. Each of the three sub-reports is separately green or names what moved. Anything it moves lands as its own follow-up PR — a catalogue correction, a schema correction, or the one-line promotion of `latinateRatio` to a scored measure | R11, V1 |
+| **X0** **[key][net]** | **The verification pass** (§5.4): `bun run verify:live` runs S1's, S2's and S3's live halves in one command and prints one report — every catalogue row whose declared value differs from the measured one, the gutendex schema diff, the latinate precision with its keep/demote verdict, and **whether Neon supports `LISTEN`/`NOTIFY` on a direct connection** (§5.3's one unverified assumption). Rewrites the catalogue tags to `measured`, replaces the synthetic fixtures with recorded ones, and writes the three `docs/spikes/` notes | `scripts/verify-live.ts`, `docs/spikes/**`, `packages/provider-router/src/models.ts`, `packages/provider-router/tests/fixtures/**`, `packages/corpus-gutenberg/tests/fixtures/**`, `packages/prosody/tests/fixtures/latinate-validation.json` | **The pass fails on any discrepancy rather than absorbing it**, so its green run is the claim that every declared value was right. Each of the three sub-reports is separately green or names what moved. Anything it moves lands as its own follow-up PR — a catalogue correction, a schema correction, or the one-line promotion of `latinateRatio` to a scored measure | R11, V1 |
 | **X1** **[key][net]** | One real end-to-end flash story, and `docs/BASELINE.md` recording all five §10 measures | `docs/BASELINE.md` | The five measures reported with their sources: style fidelity from `style-fit`, completion and time-to-draft from `stats`, cost from `SUM(stage_runs.cost_micros)`, discrimination from W2. A missed target is reported as a number and a stage, not smoothed | X0, W2 |
 | **X2** | The stage-to-tier experiment §5.2 promises: `style-extract` at `strong`, `critique` at `balanced`, each measured | `docs/BASELINE.md` (appended), `packages/config/src/tiers.ts` | Two config edits, two runs, the deltas in style fidelity and cost recorded. Whatever it shows becomes a decision file | X1 |
 | **Z1** | `preflight.ts` completing: every env var validated, failing fast with the missing name | `scripts/preflight.ts` | Run against an incomplete `.env`, it names the first missing variable and exits non-zero | B3, D4 |
@@ -1113,23 +1119,24 @@ Applied as written; each is reversible and none blocks. Every one gets a
    output, and WP-X2 measures the alternative rather than arguing about it.
 15. **Base UI is the headless kit** for `Select`, `Textarea` and the overlay,
     as both reference repos use.
-16. **Three platforms: Vercel, Fly, Neon** (§5.3), which is nexus's topology.
-    The split is decided by one question — does the work outlive an HTTP
-    request — and exactly one thing does: a pipeline run, which is minutes long
-    and must survive the tab closing. Everything else is a function.
+16. **Two platforms: Vercel and Neon, one function invocation per pipeline
+    stage** (§5.3). An earlier draft put the pipeline on a Fly machine,
+    reasoning from the run's total duration. That reasoned about the sequence
+    when the unit of execution is the stage, and every stage is individually
+    bounded. Nothing carries in memory between them, so the split costs no
+    design change.
 17. **Persistence resolves to Postgres on Neon, reversing `ARCHITECTURE.md`
     §3's `bun:sqlite`.** A function's filesystem is ephemeral and
-    per-invocation, so a file-backed store is unreachable from eleven of the
-    fourteen routes. The payoff is that `db`, `migrations`, and the `database`,
+    per-invocation. The payoff is that `db`, `migrations`, and the `database`,
     `migrations` and `deployment` guidelines all stop being adaptations and
     become ports.
-18. **`/cancel` and `/events` live on the runner, not on Vercel.** The
-    `AbortSignal` and the broker are both in that process. SSE-by-polling from
-    a function was considered and rejected: it trades a push for a poll and
-    gives up token-latency streaming, which is the draft screen's point.
-19. **The heartbeat, the sweeper and the dispatch lock come back**, all three
-    on `session_runs`. An earlier draft argued auteur needed none because
-    everything was one process; two deploy units make nexus's reasons auteur's.
+18. **Push is `LISTEN`/`NOTIFY`, not a broker.** §7.3 already required every
+    event to be written before being pushed, so the table was always the source
+    of truth and the broker was only latency. This is the one unverified
+    assumption in §5.3; the fallback is a 300ms poll on the cursor.
+19. **The chain is `stage_queue` with a one-minute cron sweep**, and claiming is
+    a conditional update. A lost invocation is recovered; a sweep racing a live
+    stage cannot double-run it.
 20. **A single shared bearer token on every route**, rather than accounts. The
     listener is public and the gateway key is behind it. No sessions, no
     schema, so `PRD.md` §4's "no accounts" and the exclusion of the `auth`
@@ -1195,6 +1202,6 @@ v1 is done when:
 - `bun run preflight` passes against a complete `.env`.
 - Every gate runs from `scripts/gates.ts` on the workflow A1 handed over, with
   no second handover having been needed.
-- Both units deploy and the client reaches each at its own origin: the eleven
-  Vercel routes and the runner's two, with CORS allowing exactly those two and
-  no more.
+- The one unit deploys, all fourteen routes answer, and a full run completes
+  through `stage_queue` with the cron sweep enabled — including one run in which
+  a stage invocation is deliberately dropped and the sweep recovers it.
