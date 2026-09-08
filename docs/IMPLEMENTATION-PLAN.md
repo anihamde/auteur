@@ -25,90 +25,216 @@ the generated `docs/DECISIONS.md` index. Do not diverge without the file.
 
 The first deliverable. `ac-zeitgeist/agent-guidelines` holds 28 documents in six
 bundles; this section says which of them govern auteur, at what authority, and
-with what adaptation. `ARCHITECTURE.md` §11.1 requires them to land in **one**
-`AGENTS.md`, not as a `docs/guidelines/` index, so they are distilled rather
-than ported.
+where auteur's deviations from them are written down.
 
-### 1.1 Why distilled rather than ported
+**auteur takes the document-index regime**: the selected guidelines are copied
+into `docs/guidelines/`, and the root `AGENTS.md` is the generated index that
+gives each one its authority level. This reverses `ARCHITECTURE.md` §11.1, which
+resolved `PRD.md` §12's `[open]` toward nexus's one-file regime. §1.7 records the
+reversal and its cost; this PR amends §11.1 so the two documents do not
+contradict each other.
 
-`agent-guidelines`' port writes `docs/guidelines/*.md` plus a generated index
-`AGENTS.md`. Two things make that the wrong shape here:
+### 1.1 The route: run the port
 
-- `ARCHITECTURE.md` §11.1 chose nexus's one-file regime deliberately, over
-  argo's document index, and named the reading cost as the reason.
-- No profile expresses what auteur needs. It wants `frontend` **without**
-  `nextjs` (Vite SPA, no App Router, no server components, no route handlers)
-  and three of `backend`'s four documents **without** `auth` (single-user, no
-  accounts). Bundles are taken whole by `extends`, so this composition is not a
-  profile, and `meta/PORTING.md` forbids porting the nearest profile and editing
-  the result.
+`meta/PORTING.md` is followed as written, script route:
 
-So: **the rules below are written into auteur's `AGENTS.md` in full**, and
-`.agent-guidelines.lock` records the source commit, the bindings and the
-selected ids so a later refresh can diff against upstream. This is decision
-`0001`.
+```sh
+bun run port --profile local-app --target ../auteur \
+  --var PKG_SCOPE=@auteur \
+  --var COMPONENT_LIBRARY=@auteur/component-library \
+  --var TEST_COMMAND="bun run turbo test" \
+  --source-commit "$(git -C ../agent-guidelines rev-parse HEAD)"
+```
 
-Variable bindings: `PKG_SCOPE=@auteur`,
-`COMPONENT_LIBRARY=@auteur/component-library`,
-`TEST_COMMAND=bun run turbo test`.
+Guidelines are **copied in, not referenced.** A rule fetched from another
+repository is a rule that will sometimes not load, and `agent-guidelines`'
+`AGENTS.md` says so directly: do not point an agent in another repository at it.
 
-### 1.2 ALWAYS — in `AGENTS.md` in full, read before any work
+### 1.2 The profile does not exist yet, and is contributed upstream
 
-| Guideline | Taken as | Note |
-|---|---|---|
-| `testing` | adapted | TDD mandatory. The enforceable half is the gate: a package with implementation files and no colocated `*.test.ts` fails. Its parsimony rule ("every test covers something no other test covers") is the standard the Proof column below is written to. |
-| `errors` | verbatim | Code offensively. No defensive guard, no swallowed failure, no silent fallback. Pairs with `ARCHITECTURE.md` §7.4's closed taxonomy. |
-| `types` | verbatim | No `any`, no `as` on external data, no non-null assertion in `packages/`. |
-| `control-flow` | verbatim | `undefined` over `null`, explicit checks, minimal mutation. |
-| `functions` | verbatim | Arrow expressions, immutability, declarative iteration. |
-| `files` | verbatim | Reading order, naming, where code lives. |
-| `package-design` | verbatim | Many small packages. `ARCHITECTURE.md` §1's 33 packages are this rule applied. |
-| `documentation` | verbatim | Prose changes in the same commit as the code it describes. |
-| `git-and-prs` | adapted | Its conflict-surface rules are §3 of this plan, made concrete against auteur's actual magnets. |
-| `tooling` | verbatim | Bun, Turborepo, Biome. Uniform task names, accurate turbo `inputs`/`outputs`. |
-| `language-choice` | absorbed to one paragraph | TypeScript everywhere; v1 has no second language and no plausible Rust crate. The full document exists to arbitrate a choice auteur does not have. |
-| `data-boundaries` | **promoted from `if-touched` to ALWAYS** | Invariant 4 *is* this document: every stage output crosses a zod schema, every external response is parsed rather than cast, every schema sent to a model is a declared contract. In a product that is seven model calls and two HTTP clients, its trigger fires on nearly every diff; leaving it conditional would mean re-deciding that per change. |
+No shipped profile fits. auteur needs `frontend` **without** `nextjs` — a Vite
+SPA has no App Router, no server components, no server actions and no route
+handlers, and `nextjs`'s trigger ("you add or modify a route … or route
+handler") would fire misleadingly on every Hono route — and it needs three of
+`backend`'s four documents **without** `auth`, because it is single-user with no
+accounts. Bundles are taken whole by `extends`, so this is not expressible by
+composing existing ones.
 
-### 1.3 IF TOUCHED — in `AGENTS.md` with its trigger
+`meta/PORTING.md` is explicit that the answer is a new profile, not the nearest
+one edited: *"If no profile matches, do not port the nearest one and edit the
+result. Compose the bundles you need in a new profile — that is what bundles are
+for, and the new profile is then reusable."*
 
-| Guideline | Taken as | Trigger and adaptation |
-|---|---|---|
-| `monorepo` | verbatim | Adding a package, changing a `package.json`, moving code. `catalog:` for every third-party dep, `workspace:*` for every internal one. |
-| `discriminated-unions` | verbatim | Defining or modifying a union. `SessionEvent`, `Evidence`, `ClarifyResult`, `ErrorCode` are all this shape. |
-| `security` | adapted | Handling the Ramp key, gutendex responses, or any outbound request. auteur is single-user, so authorization is out; secret handling, untrusted-input parsing and dependency risk are in, and the key-based log redaction is a test in `logger`. |
-| `database` | adapted | Postgres-on-Neon becomes `bun:sqlite`. What survives: no ORM, hand-written SQL, parameterized always, the database is the system of record. What is dropped: serverless connection pooling, which has no analogue in one local process. |
-| `migrations` | adapted | Already the architecture's design (§3.3): the server converges the schema on access, nobody applies a migration by hand, never edit an applied migration. Postgres advisory-lock specifics become `BEGIN IMMEDIATE`. |
-| `http-api` | adapted | Steps 1 and 2 (authenticate, authorize) do not exist — single-user, no accounts. Steps 3–5 stand: parse path, query and body with a schema before doing work; status codes that mean what happened; one error shape; never a 200 carrying an error. |
-| `react` | adapted | Function components as `const` arrows with a `Props` type, no `className`/`style` passthrough, variants over boolean pairs, data over render instructions. The "Server Components by default" clause is struck: `apps/auteur-web` is a Vite SPA and has none. |
-| `styling` | adapted | Panda CSS only. The preset is `@auteur/tokens`, generated from `docs/design/design-system/tokens/*.css`; `@auteur/component-library` consumes it rather than owning it. The static-extractor warning is kept verbatim — it is the failure mode that produces a class with no rule and no error. |
-| `accessibility` | verbatim | Semantic HTML, accessible names, focus, keyboard operation. `test-support`'s axe audit is the automated half. |
-| `icons` | pattern only | Phosphor is replaced by Lucide, so the import paths do not transfer. What transfers: one icon per import, size and colour through tokens via the component's own props, decorative icons `aria-hidden`, the icon that *is* the control carries a name. auteur's closed-set `Icon` wrapper (`ARCHITECTURE.md` §2) is stricter than the guideline. |
+**WP-A0** adds it to `agent-guidelines` in its own PR, in that repository:
 
-### 1.4 REFERENCE
+```yaml
+# profiles/local-app.md
+extends: [base, typescript]
+include: [react, styling, icons, accessibility, database, migrations, http-api, ci]
+vars: [PKG_SCOPE, COMPONENT_LIBRARY, TEST_COMMAND]
+```
 
-| Guideline | Note |
-|---|---|
-| `ci` | Its failure rules (a failure you introduced is yours; a pre-existing one goes in a separate PR; "flake" is not a root cause; never skip a test to get green) and its speed rules (cache on the lockfile, `--affected`, a concurrency group, parallel independent jobs) are exactly what §2.3 and WP-A4 implement. |
-| `option-result` | When a fallible API returns a `Result` instead of throwing. Relevant at three seams: provider calls, gutendex fetches, and `resolveCard`. |
+For: a local-first product application — a client and a server that ship
+together, no deploy target, no accounts, no Next.js.
 
-### 1.5 Not taken
+Every `requires` edge is satisfied without adding anything: `react` needs
+`functions` and `types` (in `typescript`), `styling`/`icons`/`accessibility`
+need `react`, `database` needs `data-boundaries` (in `typescript`), `migrations`
+needs `database`, `http-api` needs `data-boundaries` and `security` (in `base`),
+`ci` needs `tooling`. Nothing requires `nextjs`, `auth`, `deployment` or `rust`,
+so excluding them orphans nothing. Every variable the selected set declares is
+bound.
+
+**Proof (WP-A0):** `bun run validate` and `bun run test` pass in
+`agent-guidelines` — its validator is what rejects an unbound variable, an
+omitted `requires`, an `include` a bundle already provides, and a profile
+extending a bundle that does not exist. Then `bun run port --profile local-app`
+against a scratch directory writes 24 guideline files and an index naming all
+24.
+
+### 1.3 What the port writes into auteur
+
+```
+AGENTS.md                          generated index: authority levels,
+                                   precedence, the post-edit audit, the PR
+                                   "Guidelines audited" requirement
+CLAUDE.md                          three lines pointing at AGENTS.md
+docs/guidelines/*.md               24 seeded documents, flat, variables bound
+docs/guidelines/local/README.md    how to author a repo-specific guideline
+docs/templates/package-AGENTS.md   starting point for a package addendum
+.agent-guidelines.lock             profile, source commit, bindings, sha256 per
+                                   written file
+```
+
+### 1.4 The 24 seeded documents
+
+They arrive carrying the tier and trigger their own front matter declares. This
+table does not restate `covers` or `trigger` — the ported files carry those, and
+duplicating them here creates two things to keep in sync. It records only why
+each is in the selection.
+
+**From `base` (8):** `testing`, `errors`, `files`, `language-choice`,
+`package-design`, `documentation`, `git-and-prs`, `security`.
+
+`package-design` is `ARCHITECTURE.md` §1's 33 packages as a rule.
+`git-and-prs`' conflict-surface rules are §3 of this plan.
+`language-choice` arbitrates a choice auteur does not have — kept because the
+bundle is taken whole and over-inclusion costs one row in the index.
+
+**From `typescript` (8):** `control-flow`, `functions`, `types`,
+`discriminated-unions`, `data-boundaries`, `option-result`, `tooling`,
+`monorepo`.
+
+`data-boundaries` is invariant 4 in document form and is promoted repository-wide
+by `local/invariants.md` (§1.5). `discriminated-unions` governs `SessionEvent`,
+`Evidence`, `ClarifyResult` and `ErrorCode`. `option-result` is relevant at three
+seams: provider calls, gutendex fetches, and `resolveCard`.
+
+**Included individually (8):** `react`, `styling`, `icons`, `accessibility`,
+`database`, `migrations`, `http-api`, `ci`.
+
+`migrations` is already the architecture's design (§3.3) — the server converges
+the schema on access and nobody applies one by hand. `ci`'s failure and speed
+rules are what §2.2 and WP-A4 implement.
+
+### 1.5 Not taken, and the four seeded documents auteur overrides
+
+**Not taken (4).** These are absent from the profile, so they are absent from
+`docs/guidelines/` and from the index.
 
 | Guideline | Why |
 |---|---|
-| `nextjs` | `apps/auteur-web` is Vite + React, one route, no App Router, no server components, no server actions, no route handlers. Every rule in it describes machinery auteur does not have, and its presence would make `react`'s server/client advice read as applicable. |
-| `auth` | Single-user, no accounts, no sessions, no protected routes. `PRD.md` §4 puts accounts out of scope. |
-| `deployment` | Runs locally. No Vercel, no Fly, no preview environments, no background workers. `PRD.md` §4 puts hosting out of scope. |
-| `rust` | No crate, and none plausible: the two hot paths (segmentation, metric computation) are a set lookup per word over at most a few million words. |
+| `nextjs` | Vite SPA, one route. Every rule describes machinery auteur does not have, and its trigger would fire on Hono route work. |
+| `auth` | Single-user, no accounts, no sessions, no protected routes. |
+| `deployment` | Runs locally. No Vercel, no Fly, no preview environments. |
+| `rust` | No crate and none plausible: the two hot paths are a set lookup per word over a few million words. |
 
-`AGENTS.md` also carries what no guideline covers and `ARCHITECTURE.md` §11.1
-requires: the four invariants, the tokens-only and ink/paper UI rules, the
-`copy` content rules, the dependency/contract/catalog gates, and the two
-commands.
+**Overridden (4 + 2 additions).** The index model has a mechanism for auteur's
+deviations that the one-file model did not: a local document with `overrides:`
+in its front matter. **The seeded file is never edited** — an in-place edit shows
+as drift in `.agent-guidelines.lock` on the next refresh, and the whole point of
+the lock is that it stays readable. WP-A5 writes:
 
-**Proof that the selection holds:** `scripts/check-guidelines.ts --check`
-reads `.agent-guidelines.lock`, asserts every selected id has a section in
-`AGENTS.md` and every not-taken id has none, and fails if upstream's catalog
-gains a document the lock does not classify. Gate 10.
+| Local document | Tier | Overrides | What it replaces |
+|---|---|---|---|
+| `local/icons-lucide.md` | if-touched | `icons` | Phosphor becomes Lucide, so the import paths and the `*Icon` suffix rule do not transfer. What survives: one icon per import, size and colour through tokens via the component's own props, decorative icons `aria-hidden`. auteur's closed-set `Icon` wrapper is stricter than the seed. |
+| `local/database-sqlite.md` | if-touched | `database` | Postgres on Neon becomes `bun:sqlite`. Survives: no ORM, hand-written SQL, parameterized always, the database is the system of record. Dropped: serverless connection rules, which have no analogue in one local process. Adds `ARCHITECTURE.md` §3.1's four pragmas and the JSON-column rule. |
+| `local/http-hono.md` | if-touched | `http-api` | Steps 1 and 2 (authenticate, authorize) do not exist. Steps 3–5 stand verbatim: parse before doing work, status codes that mean what happened, one error shape, never a 200 carrying an error. |
+| `local/react-spa.md` | if-touched | `react` | Strikes "Server Components by default"; everything else stands. |
+| `local/invariants.md` | **always** | — | `ARCHITECTURE.md` §0's four invariants, the instruction to resolve ambiguity toward them, and the repository-wide promotion of `data-boundaries`: its trigger fires on nearly every diff in a product that is seven model calls and two HTTP clients, so it is in scope for every change rather than re-decided per diff. |
+| `local/ink-paper-and-copy.md` | if-touched | — | The UI and content rules `ARCHITECTURE.md` §11.1 lists that no seeded guideline covers: tokens only, the two ink/paper mechanisms (§8.3), every user-facing string in `copy`, and the content rules §8.4 asserts as tests. `styling` is seeded unmodified and this sits beside it. |
+
+### 1.6 Per-package addenda
+
+The index model's second mechanism, and the answer to its cost (§1.7): a
+guideline that is `if-touched` at the root is unconditional inside one package,
+and the package says so in its own `docs/AGENTS.md`. Written by the package's
+first WP, not by A5:
+
+| Package | Promotes to ALWAYS | Package rules it also holds |
+|---|---|---|
+| `packages/component-library` | `react`, `styling`, `accessibility`, `icons` | The five packages it may import, and why it stays renderable with no server behind it |
+| `packages/migrations` | `database`, `migrations` | Never edit an applied migration; one rewrite-`ALTER` per table per file |
+| `packages/db`, the four stores | `database` | — |
+| `packages/text`, `packages/prosody` | — | The versioning rule: these two carry version strings that are part of the card's cache key, so a change to either invalidates every cached card |
+| `apps/auteur-server` | `http-api` (via `local/http-hono.md`) | — |
+| `apps/auteur-web` | `react`, `styling`, `accessibility`, `icons` | — |
+
+An addendum never weakens a root rule.
+
+### 1.7 The cost, stated
+
+`ARCHITECTURE.md` §11.1 chose the one-file regime for a reason that has not gone
+away: *"argo's `AGENTS.md` is an index of nine guideline documents with authority
+levels and a mandatory post-edit audit — a strong regime that costs a re-read of
+several documents per change."* auteur's index is 24 documents plus six local
+ones, which is more than nine.
+
+That cost is real and it is accepted. Three things bound it:
+
+- **Tiers do the filtering.** 12 documents are ALWAYS (11 seeded plus
+  `local/invariants.md`); the other 18 are `if-touched` or `reference` and their
+  triggers decide. A typical `packages/prosody` diff is in scope for the ALWAYS
+  set and nothing else.
+- **Per-package addenda make the common case local.** A `component-library` WP
+  reads its addendum's four promotions rather than re-deriving which of 24 apply.
+- **Most rules are gates anyway.** §2.2's ten gates enforce the load-bearing
+  half. The documents explain; CI decides.
+
+What is gained over the compressed one-file version: the rationale and worked
+examples travel with the rules, `local/*.md` gives auteur's four adaptations a
+place that does not require editing a seeded file, `.agent-guidelines.lock` makes
+a later refresh a readable diff rather than an archaeology exercise, and the
+post-edit audit and the PR "Guidelines audited" line are protocol steps the
+one-file version had nowhere to put.
+
+**This is a reversal of a merged architectural decision, so it does not live only
+here.** This PR amends `ARCHITECTURE.md` §11.1 and §12's open-item row to state
+the index regime and point at the decision; WP-A5 writes
+`docs/decisions/0001-document-index-regime.md` with the reasoning above and what
+would reverse it — if a contributor is measurably skipping the audit, the
+compressed one-file version is the fallback and the lock file makes it
+recoverable.
+
+### 1.8 What proves the selection holds
+
+Gate 10, `scripts/check-guidelines.ts --check`, reads `.agent-guidelines.lock`
+and asserts:
+
+- every file it records is present and its sha256 matches — **a seeded guideline
+  edited in place fails**, which is what routes a deviation to `local/` instead;
+- the index in `AGENTS.md` names every ported id, in its declared tier, and names
+  no id that was not ported;
+- every `local/*.md` has valid front matter, an `overrides:` list naming only
+  ported ids, and — for `if-touched` — a trigger;
+- every `promotes.always` entry in a package addendum names a ported id that is
+  `if-touched` at the root, since promotion is the only direction;
+- upstream's catalog has gained no document the lock does not classify as taken
+  or not taken.
+
+Its `gate-self-test.ts` cases: a byte changed in a ported file, an id deleted
+from the index, a `local` doc overriding an id that was not ported, and an
+addendum promoting an `always` document.
 
 ---
 
@@ -138,7 +264,7 @@ blocking, all on every PR.
 | 7 | Token fidelity | `@auteur/tokens`' preset test |
 | 8 | Provenance | `@auteur/provenance-suite` |
 | 9 | Dependency release age | `scripts/check-min-age.ts` |
-| 10 | Guideline selection | `scripts/check-guidelines.ts --check` |
+| 10 | Guideline index and seed integrity | `scripts/check-guidelines.ts --check` (§1.8) |
 
 Each gate carries a case in `scripts/gate-self-test.ts` that proves it rejects
 its own defect. A gate nobody has watched reject something is a gate nobody
@@ -153,7 +279,9 @@ Two scripts need credentials and run on demand, not in CI:
 CI green · the WP's Proof column demonstrated by a named test or gate ·
 implementation and tests in the same PR · no `TODO` without a WP id · public
 surface matches `scripts/packages.manifest.ts` or the PR edits the manifest
-deliberately · merged.
+deliberately · **the post-edit audit run and the PR body carrying its
+"Guidelines audited" line** (§1.3's index requires it; a PR without it is
+incomplete) · merged.
 
 ### 2.4 Decisions
 
@@ -200,7 +328,8 @@ race to add one.
 | `bunfig.toml` | WP-A1 | `minimumReleaseAge` and the per-package `preload` blocks, all at once. |
 | `.github/workflows/ci.yml` | WP-A4, then WP-Z2 | Same. |
 | `scripts/packages.manifest.ts` | WP-A2, then **M-PRs** | Widening a package's exports is an M-PR: manifest edit + `fix:api-surface` + nothing else. Serialized: at most one open at a time. |
-| `AGENTS.md` | WP-A5 | A rule change is a decision file plus an M-PR. |
+| `AGENTS.md`, `docs/guidelines/*.md` | WP-A5, then the port script | Generated by the port. **Never hand-edited** — gate 10 fails on a changed sha256. A deviation goes in `docs/guidelines/local/`, a new file nothing else touches. A re-port or refresh is its own PR. |
+| `packages/<name>/docs/AGENTS.md` | that package's first WP | One addendum per package, so no two branches share one. |
 | `docs/DECISIONS.md` | generated | Regenerate after rebase. |
 | `packages/prompt/src/versions.ts` | WP-J1, then each prompt WP | Each prompt WP appends **one line**. Ordered alphabetically so appends do not collide; if two do, take both. |
 | `packages/config/src/tiers.ts` | WP-L3, then Spike A's follow-up | One owner at a time. |
@@ -383,17 +512,19 @@ Every Proof names a test or a gate.
 
 ### Wave A — the conflict magnets. Strictly serial.
 
-Nothing else starts until A2 and A3 land. A5 may run parallel to A3/A4.
+Nothing else starts until A2 and A3 land. A0 is in a different repository and
+runs from the start; A5 may run parallel to A3/A4 once A0 has merged.
 
 | WP | Delivers | Files owned | Proof | Deps |
 |---|---|---|---|---|
+| **A0** | **In `ac-zeitgeist/agent-guidelines`**, not auteur: `profiles/local-app.md` per §1.2 | `profiles/local-app.md`, plus the profile's row in that repo's `README.md` and `meta/PORTING.md` tables | That repository's own `bun run validate` and `bun run test` — the validator is what rejects an unbound variable, an omitted `requires`, and an `include` a bundle already provides. Then a scratch port writes 24 guideline files and an index naming all 24 | — |
 | **A1** | Root toolchain: bun workspaces, the complete catalog, `turbo.json` task graph, `biome.json`, `bunfig.toml` (`minimumReleaseAge = 604800`), base `tsconfig`, `packages/tsconfig`, `packages/biome-config` | `/package.json`, `/bun.lock`, `/turbo.json`, `/biome.json`, `/bunfig.toml`, `/tsconfig.json`, `/.gitignore`, `/.nvmrc`, `packages/tsconfig/**`, `packages/biome-config/**` | `bun install --frozen-lockfile` succeeds; `biome check` and `tsc --noEmit` pass on the two tooling packages | — |
 | **A2** | `scripts/packages.manifest.ts`: all 35 packages and both apps from `ARCHITECTURE.md` §1 plus two the plan adds, with layer, `workspaceDeps`, subpath `exports`, coverage floors. `core` and `copy` split into per-area subpaths so §3.2's partition holds | `scripts/packages.manifest.ts`, `scripts/packages.manifest.test.ts` | A test asserting every package named in `ARCHITECTURE.md` §1's table is present, that `LAYERS` matches §1's order, and that `component-library`'s `workspaceDeps` are exactly `tokens, icons, copy, formatting, core` | A1 |
 
 The two packages the plan adds to §1's list: `dependency-min-age` (argo's, gate 9) and `config` (foundation layer, holding `tiers.ts` — `ARCHITECTURE.md` §6.3 calls it `config/tiers.ts` and treats it as data rather than engine, which makes it a package rather than a file inside `pipeline`). Both are recorded as decisions.
 | **A3** | Gate scripts ported from nexus: `check-dependencies`, `api-surface`, `new-package`, `package-tests`, `check-catalog`, `check-bun-version`, `preflight`, `gate-self-test`; plus `check-min-age` (argo's `dependency-min-age`, as `packages/dependency-min-age`) and `check-guidelines` | `scripts/*.ts` except the manifest, `packages/dependency-min-age/**` | `bun run scripts/gate-self-test.ts` green, with a case per gate 4, 5, 6, 9, 10: a cycle, a layer violation, a `component-library` import past its five, a widened export with no manifest edit, a drifted skeleton, an under-age dependency, an `AGENTS.md` missing a selected guideline | A2 |
 | **A4** | `.github/workflows/ci.yml`: the ten gates as jobs, concurrency group keyed on the ref, turbo cache restored on the lockfile hash, `--concurrency=100%`, independent jobs in parallel | `.github/workflows/ci.yml`, `.github/actions/**` | CI green on its own PR, with `gate-self-test` a named job whose failure fails the build | A3 |
-| **A5** | `AGENTS.md` (§1's selection in full, plus §11.1's auteur-specific rules), `CLAUDE.md`, `.agent-guidelines.lock`, `docs/decisions/0001-guidelines-in-one-file.md`, the `decisions:index` script | `/AGENTS.md`, `/CLAUDE.md`, `/.agent-guidelines.lock`, `docs/decisions/**`, `scripts/decisions-index.ts` | Gate 10: `check-guidelines --check` passes, and fails when a selected id's section is deleted from `AGENTS.md` | A2 |
+| **A5** | The port run per §1.1: `AGENTS.md`, `CLAUDE.md`, 24 files under `docs/guidelines/`, `docs/guidelines/local/README.md`, `docs/templates/package-AGENTS.md`, `.agent-guidelines.lock`. Plus the six `local/*.md` documents of §1.5, `docs/decisions/0001-document-index-regime.md`, and the `decisions:index` script | `/AGENTS.md`, `/CLAUDE.md`, `/.agent-guidelines.lock`, `docs/guidelines/**`, `docs/templates/**`, `docs/decisions/**`, `scripts/decisions-index.ts` | Gate 10's five assertions (§1.8), each with a `gate-self-test.ts` case: a byte changed in a ported file, an id deleted from the index, a `local` doc overriding an unported id, an addendum promoting an `always` document | A2, A0 |
 | **A6** **[mech]** | Every package and app skeleton materialised from the manifest: `package.json`, `tsconfig.json`, `bunfig.toml`, `README.md`. No `src/`. A package with no `src/` is *declared, not materialised*; gates 3 and 4 skip it | `packages/*/package.json`, `packages/*/tsconfig.json`, `packages/*/README.md`, `apps/*/…` | Gate 6 (`new-package.ts --check`) passes on a clean tree; deleting one generated line fails it | A3, A4 |
 
 ### Wave S — the spikes. Start at A6; do not wait for wave B.
@@ -622,23 +753,26 @@ screens), E1–E7 once E1 lands, F1–F6 once F7's shape is fixed.
 
 **Must be serial, and why:**
 
-1. **A1 before everything.** Its gates are this plan's enforcement mechanism.
-2. **A2 before A6 before any package's `src/`.** The manifest is what makes the
+1. **A0 before A5.** The port cannot run against a profile that does not exist,
+   and `meta/PORTING.md` forbids porting the nearest profile and editing the
+   result. A0 is in another repository and blocks nothing else in auteur.
+2. **A1 before everything.** Its gates are this plan's enforcement mechanism.
+3. **A2 before A6 before any package's `src/`.** The manifest is what makes the
    file partition hold; materialising skeletons piecemeal reintroduces the
    `package.json` race the whole partition exists to prevent.
-3. **S1 before D1.** The three new `ModelDescriptor` fields are the spike's
+4. **S1 before D1.** The three new `ModelDescriptor` fields are the spike's
    output. Writing the type first and filling it later means writing it twice.
-4. **S3 before F5 before T2.** The measure count is a measured outcome; T2's
+5. **S3 before F5 before T2.** The measure count is a measured outcome; T2's
    test reads F5's gate result rather than a literal, so building T2 first
    would mean guessing.
-5. **G3 before every store.** Changing the schema after four stores exist is
+6. **G3 before every store.** Changing the schema after four stores exist is
    the expensive version of the same change.
-6. **L1 before L2 before L3.** Tier resolution is meaningless without the stage
+7. **L1 before L2 before L3.** Tier resolution is meaningless without the stage
    requirements it resolves against, and the candidate lists are meaningless
    without the resolver.
-7. **K2 before V1.** `provenance-suite` enumerates `style-card`'s exports; it
+8. **K2 before V1.** `provenance-suite` enumerates `style-card`'s exports; it
    cannot enumerate an unwritten module.
-8. **X1 last.** A cost and fidelity baseline measured against a partial
+9. **X1 last.** A cost and fidelity baseline measured against a partial
    pipeline is a number that will be quoted and is not true.
 
 **Catalog PRs C1–C4** land alone, each ahead of the wave it serves: C1 before
@@ -651,29 +785,38 @@ B, C2 before D, C3 before P, C4 before N.
 Applied as written; each is reversible and none blocks. Every one gets a
 `docs/decisions/` file.
 
-1. **Guidelines are distilled into one `AGENTS.md`, not ported as a document
-   index** (§1.1). The lock file preserves provenance.
-2. **`data-boundaries` is promoted to ALWAYS** (§1.2). Its trigger fires on
+1. **The document-index regime, reversing `ARCHITECTURE.md` §11.1** (§1.7).
+   This one is not merely recorded: the PR that lands this plan amends §11.1
+   and §12's open-item row, because a merged architecture saying the opposite
+   of what is built is a live contradiction, not a note.
+2. **A new `local-app` profile is contributed to `agent-guidelines`** rather
+   than porting `web-app` and deleting four documents (§1.2). `meta/PORTING.md`
+   requires it and the profile is reusable.
+3. **auteur's four adaptations are `docs/guidelines/local/*.md` with
+   `overrides:` front matter**, and no seeded file is ever edited in place
+   (§1.5). Gate 10's sha256 check is what enforces it.
+4. **`data-boundaries` is promoted repository-wide to ALWAYS** by
+   `local/invariants.md` (§1.5), rather than left to its trigger. It fires on
    nearly every diff in a product that is seven model calls and two HTTP
-   clients.
-3. **A package with no `src/` is declared, not materialised**; gates 3 and 4
+   clients, and re-deciding that per diff is the decision itself.
+5. **A package with no `src/` is declared, not materialised**; gates 3 and 4
    skip it. This is what makes WP-A6's single skeleton PR possible, and it is a
    one-line delta from nexus's `api-surface.ts`.
-4. **`docs/DECISIONS.md` is generated from `docs/decisions/`**, not hand-edited.
+6. **`docs/DECISIONS.md` is generated from `docs/decisions/`**, not hand-edited.
    An index every branch appends to is a conflict on every branch.
-5. **`core` and `copy` are split into per-area subpath exports** declared in the
+7. **`core` and `copy` are split into per-area subpath exports** declared in the
    manifest up front, so concurrent branches never edit the same file.
-6. **`summarize-beat` is untyped** (§5.1). A summary is prose, and typing it
+8. **`summarize-beat` is untyped** (§5.1). A summary is prose, and typing it
    would put a strict-schema requirement on the cheap tier for nothing.
-7. **`revise` is typed** — six of the seven model stages are typed, `draft` is
+9. **`revise` is typed** — six of the seven model stages are typed, `draft` is
    the exception.
-8. **Provisional tier lists ship before S1 completes** (§5.2), so wave L is not
+10. **Provisional tier lists ship before S1 completes** (§5.2), so wave L is not
    blocked; S1's follow-up PR replaces them and owns that file alone.
-9. **`style-extract` stays at `balanced`** despite being the longest-lived
+11. **`style-extract` stays at `balanced`** despite being the longest-lived
    output, and WP-X2 measures the alternative rather than arguing about it.
-10. **Base UI is the headless kit** for `Select`, `Textarea` and the overlay,
+12. **Base UI is the headless kit** for `Select`, `Textarea` and the overlay,
     as both reference repos use.
-11. **Two packages are added to `ARCHITECTURE.md` §1's list**: `dependency-min-age`
+13. **Two packages are added to `ARCHITECTURE.md` §1's list**: `dependency-min-age`
     (gate 9's implementation, taken from argo) and `config` (foundation, holding
     `tiers.ts`, which §6.3 already treats as data rather than engine).
 
@@ -710,4 +853,6 @@ v1 is done when:
 - The three spike notes are in `docs/spikes/` and every claim in
   `ARCHITECTURE.md` §5.2 and §6.4 that they contradict has a decision file.
 - `docs/DECISIONS.md` regenerates clean.
+- Gate 10 passes with every ported file's sha256 intact — no seeded guideline
+  edited in place, every deviation living in `docs/guidelines/local/`.
 - `bun run preflight` passes against a complete `.env`.

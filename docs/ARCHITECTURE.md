@@ -1795,22 +1795,33 @@ fetch.
 
 ### 11.1 The regime
 
-**`[open]` in `PRD.md` §12 — resolved, with a change of source.** The PRD asks
-whether to adopt argo's `AGENTS.md` regime, on the grounds that the ripped
-packages are written to it. Since the packages actually being ripped are
-nexus's, the answer is nexus's regime, and auteur gets its own `AGENTS.md`
-modelled on it.
+**`[open]` in `PRD.md` §12 — resolved: the document-index regime, seeded from
+`ac-zeitgeist/agent-guidelines`.** See
+`docs/IMPLEMENTATION-PLAN.md` §1 for the selection and
+`docs/decisions/0001-document-index-regime.md` for the decision.
 
-The difference between the two is worth stating, because it is the reason for
-the switch. argo's `AGENTS.md` is an index of nine guideline documents with
-authority levels and a mandatory post-edit audit — a strong regime that costs a
-re-read of several documents per change. nexus's is one file: three invariants,
-seven non-negotiables, the UI and content rules, and the two commands to run
-before calling a change done. Most of its rules are CI gates rather than prose,
-which is the property worth copying: **a rule that is not a gate is a rule that
-decays.**
+An earlier draft of this section resolved it the other way, toward nexus's
+one-file regime, on the grounds that the packages being taken are nexus's and
+that argo's index — nine documents with authority levels and a mandatory
+post-edit audit — costs a re-read of several documents per change. That cost is
+real, and it is now accepted rather than avoided. What changed the answer:
+`agent-guidelines` ships the guidelines themselves, with tiers and triggers that
+do the per-change filtering, a `local/` mechanism that gives auteur's four
+adaptations somewhere to live without editing a seeded file, per-package
+promotion, and a lock file that makes a later refresh a readable diff. The
+one-file version has nowhere to put any of that: it compresses ~1,950 lines of
+rules into ~200 and loses the rationale, and its adaptations are edits with no
+record of what they replaced.
 
-auteur's `AGENTS.md` will carry, in one file:
+The property worth keeping from nexus is not the file count — it is that **a
+rule that is not a gate is a rule that decays.** §11.2's gates are that half,
+and gate 10 extends it to the guidelines themselves: a seeded document edited in
+place fails the build.
+
+So auteur's `AGENTS.md` is the generated index, `docs/guidelines/` holds the 24
+seeded documents, and `docs/guidelines/local/` holds the six auteur-specific
+ones. The rules below are what the local set and the index carry beyond the
+seed:
 
 - The four invariants (§0), and the instruction to resolve ambiguity toward them.
 - **Tests and implementation land together.** A package with implementation
@@ -1825,12 +1836,14 @@ auteur's `AGENTS.md` will carry, in one file:
 - The dependency, contract and catalog gates below.
 - The two commands: `bun run turbo test` and `bun run preflight`.
 
-It will not carry a nine-document reading list. The velocity cost the PRD worries
-about is real and it comes mostly from that, not from the rules themselves.
+The velocity cost the PRD worries about is real. `docs/IMPLEMENTATION-PLAN.md`
+§1.7 states it plainly and names the three things that bound it: tiers filter
+per change, per-package addenda make the common case local, and the gates
+enforce the load-bearing half regardless.
 
 ### 11.2 The gates
 
-Nine, all in CI, each with a self-test proving it can fail (nexus's
+Ten, all in CI, each with a self-test proving it can fail (nexus's
 `gate-self-test.ts`, taken verbatim — a gate nobody has watched reject a defect
 is a gate nobody knows works).
 
@@ -1845,6 +1858,7 @@ is a gate nobody knows works).
 | 7 | `tokens`' preset test | A token value that no longer matches the design CSS (§8.1) |
 | 8 | `provenance-suite` | Invariant 2. Below |
 | 9 | `dependency-min-age` | A dependency version younger than the release-age window |
+| 10 | `check-guidelines.ts --check` | A seeded guideline edited in place, an index that no longer matches what was ported, or a `local/` override naming a document that was not (§11.1) |
 
 Plus two scripts that need credentials and therefore run on demand rather than
 in CI: `check-router-catalogue.ts` (the catalog against `GET /v1/models`) and
@@ -1896,7 +1910,7 @@ of a seven-step wizard is a maintenance cost that catches less than the axe audi
 
 | Item | Resolution |
 |---|---|
-| §12 — adopt argo's `AGENTS.md` regime? | **No; adopt nexus's, in one file.** §11.1. The packages being taken are nexus's, and nexus's regime is mostly CI gates rather than a reading list, which is the half worth having. |
+| §12 — adopt argo's `AGENTS.md` regime? | **Yes in shape: the document-index regime, seeded from `agent-guidelines` rather than copied from argo.** §11.1, and decision 0001. The index's cost is accepted and bounded; nexus's contribution is §11.2's gates, which is the half that does not decay. |
 | §12 — persistence via `bun:sqlite`? | **Yes.** §3. Cards are expensive, a half-finished wizard must survive a reload, and the replayable event log needs somewhere to live. |
 | §9 — the living-author tier's legal position | **Left open. Not an architecture decision.** §5.5 puts the seam and the type distinction in place, and no v1 code path ingests in-copyright primary text. The review the PRD asks for is needed before the v2 tier is built, and this document does not pre-empt it. |
 
