@@ -26,6 +26,17 @@ export const ERROR_CODES = [
   "budget_exceeded",
   /** The caller cancelled. */
   "cancelled",
+  /**
+   * The bearer token was absent or wrong, or `/internal/stage` was not signed.
+   *
+   * Not "authentication failed": auteur is single-user and neither secret
+   * identifies anyone. It says the caller does not hold the shared value the
+   * route requires, which is the whole claim. The code exists so that the
+   * refusal survives the trip to the browser — an error code outside this set
+   * becomes `internal` in `api-client`, and a 401 arriving as a 500 tells the
+   * client to retry something that will never succeed.
+   */
+  "unauthorized",
   /** Anything unexpected. Its message is never forwarded. */
   "internal",
 ] as const;
@@ -55,6 +66,7 @@ export const STATUS_BY_CODE: Readonly<Record<ErrorCode, number>> = {
   provider_error: 502,
   rate_limited: 429,
   schema_violation: 502,
+  unauthorized: 401,
 };
 
 export const isErrorCode = (value: unknown): value is ErrorCode =>

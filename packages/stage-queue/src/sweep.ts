@@ -86,3 +86,69 @@ export const releaseStaleClaim = async (
   );
   return (result.rowCount ?? 0) === 1;
 };
+
+/**
+ * Rows that are still `queued` and have sat there.
+ *
+ * The other half of what a lost invocation leaves behind: `advance` enqueued
+ * the row and then the request to run it never arrived — the platform dropped
+ * it, the region failed over, the process died between the insert and the
+ * fetch. There is no claim to age out, so the evidence is the enqueue time.
+ *
+ * The threshold is short, because nothing is running: a queued row that has
+ * been queued for a minute is a minute of a reader watching a spinner.
+ */
+export const QUEUED_AFTER_SECONDS = 60;
+
+export type AbandonedRow = {
+  readonly id: string;
+  readonly sessionId: string;
+  readonly stageId: string;
+  readonly attempt: number;
+};
+
+export const findAbandonedQueued = async (
+  db: Db,
+  queuedAfterSeconds: number = QUEUED_AFTER_SECONDS,
+): Promise<AbandonedRow[]> => {
+  const result = await db.query<{
+    id: string;
+    session_id: string;
+    stage_id: string;
+    attempt: number;
+  }>(
+    `SELECT id, session_id, stage_id, attempt
+       FROM stage_queue
+      WHERE status = 'queued'
+        AND enqueued_at < now() - make_interval(secs => $1)
+      ORDER BY enqueued_at`,
+    [queuedAfterSeconds],
+  );
+  return result.rows.map((row) => ({
+    attempt: row["attempt"],
+    id: row["id"],
+    sessionId: row["session_id"],
+    stageId: row["stage_id"],
+  }));
+};
+
+/**
+ * Give up on a claim that has exhausted the retry budget.
+ *
+ * Re-checked under the update for the same reason `releaseStaleClaim` is: the
+ * original invocation may have finished in between, and a sweep that failed a
+ * completed stage would be worse than one that did nothing.
+ */
+export const abandonStaleClaim = async (
+  db: Db,
+  id: string,
+  staleAfterSeconds: number = STALE_AFTER_SECONDS,
+): Promise<boolean> => {
+  const result = await db.query(
+    `UPDATE stage_queue SET status = 'error'
+      WHERE id = $1 AND status = 'claimed'
+        AND claimed_at < now() - make_interval(secs => $2)`,
+    [id, staleAfterSeconds],
+  );
+  return (result.rowCount ?? 0) === 1;
+};
