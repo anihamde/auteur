@@ -52,8 +52,14 @@ describe("the fast path never takes the lock", () => {
     resetSchemaMemoForTest(harness.db);
     await ensureSchema(harness.db);
 
+    // Scoped to this database. Advisory locks are per-database, and the whole
+    // suite shares one server — so an unscoped count sees the lock another
+    // package's migration is legitimately holding at that instant, and the
+    // test fails on CI for a reason that has nothing to do with the fast path.
     const locks = await harness.other.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM pg_locks WHERE locktype = 'advisory'`,
+      `SELECT count(*)::text AS count FROM pg_locks
+       WHERE locktype = 'advisory'
+         AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`,
     );
     expect(locks.rows[0]?.count).toBe("0");
   });
