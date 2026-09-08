@@ -323,11 +323,15 @@ git mv ci/workflows/ci.yml .github/workflows/ci.yml
 git commit -m "ci: activate the workflow" && git push
 ```
 
-**Then the stop.** No further PR opens until you confirm the workflow is live
-and a run has gone green. This is the one place in the plan that waits on you,
-and it is deliberate: ~70 PRs land against these gates, and a workflow that
-turns out to be misconfigured is discovered once here rather than seventy times
-later.
+**It hands over; it does not stop the build.** An earlier draft of this plan
+blocked the second PR on your confirmation. That is now the wrong trade: you
+have asked not to be interrupted mid-build, and the cost of not blocking is
+small because every gate is a script that runs locally too. So A1 lands the
+staged file and the note, **and the next PR opens immediately**. Whenever you
+move the file, CI starts reporting — retroactively on whatever is open by then,
+and on everything after. If a gate turns out to be misconfigured in the workflow
+rather than in the script, that is one follow-up PR against a file only you can
+activate, and the scripts it runs were already green.
 
 **The handover happens once, not once per gate.** The workflow's jobs do not
 name individual gates; they invoke `bun run gates` and `bun run gate-self-test`,
@@ -393,18 +397,52 @@ its spike and `text`.
 
 ---
 
-## 4. The spikes
+## 4. The spikes, and the fact that this session cannot run them
 
-Three pieces of evidence gate real decisions. All three run at the very front
-of the steps they gate. Two need network; one needs network and a real Ramp
-Router key.
+Three pieces of evidence gate real decisions. **None of the three can be
+gathered from the build session**, which changes their shape rather than their
+purpose.
 
-### S1 — Router capabilities (needs `RAMP_ROUTER_API_KEY` + network)
+The build session's egress proxy denies `gutendex.com`, `www.gutenberg.org` and
+`api.router.com` by organization policy, and no `RAMP_ROUTER_API_KEY` is
+present. Package registries are allowed, so everything else builds and tests
+normally. Verified at planning time:
+
+```
+gutendex.com:443        connect_rejected (policy)
+www.gutenberg.org:443   connect_rejected (policy)
+api.router.com:443      connect_rejected (policy)
+registry.npmjs.org      allowed
+```
+
+So each spike splits in two: **an offline half built now, designed so a wrong
+guess fails loudly rather than silently**, and **a live half deferred to
+WP-X0's single verification pass** (§5.4), which you run with a key and open
+egress and which reports every declared-versus-measured discrepancy at once.
+
+The rule that makes this safe: **nothing built offline may hardcode a value the
+live half is supposed to establish.** Every such value is a row in a table
+marked `source: "declared"`, read at run time, and the verification pass
+rewrites the table and fails on any row that moved. A guess that turns out
+wrong is then a red build with the right number in the diff, not a subtly wrong
+product.
+
+### S1 — Router capabilities
 
 Gates every model stage: waves D, J, K, L.
 
-Delivers `scripts/probe-router-responses.ts` (nexus's, extended) and
-`docs/spikes/router-capabilities.md` recording, per catalogue model:
+**Offline half, built now.** `packages/provider-router/src/models.ts` carries
+the catalogue with `structuredOutput`, `maxOutputTokens` and `pricing` per row,
+every one tagged `source: "declared"` and sourced from published documentation
+rather than measurement. SSE fixtures are synthesised against the OpenAI
+Responses event grammar, not recorded, and the fixture file says so in its first
+line. Tier resolution (WP-L2) reads the table rather than assuming anything, so
+a corrected row changes behaviour with no code edit. A unit test asserts **no
+row is tagged `measured` yet** — which is what stops the declared table from
+being quietly mistaken for a verified one.
+
+**Live half, deferred to WP-X0.** `scripts/probe-router-responses.ts` (nexus's,
+extended) records, per catalogue model:
 
 - whether `text.format: { type: "json_schema", strict: true }` is accepted and
   produces a conforming object, tested with one real nested schema (a cut-down
@@ -417,12 +455,22 @@ Delivers `scripts/probe-router-responses.ts` (nexus's, extended) and
 - recorded SSE transcripts as fixtures, so every later test in wave D is
   offline.
 
-**Proof:** `docs/spikes/router-capabilities.md` has a row per model with all
-four columns filled, and `packages/provider-router/tests/fixtures/` replays
-without network.
+**Proof of the live half:** every catalogue row re-tagged `source: "measured"`,
+`docs/spikes/router-capabilities.md` written with a row per model, and the
+recorded fixtures replacing the synthesised ones. **The pass fails if any
+declared value differs from the measured one**, printing both — so a wrong guess
+surfaces as a diff rather than as behaviour.
 
-**The branch this decides.** Six of the seven model stages are typed. If no
-`cheap`-tier candidate accepts strict schemas:
+**Proof of the offline half, now:** the fixtures replay with zero network; the
+`no-measured-rows-yet` test passes; and `check-router-catalogue.ts` runs and
+reports "unverified" rather than "clean".
+
+**The branch this decides, and the default taken until it does.** Six of the
+seven model stages are typed. The table ships with the **conservative
+assumption** — `corpus-select` and `critique` at `balanced`, not `cheap` — so
+the pipeline is correct if the pessimistic case is true and merely more
+expensive than necessary if it is not. WP-X0 moves them down if the measurement
+allows it. Concretely, if no `cheap`-tier candidate accepts strict schemas:
 
 - `corpus-select` and `critique` move to `balanced` — `ARCHITECTURE.md` §6.4 is
   explicit that the answer is not a JSON-repair loop.
@@ -433,40 +481,72 @@ without network.
 
 `draft` is the one untyped stage; nothing about it depends on this outcome.
 
-### S2 — gutendex response (needs network)
+### S2 — gutendex response
 
 Gates wave I.
 
-Records one real `GET https://gutendex.com/books?search=…&languages=en`
-response as `packages/corpus-gutenberg/tests/fixtures/gutendex-search.json`,
-one real book detail, and one plain-text fetch header set. Pins the zod schema
-to the recording and produces
-`docs/spikes/gutendex-schema.md` — a field-by-field diff against
-`ARCHITECTURE.md` §5.2's claims, which are from public docs and unverified.
+**Offline half, built now.** The zod schema is written from `ARCHITECTURE.md`
+§5.2's field names — the same public-documentation source, so no new guessing —
+and the fixture beside it is **synthetic and labelled synthetic in its filename**
+(`gutendex-search.synthetic.json`). Two properties make a wrong guess loud
+rather than silent, which is the whole reason `ARCHITECTURE.md` invariant 4
+exists: the schema rejects unknown keys rather than ignoring them, and every
+field the provider actually reads is required rather than optional. A live
+response shaped differently therefore throws on the first search naming the
+field, instead of yielding `undefined` and a card built from nothing.
 
-**Proof:** the schema parses the fixture; renaming any field in a copy of the
-fixture makes the parse test fail with that field named. Every correction to
-§5.2 is listed in the spike note and, if it changes the author-id shape,
-recorded as a decision.
+**Live half, deferred to WP-X0.** Record one real
+`GET https://gutendex.com/books?search=…&languages=en`, one real book detail,
+and one plain-text fetch header set; replace the synthetic fixtures; write
+`docs/spikes/gutendex-schema.md` as a field-by-field diff against §5.2.
 
-### S3 — Latinate validation set (needs network for one corpus file)
+**Proof of the live half:** the schema parses the real response unchanged, or
+the diff names every field that moved. Any correction that changes the author-id
+shape is a decision file, because it changes the card cache's identity.
+
+**Proof of the offline half, now:** the schema parses the synthetic fixture;
+adding an unknown key to a copy fails; removing any required field fails naming
+that field.
+
+### S3 — Latinate validation set
 
 Gates WP-F5, and through it the report's measure count.
 
-Delivers `scripts/draw-word-types.ts` (draws ~500 word *types* by frequency
-from a cleaned real corpus, so the set weights words that occur rather than the
-dictionary's tail), the hand-labelled fixture
-`packages/prosody/tests/fixtures/latinate-validation.json`, and a comment in
-the fixture stating plainly that the labels are hand-applied and that a suffix
-list tuned against them is a fit to 500 labels.
+This one cannot be faked at all. A validation set drawn from a corpus this
+session cannot fetch would be a list of words I wrote down, and measuring a
+classifier against a set assembled to match it is the exact failure
+`ARCHITECTURE.md` §4.3 built the gate to prevent. So the classifier ships and
+**the gate's answer defaults to the conservative branch**.
 
-**Proof:** the fixture has ≥500 entries, each `{ type, latinate: boolean }`,
-drawn by frequency with the draw script committed and reproducible.
+**Offline half, built now.** The classifier, its suffix and exception lists,
+`scripts/draw-word-types.ts` (draws ~500 word *types* by frequency from a
+cleaned corpus), and the precision harness that will score it. The classifier is
+exported as **`hint-only`** — `latinateRatio` goes into the draft prompt as a
+register hint and **is not scored**, so the report ships with **four** scored
+measures. That is `ARCHITECTURE.md` §4.3's own below-threshold branch, taken as
+the default rather than as an outcome.
 
-**The branch this decides** (`ARCHITECTURE.md` §4.3): precision ≥ 0.85 → five
-scored measures; below → four, and `latinateRatio` becomes a register hint in
-the draft prompt only. Written as decision `0003` by WP-F5, with the measured
+**Live half, deferred to WP-X0.** Fetch a real corpus, run the draw script,
+hand-label the 500 types, and run the harness. The fixture carries a comment
+stating that the labels are hand-applied and that a suffix list tuned against
+them is a fit to 500 labels.
+
+**The branch this decides** (`ARCHITECTURE.md` §4.3): precision ≥ 0.85 promotes
+the measure to scored and the report goes to **five**; below 0.85 it stays where
+it already is and nothing changes. Written as decision `0003` with the measured
 precision and recall in it.
+
+**Why this default and not the optimistic one.** Shipping four measures and
+promoting to five is a one-line change to a set that WP-T2 already reads from
+the classifier's exported gate result. Shipping five and demoting to four means
+the report claimed a verdict it could not support, on every story generated in
+between. The measure count is the report's own honesty, so the conservative
+direction is the only defensible one.
+
+**Proof of the offline half, now:** the harness scores the classifier against a
+small hand-checked sample committed as `latinate-sample.json` and **prints**
+precision and recall without gating on them; a test asserts the exported gate
+result is `hint-only` and that WP-T2's scored set therefore has four entries.
 
 ---
 
@@ -623,26 +703,53 @@ This corrects `PRD.md` §4, which puts hosting out of scope. The correction is
 recorded in `ARCHITECTURE.md` §7 rather than by editing the PRD, which is how §2
 already handles the PRD's other corrections.
 
+### 5.4 What I need from you, and when — the whole list
+
+Nothing in this list blocks a work package. Every item is deferred to the end
+and gathered into **one verification pass, WP-X0**, so there is a single sitting
+where you supply credentials, run one command, read one report, and give
+feedback.
+
+| # | What | Needed for | Until then |
+|---|---|---|---|
+| 1 | Move `ci/workflows/ci.yml` to `.github/workflows/` (§2.6) | CI running at all | PRs land with gates verified locally; CI results appear retroactively once the file is live. **This does not block the next PR.** |
+| 2 | `RAMP_ROUTER_API_KEY`, and egress to `api.router.com` | S1's live half, K5, W2, X1 | The catalogue table ships `source: "declared"` and the pipeline runs against a scripted provider |
+| 3 | Egress to `gutendex.com` and `www.gutenberg.org` | S2's live half, S3, I3's real fetches, X1 | Synthetic fixtures, labelled synthetic, with schemas that reject rather than ignore |
+| 4 | A Fly.io account and a `fly` token | R11, R12 | The server runs locally, which is the default anyway (§5.3) |
+| 5 | A Vercel account | R10's preview deployments | Demo mode works locally; only the hosting is missing |
+| 6 | A value for `AUTEUR_API_TOKEN` | R11 | Only read when the server is deployed |
+
+**Feedback you give at WP-X0, not before.** The verification pass prints one
+report: every declared-versus-measured discrepancy in the catalogue, the
+gutendex schema diff, the latinate precision number and whether it promotes the
+measure, and the five `PRD.md` §10 measures from one real end-to-end story. That
+report is the thing to react to. Anything it reveals is fixed in follow-up PRs
+against the same plan.
+
+**Nothing else asks for your input.** §9 is no longer a list of halt conditions;
+it is a list of what was decided in advance so that it would not have to be.
+
 ---
 
 ## 6. Work packages
 
 Legend: **Deps** are WP ids. **[mech]** = mechanical, no review round.
 **[net]** = needs network. **[key]** = needs a real Ramp Router key.
-**[handover]** = ends by handing a file to you and stopping (§2.6).
+**[handover]** = ends by handing a file to you; does not block the next WP (§2.6).
 **[optional]** = the plan is complete without it; see §5.3.
 Every Proof names a test or a gate.
 
 ### Wave A — CI, then the conflict magnets. Strictly serial.
 
 **A1 is the first change in the repository and it ends in a handover (§2.6).**
-Nothing after it starts until the workflow is live and has run green. A0 is in a
-different repository and can be worked from the start; it blocks only A4.
+It does not wait for you: A2 opens immediately, and CI starts reporting whenever
+you move the file. A0 is in a different repository and can be worked from the
+start; it blocks only A4.
 
 | WP | Delivers | Files owned | Proof | Deps |
 |---|---|---|---|---|
 | **A0** | **In `ac-zeitgeist/agent-guidelines`**, not auteur: `profiles/local-app.md` per §1.2 | `profiles/local-app.md`, plus the profile's row in that repo's `README.md` and `meta/PORTING.md` tables | That repository's own `bun run validate` and `bun run test` — the validator is what rejects an unbound variable, an omitted `requires`, and an `include` a bundle already provides. Then a scratch port writes 25 guideline files and an index naming all 25 | — |
-| **A1** **[handover]** | **CI, and the toolchain it needs to run.** The complete workflow — eleven gate jobs, concurrency group keyed on the ref, turbo cache restored on the lockfile hash, `--concurrency=100%`, `--affected` on pull requests, independent jobs in parallel — written to the **staging path** `ci/workflows/ci.yml`, never to `.github/`. Plus `docs/CI-HANDOVER.md`, `scripts/gates.ts` (§2.6's indirection), and the root toolchain: bun workspaces, the complete catalog, `turbo.json`, `biome.json`, `bunfig.toml` (`minimumReleaseAge = 604800`), base `tsconfig`, `packages/tsconfig`, `packages/biome-config` | `ci/workflows/ci.yml`, `docs/CI-HANDOVER.md`, `scripts/gates.ts`, `/package.json`, `/bun.lock`, `/turbo.json`, `/biome.json`, `/bunfig.toml`, `/tsconfig.json`, `/.gitignore`, `/.nvmrc`, `packages/tsconfig/**`, `packages/biome-config/**` | **A green Actions run on this PR, after the file is live.** Locally-passing `bun install --frozen-lockfile`, `biome check` and `tsc --noEmit` are necessary and are not the proof: the thing being proved is that CI runs, on this repository, on a pull request. Until the run exists this WP is not done | — |
+| **A1** **[handover]** | **CI, and the toolchain it needs to run.** The complete workflow — eleven gate jobs, concurrency group keyed on the ref, turbo cache restored on the lockfile hash, `--concurrency=100%`, `--affected` on pull requests, independent jobs in parallel — written to the **staging path** `ci/workflows/ci.yml`, never to `.github/`. Plus `docs/CI-HANDOVER.md`, `scripts/gates.ts` (§2.6's indirection), and the root toolchain: bun workspaces, the complete catalog, `turbo.json`, `biome.json`, `bunfig.toml` (`minimumReleaseAge = 604800`), base `tsconfig`, `packages/tsconfig`, `packages/biome-config` | `ci/workflows/ci.yml`, `docs/CI-HANDOVER.md`, `scripts/gates.ts`, `/package.json`, `/bun.lock`, `/turbo.json`, `/biome.json`, `/bunfig.toml`, `/tsconfig.json`, `/.gitignore`, `/.nvmrc`, `packages/tsconfig/**`, `packages/biome-config/**` | `bun install --frozen-lockfile`, `biome check` and `tsc --noEmit` green locally, and `bun run gates` exiting zero. A green Actions run is the confirmation and arrives when you activate the file; it is not a precondition for A2 | — |
 | **A2** | `scripts/packages.manifest.ts`: all 35 packages and both apps from `ARCHITECTURE.md` §1 plus the two named below, with layer, `workspaceDeps`, subpath `exports`, coverage floors. `core` and `copy` split into per-area subpaths so §3.2's partition holds | `scripts/packages.manifest.ts`, `scripts/packages.manifest.test.ts` | A test asserting every package named in `ARCHITECTURE.md` §1's table is present, that `LAYERS` matches §1's order, and that `component-library`'s `workspaceDeps` are exactly `tokens, icons, copy, formatting, core` | A1 |
 | **A3** | Gate scripts ported from nexus: `check-dependencies`, `api-surface`, `new-package`, `package-tests`, `check-catalog`, `check-bun-version`, `preflight`, `gate-self-test`; plus `check-min-age` (argo's `dependency-min-age`, as `packages/dependency-min-age`) and `check-guidelines`. Each registers itself in `scripts/gates.ts` rather than in the workflow | `scripts/*.ts` except the manifest, `packages/dependency-min-age/**` | `bun run gate-self-test` green, with a case per gate 4, 5, 6, 9, 10: a cycle, a layer violation, a `component-library` import past its five, a widened export with no manifest edit, a drifted skeleton, an under-age dependency, an edited seeded guideline. The same run in CI, on the job A1 already created, with no workflow edit | A2 |
 | **A4** | The port run per §1.1: `AGENTS.md`, `CLAUDE.md`, 25 files under `docs/guidelines/`, `docs/guidelines/local/README.md`, `docs/templates/package-AGENTS.md`, `.agent-guidelines.lock`. Plus the seven `local/*.md` documents of §1.5, `docs/decisions/0001-document-index-regime.md`, and the `decisions:index` script | `/AGENTS.md`, `/CLAUDE.md`, `/.agent-guidelines.lock`, `docs/guidelines/**`, `docs/templates/**`, `docs/decisions/**`, `scripts/decisions-index.ts` | Gate 10's five assertions (§1.8), each with a `gate-self-test.ts` case: a byte changed in a ported file, an id deleted from the index, a `local` doc overriding an unported id, an addendum promoting an `always` document | A3, A0 |
@@ -653,13 +760,15 @@ The two packages A2 adds to `ARCHITECTURE.md` §1's list: `dependency-min-age`
 it `config/tiers.ts` and treats it as data rather than engine, which makes it a
 package rather than a file inside `pipeline`). Both are recorded as decisions.
 
-### Wave S — the spikes. Start at A5; do not wait for wave B.
+### Wave S — the spikes' offline halves. Start at A5; do not wait for wave B.
+
+Their live halves are WP-X0 (§4, §5.4). Nothing here needs network.
 
 | WP | Delivers | Files owned | Proof | Deps |
 |---|---|---|---|---|
-| **S1** **[key][net]** | §4's router-capability probe and its note | `scripts/probe-router-responses.ts`, `docs/spikes/router-capabilities.md`, `packages/provider-router/tests/fixtures/**` | §4/S1 | A5 |
-| **S2** **[net]** | §4's gutendex recording and schema diff | `scripts/probe-gutendex.ts`, `packages/corpus-gutenberg/tests/fixtures/**`, `docs/spikes/gutendex-schema.md` | §4/S2 | A5 |
-| **S3** **[net]** | §4's latinate validation set | `scripts/draw-word-types.ts`, `packages/prosody/tests/fixtures/latinate-validation.json` | §4/S3 | A5 |
+| **S1** | §4/S1's **offline half**: the declared catalogue table, synthesised SSE fixtures, and `scripts/probe-router-responses.ts` ready to run but unrun | `scripts/probe-router-responses.ts`, `packages/provider-router/tests/fixtures/**` | §4/S1's offline proof: fixtures replay with zero network; the `no-measured-rows-yet` test passes | A5 |
+| **S2** | §4/S2's **offline half**: the zod schema from `ARCHITECTURE.md` §5.2's field names, rejecting unknown keys, and a fixture named `*.synthetic.json` | `scripts/probe-gutendex.ts`, `packages/corpus-gutenberg/tests/fixtures/**` | §4/S2's offline proof: the schema parses the synthetic fixture; an unknown key fails; a missing required field fails naming it | A5 |
+| **S3** | §4/S3's **offline half**: the classifier, the draw script, the precision harness, and the `hint-only` default | `scripts/draw-word-types.ts`, `packages/prosody/tests/fixtures/latinate-sample.json` | §4/S3's offline proof: the harness prints precision and recall; the gate result is `hint-only` | A5 |
 
 ### Wave B — foundation. Fully parallel after A5.
 
@@ -720,7 +829,7 @@ Twelve independent branches; none shares a file with another.
 | **F2** | Punctuation rates per 1,000 words | `packages/prosody/src/punctuation.ts` | Property: rates are invariant under concatenating a text with itself | E1 |
 | **F3** | Dialogue ratio, measured against the detected marker | `packages/prosody/src/dialogue.ts` | An em-dash fixture reports a non-zero ratio; a `mixed` corpus returns the marker and no ratio | E6 |
 | **F4** | MATTR over a 1,000-word window, stride 100 | `packages/prosody/src/mattr.ts` | Property: MATTR is invariant under repeating a text (this is the property raw TTR fails, and the test asserts raw TTR *does* fail it on the same fixture); a text under one window returns its whole-length value flagged `insufficient-length` | E1 |
-| **F5** | The latinate classifier, its suffix and exception lists, and the precision gate | `packages/prosody/src/latinate.ts`, `src/latinate-lists.ts` | The test **prints and asserts** precision and recall against S3's fixture. Precision ≥ 0.85 → the export is marked scored; below → marked `hint-only`. Either way it writes decision `0003` with the measured numbers | E1, S3 |
+| **F5** | The latinate classifier, its suffix and exception lists, the precision harness, and the exported gate result | `packages/prosody/src/latinate.ts`, `src/latinate-lists.ts`, `src/latinate-gate.ts` | The harness **prints** precision and recall against the hand-checked sample without gating on them. The exported gate result is `hint-only` by default (§4/S3), asserted by a test, so the scored set has four measures until WP-X0 promotes it. A test asserts `latinateRatio` is absent from T2's scored set and present in the draft prompt's evidence | E1 |
 | **F6** | `commonBigrams`: 25 most frequent adjacent pairs, dropping pairs where both are stopwords | `packages/prosody/src/bigrams.ts` | Table against a fixture; ties broken deterministically, asserted by running twice | E1 |
 | **F7** | `ProsodyBlock` assembly, `perWork` aggregation, `prosodyVersion` | `packages/prosody/src/index.ts`, `src/version.ts` | A real cleaned Gutenberg work produces a full block whose numbers are asserted against hand-counts for two of the seven measures; `perWork` shares sum to 1 | F1–F6 |
 
@@ -767,7 +876,7 @@ Twelve independent branches; none shares a file with another.
 | **K2** | `resolveCard` and `overlaidPaths` | `packages/style-card/src/resolve.ts` | With a hand-built overlay, an overlaid field comes back with `origin: "edited"` and every other field unchanged; `resolveCard` is the only export returning a `StyleCard`, asserted by enumerating the module's exports | K1 |
 | **K3** | `buildKey` and versioning | `packages/style-card/src/build-key.ts` | Identical inputs produce an identical key; changing any one of the seven components changes it — seven named cases; a rebuild with an unchanged key is a cache hit and not version 4 | K1, H2, J3 |
 | **K4** | `confidence` and `cardStrength` | `packages/style-card/src/strength.ts` | `confidence` is exactly `citedDerivedFields / derivedFields` — a card with 12 of 14 cited returns `0.857…`; a `secondary` card returns `0` through the same expression with no branch, asserted by a test that the function contains no `provenance` check | K1 |
-| **K5** **[key][net]** | `style-extract` wired end to end: real passages, structured output, a real card | `packages/style-card/src/extract.ts` | An env-gated integration test producing a real card for a real author, written to `docs/spikes/first-card.json` and inspected in the PR body. Offline, the same path runs against B11's scripted provider | K1, D3, J3 |
+| **K5** | `style-extract` wired end to end: passages, structured output, a card | `packages/style-card/src/extract.ts` | Against B11's scripted provider, the full path produces a card whose every derived field carries a citation resolving to a stored passage. The **[key][net]** half — a real card for a real author written to `docs/spikes/first-card.json` — is env-gated and runs at WP-X0 | K1, D3, J3 |
 
 ### Wave L — `pipeline`. Serial, with L3 landing alone.
 
@@ -838,7 +947,7 @@ Each screen WP owns its screen directory and its own `copy` module.
 | WP | Delivers | Files owned | Proof | Deps |
 |---|---|---|---|---|
 | **T1** | Bands: interquartile over sentences, or over `perWork`; `bandBasis: "range"` under four works | `packages/style-fit/src/bands.ts` | A card from three works records `bandBasis: "range"` and the report says so; a card from twelve records `"iqr"`; the two thresholds (`pass` inside, `drift` within 1.5 band widths, `fail` beyond) are one constant with a table test at each boundary | F7, B7 |
-| **T2** | The scored measures and `FitMeasure[]` assembly | `packages/style-fit/src/measures.ts` | The scored set is exactly five, or four if F5's gate failed — the test reads F5's exported gate result rather than hardcoding the count, so the two cannot disagree; `commonBigrams` and `paragraphLength` are asserted absent from the scored set | T1, F5 |
+| **T2** | The scored measures and `FitMeasure[]` assembly | `packages/style-fit/src/measures.ts` | The test reads F5's exported gate result rather than hardcoding a count, so the two cannot disagree — four while the gate is `hint-only`, five the moment WP-X0 promotes it, with no edit here; `commonBigrams` and `paragraphLength` are asserted absent from the scored set | T1, F5 |
 | **T3** | The two-verdict path for an edited target | `packages/style-fit/src/edited.ts` | With a hand-built overlay, an edited measure appears **twice** in `FitMeasure[]`, once `edited` and once `measured`; a type-level test that there is no single-verdict return for an edited measure | T2, K2 |
 | **T4** | `critique` finding validation and the `revise` handoff | `packages/style-fit/src/findings.ts` | A finding whose `text` contains no digit is dropped; a finding citing a path absent from the card and the measures is rejected; `revise` receives only findings with `status !== "pass"` | T2, J7, J8 |
 | **U1** | `export`: `renderExport(story, label)` | `packages/export/src/**` | `label` is a required parameter — a type-level test that the call does not compile without it; a fixture export contains the §7.6 sentence verbatim, and the document carries the label, the author and card version, the fit summary and the decisions log | K2, T2 |
@@ -850,7 +959,8 @@ Each screen WP owns its screen directory and its own `copy` module.
 |---|---|---|---|---|
 | **W1** | `bun run stats` — completion rate and time-to-draft from `sessions` and `stage_runs` | `scripts/stats.ts` | Against a seeded database, completion rate and median time-to-draft match hand-computed values; time-to-draft measures `corpus-select.started_at` to `draft`'s first `stage_delta`, asserted against a recorded event log | H1, L9 |
 | **W2** **[key][net]** | `bun scripts/discrimination.ts` (§10.3) | `scripts/discrimination.ts` | Runs against held-out passages `corpus-select` did not choose — asserted by intersecting the held-out set with the card's `sources` and requiring it empty | K5, W1 |
-| **X1** **[key][net]** | One real end-to-end flash story, and `docs/BASELINE.md` recording all five §10 measures | `docs/BASELINE.md` | The five measures reported with their sources: style fidelity from `style-fit`, completion and time-to-draft from `stats`, cost from `SUM(stage_runs.cost_micros)`, discrimination from W2. A missed target is reported as a number and a stage, not smoothed | R8, V1, W2 |
+| **X0** **[key][net]** | **The verification pass** (§5.4): `bun run verify:live` runs S1's, S2's and S3's live halves in one command and prints one report — every catalogue row whose declared value differs from the measured one, the gutendex schema diff, and the latinate precision with its promote/hold verdict. Rewrites the catalogue tags to `measured`, replaces the synthetic fixtures with recorded ones, and writes the three `docs/spikes/` notes | `scripts/verify-live.ts`, `docs/spikes/**`, `packages/provider-router/src/models.ts`, `packages/provider-router/tests/fixtures/**`, `packages/corpus-gutenberg/tests/fixtures/**`, `packages/prosody/tests/fixtures/latinate-validation.json` | **The pass fails on any discrepancy rather than absorbing it**, so its green run is the claim that every declared value was right. Each of the three sub-reports is separately green or names what moved. Anything it moves lands as its own follow-up PR — a catalogue correction, a schema correction, or the one-line promotion of `latinateRatio` to a scored measure | R11, V1 |
+| **X1** **[key][net]** | One real end-to-end flash story, and `docs/BASELINE.md` recording all five §10 measures | `docs/BASELINE.md` | The five measures reported with their sources: style fidelity from `style-fit`, completion and time-to-draft from `stats`, cost from `SUM(stage_runs.cost_micros)`, discrimination from W2. A missed target is reported as a number and a stage, not smoothed | X0, W2 |
 | **X2** | The stage-to-tier experiment §5.2 promises: `style-extract` at `strong`, `critique` at `balanced`, each measured | `docs/BASELINE.md` (appended), `packages/config/src/tiers.ts` | Two config edits, two runs, the deltas in style fidelity and cost recorded. Whatever it shows becomes a decision file | X1 |
 | **Z1** | `preflight.ts` completing: every env var validated, failing fast with the missing name | `scripts/preflight.ts` | Run against an incomplete `.env`, it names the first missing variable and exits non-zero | B3, D4 |
 | **Z2** | CI tuning: `--affected` on pull requests, turbo remote caching, verified `inputs`/`outputs` | `/turbo.json`, `.github/workflows/ci.yml` | A no-op PR runs zero package tasks; a one-package PR runs that package and its dependents only; a deliberately inaccurate `outputs` declaration is caught by a cache-hit test on a clean tree | A4, and every wave's tasks declared |
@@ -882,20 +992,20 @@ screens), E1–E7 once E1 lands, F1–F6 once F7's shape is fixed.
 
 **Must be serial, and why:**
 
-1. **A1 before everything, and its handover before the second PR** (§2.6).
-   Nothing else opens until the workflow is live and a run is green. This is the
-   plan's one stop.
+1. **A1 before everything.** Its gates are this plan's enforcement mechanism and
+   every later WP's Proof assumes them. Its handover (§2.6) does not block A2.
 2. **A0 before A4.** The port cannot run against a profile that does not exist,
    and `meta/PORTING.md` forbids porting the nearest profile and editing the
    result. A0 is in another repository and blocks nothing else in auteur.
 3. **A2 before A5 before any package's `src/`.** The manifest is what makes the
    file partition hold; materialising skeletons piecemeal reintroduces the
    `package.json` race the whole partition exists to prevent.
-4. **S1 before D1.** The three new `ModelDescriptor` fields are the spike's
-   output. Writing the type first and filling it later means writing it twice.
-5. **S3 before F5 before T2.** The measure count is a measured outcome; T2's
-   test reads F5's gate result rather than a literal, so building T2 first
-   would mean guessing.
+4. **S1 before D1.** The three new `ModelDescriptor` fields carry the declared
+   table's shape, including its `source` tag. Writing the type without the tag
+   and adding it later means every row is written twice.
+5. **S3 before F5 before T2.** T2 reads F5's exported gate result rather than a
+   literal, which is what lets WP-X0 promote the measure with a one-line change
+   and no edit in T2.
 6. **G3 before every store.** Changing the schema after four stores exist is
    the expensive version of the same change.
 7. **L1 before L2 before L3.** Tier resolution is meaningless without the stage
@@ -903,8 +1013,9 @@ screens), E1–E7 once E1 lands, F1–F6 once F7's shape is fixed.
    without the resolver.
 8. **K2 before V1.** `provenance-suite` enumerates `style-card`'s exports; it
    cannot enumerate an unwritten module.
-9. **X1 last.** A cost and fidelity baseline measured against a partial
-   pipeline is a number that will be quoted and is not true.
+9. **X0 before X1, and both last.** A cost and fidelity baseline measured
+   against a partial pipeline, or against a declared catalogue whose prices
+   were never checked, is a number that will be quoted and is not true.
 
 **Catalog PRs C1–C4** land alone, each ahead of the wave it serves: C1 before
 B, C2 before D, C3 before P, C4 before N.
@@ -916,38 +1027,49 @@ B, C2 before D, C3 before P, C4 before N.
 Applied as written; each is reversible and none blocks. Every one gets a
 `docs/decisions/` file.
 
-1. **The document-index regime, reversing `ARCHITECTURE.md` §11.1** (§1.7).
+1. **Every spike splits into an offline half now and a live half at WP-X0**
+   (§4), because this session's proxy denies all three hosts. Nothing built
+   offline hardcodes a value the live half establishes: it is a `source:
+   "declared"` row read at run time, and the verification pass fails on any row
+   that moved.
+2. **`latinateRatio` ships `hint-only`, so the report scores four measures, not
+   five** (§4/S3). The conservative direction is the only defensible one: a
+   promotion is one line, whereas shipping five and demoting means every story
+   in between carried a verdict the classifier could not support.
+3. **A1's handover does not block A2** (§2.6). CI reports retroactively when you
+   activate the file; every gate is a script that runs locally in the meantime.
+4. **The document-index regime, reversing `ARCHITECTURE.md` §11.1** (§1.7).
    This one is not merely recorded: the PR that lands this plan amends §11.1
    and §12's open-item row, because a merged architecture saying the opposite
    of what is built is a live contradiction, not a note.
-2. **A new `local-app` profile is contributed to `agent-guidelines`** rather
+5. **A new `local-app` profile is contributed to `agent-guidelines`** rather
    than porting `web-app` and deleting four documents (§1.2). `meta/PORTING.md`
    requires it and the profile is reusable.
-3. **auteur's four adaptations are `docs/guidelines/local/*.md` with
+6. **auteur's four adaptations are `docs/guidelines/local/*.md` with
    `overrides:` front matter**, and no seeded file is ever edited in place
    (§1.5). Gate 10's sha256 check is what enforces it.
-4. **`data-boundaries` is promoted repository-wide to ALWAYS** by
+7. **`data-boundaries` is promoted repository-wide to ALWAYS** by
    `local/invariants.md` (§1.5), rather than left to its trigger. It fires on
    nearly every diff in a product that is seven model calls and two HTTP
    clients, and re-deciding that per diff is the decision itself.
-5. **A package with no `src/` is declared, not materialised**; gates 3 and 4
+8. **A package with no `src/` is declared, not materialised**; gates 3 and 4
    skip it. This is what makes WP-A5's single skeleton PR possible, and it is a
    one-line delta from nexus's `api-surface.ts`.
-6. **`docs/DECISIONS.md` is generated from `docs/decisions/`**, not hand-edited.
+9. **`docs/DECISIONS.md` is generated from `docs/decisions/`**, not hand-edited.
    An index every branch appends to is a conflict on every branch.
-7. **`core` and `copy` are split into per-area subpath exports** declared in the
+10. **`core` and `copy` are split into per-area subpath exports** declared in the
    manifest up front, so concurrent branches never edit the same file.
-8. **`summarize-beat` is untyped** (§5.1). A summary is prose, and typing it
+11. **`summarize-beat` is untyped** (§5.1). A summary is prose, and typing it
    would put a strict-schema requirement on the cheap tier for nothing.
-9. **`revise` is typed** — six of the seven model stages are typed, `draft` is
+12. **`revise` is typed** — six of the seven model stages are typed, `draft` is
    the exception.
-10. **Provisional tier lists ship before S1 completes** (§5.2), so wave L is not
+13. **Provisional tier lists ship before S1 completes** (§5.2), so wave L is not
    blocked; S1's follow-up PR replaces them and owns that file alone.
-11. **`style-extract` stays at `balanced`** despite being the longest-lived
+14. **`style-extract` stays at `balanced`** despite being the longest-lived
    output, and WP-X2 measures the alternative rather than arguing about it.
-12. **Base UI is the headless kit** for `Select`, `Textarea` and the overlay,
+15. **Base UI is the headless kit** for `Select`, `Textarea` and the overlay,
     as both reference repos use.
-13. **Local is the default and the deploy is additive** (§5.3). R11 and R12
+16. **Local is the default and the deploy is additive** (§5.3). R11 and R12
     touch five files nothing else touches, so hosting is a decision taken after
     the product runs rather than one the plan is built around. **When taken it
     is one Fly machine with a volume, not a serverless split** — `bun:sqlite`
@@ -955,46 +1077,45 @@ Applied as written; each is reversible and none blocks. Every one gets a
     unchanged: one process, one writer, no queue, no managed database. One
     machine with auto-stop off is a checked property of `fly.toml`, not a
     convention.
-14. **A single shared bearer token on every route**, rather than accounts. The
+17. **A single shared bearer token on every route**, rather than accounts. The
     listener is public and the gateway key is behind it. No sessions, no
     schema, so `PRD.md` §4's "no accounts" and the exclusion of the `auth`
     guideline both stand.
-15. **Vercel keeps preview deployments of the client in demo mode, and nothing
+18. **Vercel keeps preview deployments of the client in demo mode, and nothing
     else.** A review surface, not a second production surface — it never talks
     to the Fly machine, so there is no CORS and no mixed content.
-16. **No backup path for the volume.** Fly snapshots it daily and it is
+19. **No backup path for the volume.** Fly snapshots it daily and it is
     single-copy; losing it costs cached cards and session history, which are
     money and minutes rather than unrecoverable data, because the corpus texts
     re-fetch and the cards rebuild from them.
-17. **Gate 11, the production build**, lands with WP-R1 rather than WP-A1 —
+20. **Gate 11, the production build**, lands with WP-R1 rather than WP-A1 —
     there is no bundle to build before then, and nexus's reason for the gate
     (a package invisible to every other gate until it fails a deploy) starts
     biting exactly when the app first bundles.
-18. **Two packages are added to `ARCHITECTURE.md` §1's list**: `dependency-min-age`
+21. **Two packages are added to `ARCHITECTURE.md` §1's list**: `dependency-min-age`
     (gate 9's implementation, taken from argo) and `config` (foundation, holding
     `tiers.ts`, which §6.3 already treats as data rather than engine).
 
 ---
 
-## 9. The only reasons to stop and ask
+## 9. Nothing halts. What was decided instead.
 
-WP-A1's handover (§2.6) is a planned stop, not one of these — it is scheduled,
-it is first, and it ends when you say the workflow is live. The list below is
-the unplanned kind.
+An earlier draft of this section listed four conditions under which to stop and
+ask. You have asked not to be interrupted, so each is now a decision taken in
+advance, with the direction chosen to be the recoverable one.
 
-1. S1 finds the gateway does not support `text.format json_schema` with
-   `strict: true` on **any** model. That is not the §4 branch — it invalidates
-   invariant 4's implementation strategy for six stages, and the alternative
-   (`ARCHITECTURE.md` §6.4's documented non-choice) is a design change.
-2. S2 finds gutendex's shape differs from §5.2 in a way that changes the author
-   identity model — for instance, no stable name string to slug.
-3. A Ramp Router key cannot be obtained, or the account is not provisioned. S1,
-   K5, W2 and X1 all stop; everything else continues.
-4. `ARCHITECTURE.md` and `PRD.md` contradict each other in a way §0's
-   precedence does not resolve **and** both readings produce different data
-   models.
+| Formerly a halt condition | Decided now |
+|---|---|
+| No catalogue model accepts strict `json_schema` | The pipeline runs anyway. `provider-router` gains no JSON-repair loop — `ARCHITECTURE.md` §6.4 calls that a documented non-choice and it stays one. Instead the affected stages resolve to whichever tier does have a strict-schema model, and if **none** does, WP-X0's report says so and the six typed stages become a scoping question you answer with the report in hand rather than a guess I make without it. Until then every typed stage is tested against the scripted provider, which is where their logic is verified regardless. |
+| gutendex's shape differs enough to change author identity | The id shape (`gutenberg:<slug>-<birthYear>`) is derived in **one function** with its own test, so a correction is one file. WP-X0's report names the change; the follow-up PR is small by construction. |
+| No Ramp Router key can be obtained | Everything except S1's live half, K5, W2, X0 and X1 completes. The product is finished and unverified against a real gateway, which the plan states rather than hides — `docs/BASELINE.md` is written with the measures it could not fill marked `not measured`, never estimated. |
+| `ARCHITECTURE.md` and `PRD.md` contradict in a way precedence does not resolve | Take the reading that preserves the four invariants, write the decision file, keep going. No contradiction found so far has needed more: the four in §8 that touched merged documents were resolved by amending them. |
 
-Everything else is decided and written to `docs/decisions/`.
+**The one thing that would still be worth interrupting for** is a discovery that
+invalidates an invariant — not a design detail, but a case where holding
+invariant 1, 2, 3 or 4 turns out to be impossible as specified. That has not
+happened, and if it does, it goes in the WP-X0 report rather than a mid-build
+stop.
 
 ---
 
@@ -1003,13 +1124,19 @@ Everything else is decided and written to `docs/decisions/`.
 v1 is done when:
 
 - Every WP merged; all eleven gates green on `main`.
+- **WP-X0's verification pass is green**, or every discrepancy it found has
+  landed as a follow-up PR. A declared catalogue and a synthetic fixture are an
+  acceptable state to build in and not an acceptable state to finish in.
 - One real session runs idea to export against the live gateway, and
   `docs/BASELINE.md` reports all five `PRD.md` §10 measures with their sources —
-  including any the build missed, stated as a number.
+  including any the build missed, stated as a number, and any it could not
+  measure, marked `not measured` rather than estimated.
 - `provenance-suite` passes with its five assertions enumerated and counted, and
   each has watched its negative control fail.
 - The three spike notes are in `docs/spikes/` and every claim in
   `ARCHITECTURE.md` §5.2 and §6.4 that they contradict has a decision file.
+- No catalogue row is still tagged `source: "declared"`, and no fixture filename
+  still contains `synthetic`.
 - `docs/DECISIONS.md` regenerates clean.
 - Gate 10 passes with every ported file's sha256 intact — no seeded guideline
   edited in place, every deviation living in `docs/guidelines/local/`.
