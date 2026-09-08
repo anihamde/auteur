@@ -116,6 +116,19 @@ const addAndRemoveFile = async (
 
 export const CASES: readonly SelfTestCase[] = [
   {
+    // Gate 9's defect: `bunfig.toml` stops bun *resolving* a fresh version and
+    // does nothing about one already pinned, so widening the window is the
+    // shape of the hole — every lockfile entry is suddenly inside it.
+    breaks: () =>
+      patchFile(
+        "bunfig.toml",
+        "minimumReleaseAge = 604800",
+        "minimumReleaseAge = 31536000000",
+      ),
+    gate: 9,
+    name: "a release-age window nothing in the lockfile is old enough for",
+  },
+  {
     breaks: () => patchFile(".bun-version", "1.3.11", "1.3.10"),
     gate: 12,
     name: "CI and contributors pinned to different bun versions",
