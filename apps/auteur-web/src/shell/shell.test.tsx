@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { COPY } from "@auteur/copy/index";
 import { renderStyled } from "@auteur/test-support/render";
-import { apiBase, isDemo } from "../api-base.ts";
+import { apiBase, apiToken, isDemo } from "../api-base.ts";
 import { RECORDED_LOG } from "../demo/recorded-log.ts";
 import { demoTransport } from "../demo/transport.ts";
 import { App, noteFor } from "./app.tsx";
@@ -146,6 +146,17 @@ describe("the API base is configuration, never a hardcoded host", () => {
   test("demo mode is opt-in", () => {
     expect(isDemo({})).toBe(false);
     expect(isDemo({ VITE_DEMO: "1" })).toBe(true);
+  });
+
+  test("a missing API token fails loudly rather than sending an empty one", () => {
+    // The variable is inlined at build time, so `preflight` cannot see it and
+    // the server cannot supply it after the fact. Unset, the previous
+    // behaviour was an empty Authorization header: every screen renders and
+    // every action 401s, which reads as a working deploy until someone uses
+    // it.
+    expect(() => apiToken({})).toThrow(/VITE_API_TOKEN is unset/);
+    expect(() => apiToken({ VITE_API_TOKEN: "" })).toThrow();
+    expect(apiToken({ VITE_API_TOKEN: "a-token" })).toBe("a-token");
   });
 });
 

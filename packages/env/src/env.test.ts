@@ -26,6 +26,20 @@ describe("the scheduler's secret is read under the platform's name", () => {
   });
 });
 
+describe("the deployment guide names every variable", () => {
+  test("docs/DEPLOY.md lists each declared key", async () => {
+    // A key added to the schema and not to the guide is a deployment that
+    // fails at boot on a variable nobody was told to set. The guide is the
+    // only place the client's build-time `VITE_API_TOKEN` is written down at
+    // all, since it is not in this schema and `preflight` cannot see it.
+    const guide = await Bun.file(
+      `${import.meta.dir}/../../../docs/DEPLOY.md`,
+    ).text();
+    expect(ENV_KEYS.filter((key) => !guide.includes(key))).toEqual([]);
+    expect(guide).toContain("VITE_API_TOKEN");
+  });
+});
+
 describe("a complete environment parses", () => {
   test("every declared key is returned", () => {
     expect(Object.keys(env(complete())).sort()).toEqual([...ENV_KEYS].sort());
