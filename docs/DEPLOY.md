@@ -84,6 +84,12 @@ action.
    A **500** naming missing variables is the environment; the response lists
    every key to fix. A **500** that is the platform's own crash page is a throw
    during import, and the reason is in the function's log.
+
+   A deployment that fails **after** `Build Completed`, with an empty error
+   panel and nothing in the log after `Deploying outputs`, is the output being
+   rejected — the build is not what failed, so the build log will never say so.
+   The generated `.vc-config.json` is where to look; `maxDuration` above the
+   plan's ceiling fails exactly this way.
 2. `bun run preflight` locally, with the same values in `.env`. It names every
    missing or malformed variable at once rather than the first.
 3. `bun run verify:live` — the four checks that need real credentials: the

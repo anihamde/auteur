@@ -59,15 +59,18 @@ type VercelJson = {
 /**
  * How long one invocation may run.
  *
- * Here rather than in `vercel.json`, because with the Build Output API the
- * platform reads it from the generated `.vc-config.json` and nowhere else — a
- * `functions` entry there would be a second number, matching no source file
- * and read by nobody.
+ * **60, because that is the ceiling on this plan.** A `.vc-config.json` asking
+ * for more is rejected when the output is uploaded — after a clean build, with
+ * no message in the build log, because the build is not what failed. That is
+ * the same limit that rejected the every-minute cron, and it is the only value
+ * in the generated configuration a plan can refuse.
  *
- * The ceiling is one stage: a `draft` on a long preset is a single model call,
- * and the chain's whole design is that no invocation waits for another.
+ * It bounds one stage, not a run: the chain's whole design is that no
+ * invocation waits for another, so a stage that needs longer than a minute is
+ * a stage to split rather than a limit to raise. Raise it here if the plan
+ * changes.
  */
-export const MAX_DURATION = 300;
+export const MAX_DURATION = 60;
 
 /**
  * The launcher the bundled function exports.
@@ -83,14 +86,31 @@ import handler from "./server/entry.ts";
 export default getRequestListener(handler);
 `;
 
-export const vcConfig = (maxDuration: number | undefined): string =>
+/**
+ * The function's configuration, shaped like one the platform generates itself.
+ *
+ * The field set is taken from what `vercel build` emits for an ordinary Node
+ * function, plus the two this one needs: `maxDuration`, and
+ * `supportsResponseStreaming` — the events route is an SSE body that never
+ * ends, and a buffered response would deliver the stream when the run is over.
+ *
+ * `shouldAddHelpers` is false because the handler is a Node request listener
+ * already; the helpers exist to give a bare handler `req.body` and friends,
+ * which `@hono/node-server` does not want and would read the body ahead of.
+ */
+export const vcConfig = (maxDuration: number): string =>
   `${JSON.stringify(
     {
+      architecture: "x86_64",
+      awsLambdaHandler: "",
+      environment: {},
       handler: "index.mjs",
       launcherType: "Nodejs",
-      ...(maxDuration === undefined ? {} : { maxDuration }),
+      maxDuration,
       runtime: "nodejs22.x",
       shouldAddHelpers: false,
+      shouldAddSourcemapSupport: false,
+      shouldDisableAutomaticFetchInstrumentation: false,
       supportsResponseStreaming: true,
     },
     null,

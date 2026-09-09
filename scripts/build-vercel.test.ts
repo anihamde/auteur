@@ -16,16 +16,30 @@ describe("the generated function configuration", () => {
     });
   });
 
-  test("no duration means the platform's default, not a zero", () => {
-    expect(Object.keys(JSON.parse(vcConfig(undefined)))).not.toContain(
-      "maxDuration",
-    );
+  test("the duration is one the plan accepts", () => {
+    // A `.vc-config.json` asking for more than the plan's ceiling is rejected
+    // when the output is uploaded — after a clean build, with no message in
+    // the build log, because the build is not what failed.
+    expect(MAX_DURATION).toBeLessThanOrEqual(60);
+    expect(MAX_DURATION).toBeGreaterThan(0);
+    expect(Number.isInteger(MAX_DURATION)).toBe(true);
+  });
+
+  test("the handler is the bundle, and the helpers are off", () => {
+    // The helpers give a bare handler `req.body` and friends by reading the
+    // body first, which is exactly what a request listener must be handed
+    // unread.
+    expect(JSON.parse(vcConfig(MAX_DURATION))).toMatchObject({
+      handler: "index.mjs",
+      launcherType: "Nodejs",
+      shouldAddHelpers: false,
+    });
   });
 
   test("the function answers as a stream", () => {
     // The events route is an SSE body that never ends. Without this the
     // response is buffered and the stream arrives when the run is over.
-    expect(JSON.parse(vcConfig(300))).toMatchObject({
+    expect(JSON.parse(vcConfig(MAX_DURATION))).toMatchObject({
       supportsResponseStreaming: true,
     });
   });
