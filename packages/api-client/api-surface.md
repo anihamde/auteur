@@ -9,4 +9,5 @@ change and needs a contract review, per the implementation plan's gate 4.
 
 ```ts
 export const createClient = (config: ClientConfig = {}) =>
+export const withQuery = (
 ```

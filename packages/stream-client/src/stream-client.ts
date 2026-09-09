@@ -105,6 +105,21 @@ const dataOf = (frame: string): string | undefined => {
   return lines.map((line) => line.slice(5).trim()).join("");
 };
 
+/**
+ * Set the cursor on a URL that may be relative.
+ *
+ * `config.url` is same-origin on the deployment — the client and the routes are
+ * one project — and `new URL("/api/sessions/x/events")` throws without a base.
+ * The reconnect loop rewrites the cursor on every read, so it has to *replace*
+ * an existing one rather than append a second.
+ */
+export const withCursor = (url: string, cursor: number): string => {
+  const [path = "", search = ""] = url.split("?");
+  const params = new URLSearchParams(search);
+  params.set("cursor", cursor.toString());
+  return `${path}?${params.toString()}`;
+};
+
 export const connectStream = (config: StreamConfig): Stream => {
   const call = config.fetch ?? globalThis.fetch;
   const sleep = config.sleep ?? ((ms: number) => Bun.sleep(ms));
@@ -122,10 +137,7 @@ export const connectStream = (config: StreamConfig): Stream => {
 
   const readOnce = async (): Promise<number> => {
     controller = new AbortController();
-    const url = new URL(config.url);
-    url.searchParams.set("cursor", cursor.toString());
-
-    const response = await call(url.toString(), {
+    const response = await call(withCursor(config.url, cursor), {
       signal: controller.signal,
     });
 

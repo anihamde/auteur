@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ROUTE_NAMES } from "@auteur/api-contract/routes";
-import { createClient } from "./client.ts";
+import { createClient, withQuery } from "./client.ts";
 
 const jsonResponse = (payload: unknown, status = 200): Response =>
   new Response(JSON.stringify(payload), {
@@ -168,5 +168,36 @@ describe("the server's taxonomy travels", () => {
     await expect(client.call("health")).rejects.toMatchObject({
       code: "internal",
     });
+  });
+});
+
+describe("a same-origin base is a base", () => {
+  test("an empty base produces a relative target, not a throw", async () => {
+    // The deployment serves the client and the routes from one origin, so the
+    // base is "". `new URL(path, "")` throws — every call from the browser
+    // failed before reaching the network, and the button did nothing.
+    const seen: string[] = [];
+    const client = createClient({
+      baseUrl: "",
+      fetch: async (url) => {
+        seen.push(String(url));
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+
+    await client.call("health");
+    expect(seen).toEqual(["/api/health"]);
+  });
+
+  test("a configured base is prefixed, and the query survives either way", () => {
+    expect(withQuery("/api/authors", { q: "chekhov" })).toBe(
+      "/api/authors?q=chekhov",
+    );
+    expect(
+      withQuery("https://preview.auteur.test/api/authors", { q: "a b" }),
+    ).toBe("https://preview.auteur.test/api/authors?q=a+b");
+    expect(withQuery("/api/health", {})).toBe("/api/health");
   });
 });

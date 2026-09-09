@@ -11,4 +11,5 @@ change and needs a contract review, per the implementation plan's gate 4.
 export const MAX_EMPTY_RECONNECTS = 5
 export const connectStream = (config: StreamConfig): Stream =>
 export const splitFrames = (
+export const withCursor = (url: string, cursor: number): string =>
 ```

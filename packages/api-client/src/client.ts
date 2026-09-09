@@ -64,19 +64,40 @@ const toError = (status: number, payload: unknown): AuteurError => {
   });
 };
 
+/**
+ * Append a query string without constructing a `URL`.
+ *
+ * The base is empty for a same-origin client, which is the deployment: the
+ * client and the routes are one project. `new URL("/api/sessions", "")` throws
+ * — an empty string is not a base — and the `??` fallback beside it never
+ * fired, because `""` is not `undefined`. So every call from the browser threw
+ * before it reached the network, and the button did nothing.
+ *
+ * A relative target is what `fetch` wants anyway; resolving it against an
+ * origin here would only be this file guessing at one.
+ */
+export const withQuery = (
+  path: string,
+  query: Readonly<Record<string, unknown>>,
+): string => {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    params.set(key, String(value));
+  }
+  const search = params.toString();
+  return search === "" ? path : `${path}?${search}`;
+};
+
 export const createClient = (config: ClientConfig = {}) => {
   const call = async <Name extends RouteName>(
     name: Name,
     options: CallOptions<Name> = {},
   ): Promise<ResponseOf<Name>> => {
     const spec = ROUTES[name];
-    const url = new URL(
+    const target = withQuery(
       `${config.baseUrl ?? ""}${pathFor(name, options.params ?? {})}`,
-      config.baseUrl ?? "http://localhost",
+      options.query ?? {},
     );
-    for (const [key, value] of Object.entries(options.query ?? {})) {
-      url.searchParams.set(key, String(value));
-    }
 
     // The body is parsed before it is sent. A client that sent an invalid body
     // and let the server reject it turns a bug in this file into a 400 the user
@@ -84,7 +105,7 @@ export const createClient = (config: ClientConfig = {}) => {
     const body =
       options.body === undefined ? undefined : parseBody(name, options.body);
 
-    const response = await (config.fetch ?? globalThis.fetch)(url.toString(), {
+    const response = await (config.fetch ?? globalThis.fetch)(target, {
       method: methodFor(name),
       ...(body !== undefined && {
         body: JSON.stringify(body),
