@@ -74,8 +74,8 @@ const db = createDb({ endpoint: "pooled", url: env().DATABASE_URL });
 const app = createApp({
   apiToken: env().AUTEUR_API_TOKEN,
   cron: {
+    cronSecret: env().AUTEUR_CRON_SECRET,
     invokeStage,
-    stageSecret: env().AUTEUR_STAGE_SECRET,
   },
   db,
   // The one place `LISTEN` gets the connection it needs. §7.
