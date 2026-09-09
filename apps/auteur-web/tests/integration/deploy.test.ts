@@ -134,13 +134,18 @@ describe("the deploy configuration", () => {
     expect(config.crons[0]?.schedule?.startsWith("* ")).toBe(false);
   });
 
-  test("the build output is the client's bundle", async () => {
+  test("the build produces the Build Output API, not a directory to guess at", async () => {
+    // `.vercel/output` is the platform's "we produce it" contract: a function
+    // we bundled ourselves and the client bundle, laid out as it will be
+    // served. Naming an `outputDirectory` as well would be a second statement
+    // of what to serve, and the one the platform ignores.
     const config = (await Bun.file(
       `${import.meta.dir}/../../vercel.json`,
-    ).json()) as { outputDirectory: string };
-    // Relative to this package: `vercel.json` lives here, and the deployment
-    // root is this app rather than the repository — which is what puts
-    // `node_modules` beside the function.
-    expect(config.outputDirectory).toBe("dist");
+    ).json()) as {
+      buildCommand: string;
+      outputDirectory?: string;
+    };
+    expect(config.buildCommand).toContain("build:vercel");
+    expect(config.outputDirectory).toBeUndefined();
   });
 });

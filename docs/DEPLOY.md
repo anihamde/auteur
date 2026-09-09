@@ -50,6 +50,14 @@ action.
    `apps/auteur-web/vercel.json` holds the configuration; its build and install
    commands step up to the workspace root, so the whole monorepo is installed
    and built while the deployment root stays this app.
+
+   The build produces `.vercel/output` itself — the client bundle and one
+   bundled function — rather than leaving the platform to compile `api/*.ts`
+   and resolve the rest at runtime. Our workspace packages export TypeScript
+   source, which Node cannot import; `bun run build:vercel` bundles all of it
+   into a single file. `bundle.test.ts` runs that file under Node against an
+   empty database, which is the only check here that answers "would the deploy
+   work".
 2. Add the five variables above that do not come from Neon.
 3. **Deploy.** The build succeeds and the functions fail — there is no database
    yet. That is expected.

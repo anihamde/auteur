@@ -24,3 +24,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0013 | [The sweep runs on traffic](decisions/0013-the-sweep-runs-on-traffic.md) | accepted | 2026-09-09 |
 | 0014 | [One catch-all, and no rewrites](decisions/0014-one-catch-all-and-no-rewrites.md) | accepted | 2026-09-09 |
 | 0015 | [The deployment root is the app, not the repository](decisions/0015-the-deployment-root-is-the-app.md) | accepted | 2026-09-09 |
+| 0016 | [The build produces the deployment](decisions/0016-the-build-produces-the-deployment.md) | accepted | 2026-09-09 |

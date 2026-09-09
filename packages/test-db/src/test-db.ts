@@ -45,8 +45,14 @@ const urlFor = (database: string): string => {
  * `close()` drops the database and runs even when a test throws, provided the
  * caller puts it in an `afterAll`. A leaked database is not a correctness
  * problem but it is a slow leak in a suite that runs on every push.
+ *
+ * `migrate: false` leaves the database empty, for the one suite whose subject
+ * is the schema arriving on first request. Everything else wants it migrated,
+ * which is why that is the default.
  */
-export const createTestDb = async (): Promise<TestDb> => {
+export const createTestDb = async (
+  options: { readonly migrate?: boolean } = {},
+): Promise<TestDb> => {
   const admin = createDb({ endpoint: "direct", max: 1, url: ADMIN_URL });
   const name = uniqueName();
   await admin.query(`CREATE DATABASE ${identifier(name)}`);
@@ -55,7 +61,9 @@ export const createTestDb = async (): Promise<TestDb> => {
   const url = urlFor(name);
   const db = createDb({ endpoint: "direct", max: 4, url });
   const other = createDb({ endpoint: "direct", max: 4, url });
-  await ensureSchema(db);
+  if (options.migrate !== false) {
+    await ensureSchema(db);
+  }
 
   return {
     adminUrl: ADMIN_URL,

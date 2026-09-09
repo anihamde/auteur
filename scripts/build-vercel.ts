@@ -1,0 +1,147 @@
+#!/usr/bin/env bun
+/**
+ * `bun run build:vercel` — produce the deployment, rather than describe it.
+ *
+ * The platform's zero-configuration builder compiles `api/*.ts` and leaves
+ * every bare specifier to be resolved at runtime by Node. Our workspace
+ * packages export **TypeScript source** — `@auteur/api-contract` resolves to
+ * `src/contract.ts` — so the compiled function asks Node to import a `.ts`
+ * file from a symlinked workspace package, and Node answers
+ * `ERR_MODULE_NOT_FOUND`. That is not a misconfiguration to find the right
+ * setting for: source-exporting packages and a builder that treats
+ * `node_modules` as already-built JavaScript cannot both be right.
+ *
+ * So the build emits the Build Output API directly:
+ *
+ *   .vercel/output/
+ *     config.json                      routes, crons
+ *     static/**                        the client bundle, verbatim
+ *     functions/api/[...path].func/    one bundled function
+ *
+ * Everything the function needs is bundled into a single file, which is what
+ * makes it verifiable: `bun run build:vercel` then importing that file under
+ * Node is the whole of what the deployment does at cold start, and it either
+ * loads here or it fails here.
+ *
+ * `vercel.json` stays the source of the schedule and the duration — this reads
+ * them rather than restating them.
+ */
+import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
+const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+const APP = join(ROOT, "apps/auteur-web");
+const OUT = join(APP, ".vercel/output");
+
+/** The one function, named as the path it answers. */
+export const FUNCTION_DIR = "functions/api/[...path].func";
+
+type VercelJson = {
+  readonly crons?: readonly {
+    readonly path: string;
+    readonly schedule: string;
+  }[];
+  readonly functions?: Readonly<
+    Record<string, { readonly maxDuration?: number }>
+  >;
+};
+
+/**
+ * The launcher the bundled function exports.
+ *
+ * Hono speaks the Web `Request`/`Response` pair; the platform's Node runtime
+ * hands a handler `(req, res)`. `@hono/node-server`'s listener is the adapter,
+ * and it is the one that streams — which the events route needs, since an SSE
+ * response is a body that never ends.
+ */
+const ENTRY = `import { getRequestListener } from "@hono/node-server";
+import handler from "./api/[...path].ts";
+
+export default getRequestListener(handler);
+`;
+
+export const vcConfig = (maxDuration: number | undefined): string =>
+  `${JSON.stringify(
+    {
+      handler: "index.mjs",
+      launcherType: "Nodejs",
+      ...(maxDuration === undefined ? {} : { maxDuration }),
+      runtime: "nodejs22.x",
+      shouldAddHelpers: false,
+      supportsResponseStreaming: true,
+    },
+    null,
+    2,
+  )}\n`;
+
+export const outputConfig = (source: VercelJson): string =>
+  `${JSON.stringify(
+    {
+      ...(source.crons === undefined ? {} : { crons: source.crons }),
+      version: 3,
+    },
+    null,
+    2,
+  )}\n`;
+
+/**
+ * The function, as one file with everything in it.
+ *
+ * Exported so a test can build it and run it under Node — which is the only
+ * check that covers what the deployment actually does: bundle, load, migrate,
+ * answer. Every other suite here runs under Bun against source.
+ */
+export const bundleFunction = async (): Promise<string> => {
+  // Written inside the app rather than at the repository root: workspace
+  // packages are linked into the `node_modules` of the package that depends on
+  // them, so a file at the root resolves neither `@hono/node-server` nor
+  // `@auteur/*`. This is the same fact decision 0015 turned on.
+  const entryPath = join(APP, ".auteur-vercel-entry.mjs");
+  await writeFile(entryPath, ENTRY);
+  try {
+    const built = await Bun.build({
+      entrypoints: [entryPath],
+      format: "esm",
+      minify: false,
+      target: "node",
+    });
+    if (!built.success) {
+      throw new Error(
+        `The function did not bundle:\n${built.logs.map((log) => String(log)).join("\n")}`,
+      );
+    }
+    const [artifact] = built.outputs;
+    if (artifact === undefined) {
+      throw new Error("The bundle produced no output.");
+    }
+    return await artifact.text();
+  } finally {
+    await rm(entryPath, { force: true });
+  }
+};
+
+if (import.meta.main) {
+  const config = (await Bun.file(
+    join(APP, "vercel.json"),
+  ).json()) as VercelJson;
+
+  await rm(OUT, { force: true, recursive: true });
+  await mkdir(join(OUT, FUNCTION_DIR), { recursive: true });
+
+  // The client, exactly as `vite build` left it.
+  await cp(join(APP, "dist"), join(OUT, "static"), { recursive: true });
+
+  const bundled = await bundleFunction();
+  await writeFile(join(OUT, FUNCTION_DIR, "index.mjs"), bundled);
+  await writeFile(
+    join(OUT, FUNCTION_DIR, ".vc-config.json"),
+    vcConfig(config.functions?.["api/**"]?.maxDuration),
+  );
+  await writeFile(join(OUT, "config.json"), outputConfig(config));
+
+  const bytes = bundled.length;
+  process.stdout.write(
+    `built .vercel/output: 1 function (${Math.round(bytes / 1024).toString()} KB bundled), ` +
+      `static from apps/auteur-web/dist\n`,
+  );
+}
