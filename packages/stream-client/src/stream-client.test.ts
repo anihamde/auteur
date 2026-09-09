@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { StoredEvent } from "@auteur/core/events";
 import type { AuteurError } from "@auteur/errors/auteur-error";
-import { connectStream, splitFrames } from "./stream-client.ts";
+import { connectStream, splitFrames, withCursor } from "./stream-client.ts";
 
 const SESSION = "b1c9f2e0-0000-7000-8000-abcdefabcdef";
 
@@ -250,5 +250,29 @@ describe("a reload resumes from the cursor it already has", () => {
     });
     await stream.done;
     expect(events).toEqual([9]);
+  });
+});
+
+describe("a same-origin url is a url", () => {
+  test("a relative url gets a cursor rather than throwing", () => {
+    // `new URL("/api/...")` needs a base, and on the deployment there is none:
+    // the client and the routes are one origin.
+    expect(withCursor("/api/sessions/abc/events", 0)).toBe(
+      "/api/sessions/abc/events?cursor=0",
+    );
+  });
+
+  test("the cursor is replaced on each read, never appended twice", () => {
+    // The reconnect loop rewrites it every time; a second `cursor=` would make
+    // the server read whichever the parser picked.
+    expect(withCursor("/api/sessions/abc/events?cursor=3", 7)).toBe(
+      "/api/sessions/abc/events?cursor=7",
+    );
+  });
+
+  test("an absolute url keeps its origin", () => {
+    expect(
+      withCursor("https://preview.auteur.test/api/sessions/a/events", 2),
+    ).toBe("https://preview.auteur.test/api/sessions/a/events?cursor=2");
   });
 });
