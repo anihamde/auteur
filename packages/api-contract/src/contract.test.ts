@@ -41,7 +41,7 @@ describe("the seventeen routes", () => {
         "GET /api/sessions/:id/export",
         "GET /api/sessions/:id/events",
         "POST /internal/stage",
-        "POST /internal/cron/sweep",
+        "GET /internal/cron/sweep",
       ].sort(),
     );
   });

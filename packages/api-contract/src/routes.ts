@@ -202,9 +202,11 @@ export const ROUTES = {
     }),
   },
   internalSweep: {
-    body: z.object({}),
+    // GET, because that is how the platform's scheduler invokes a path. It
+    // carries no body to sign, which is why this route takes a bearer token
+    // rather than `/internal/stage`'s HMAC.
     internal: true,
-    method: "POST",
+    method: "GET",
     path: "/internal/cron/sweep",
     response: z.object({
       failed: z.array(z.string().min(1)),
