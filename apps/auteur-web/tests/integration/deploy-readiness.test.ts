@@ -188,6 +188,55 @@ describe("the sweep carries the scheduler's token, not the API token", () => {
   });
 });
 
+describe("the sweep does not depend on the scheduler's frequency", () => {
+  test("an ordinary request re-invokes a stage nobody ran", async () => {
+    // The platform allows one cron firing a day on this plan, so a run that
+    // stalls at two in the afternoon would resume tomorrow morning if the
+    // schedule were the only trigger. Traffic is the trigger; the cron is a
+    // backstop for a deployment nobody is using.
+    const id = newId();
+    await enqueueStage(harness.db, { id, sessionId, stageId: "outline" });
+    await harness.db.query(
+      `UPDATE sweep_state SET last_swept_at = now() - interval '1 hour'`,
+    );
+
+    const response = await appWithCron().request("/api/health");
+
+    expect(response.status).toBe(200);
+    expect(invoked).toEqual(["outline"]);
+  });
+
+  test("the next request inside the window does not sweep again", async () => {
+    const id = newId();
+    await enqueueStage(harness.db, { id, sessionId, stageId: "outline" });
+    await harness.db.query(
+      `UPDATE sweep_state SET last_swept_at = now() - interval '1 hour'`,
+    );
+
+    await appWithCron().request("/api/health");
+    await appWithCron().request("/api/health");
+
+    // Twice would mean every request in a burst sweeps, which on a cold start
+    // per request is one sweep per request.
+    expect(invoked).toEqual(["outline"]);
+  });
+
+  test("a request to /internal does not sweep", async () => {
+    // The sweep's own path and the stage route it invokes. A sweep there would
+    // trigger a sweep, and would put the work in front of the one request
+    // whose latency is a stage's latency.
+    const id = newId();
+    await enqueueStage(harness.db, { id, sessionId, stageId: "outline" });
+    await harness.db.query(
+      `UPDATE sweep_state SET last_swept_at = now() - interval '1 hour'`,
+    );
+
+    await appWithCron().request("/internal/stage", { method: "POST" });
+
+    expect(invoked).toEqual([]);
+  });
+});
+
 describe("the schema is brought up to date on access", () => {
   test("a request against an unmigrated database creates the tables", async () => {
     // There is no release phase on this platform, so the alternative to this

@@ -32,6 +32,9 @@ const TABLES = [
   "stage_runs",
   "stories",
   "style_cards",
+  // Not in §3.2 either: added by decision 0013. One row, holding when the
+  // sweep last ran, so traffic can drive it without every request sweeping.
+  "sweep_state",
   "works",
 ];
 

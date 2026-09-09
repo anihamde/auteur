@@ -6,6 +6,7 @@ import { toHttpResponse } from "@auteur/errors/to-http-response";
 import type { Logger } from "@auteur/logger/logger";
 import { ensureSchema } from "@auteur/migrations/ensure-schema";
 import { Hono } from "hono";
+import { sweepOnTraffic } from "./_cron/on-traffic.ts";
 import { type CronRoutesDeps, cronRoutes } from "./_cron/route.ts";
 import {
   type InternalStageDeps,
@@ -53,10 +54,14 @@ export type AppDeps = {
    */
   readonly internalStage?: Omit<InternalStageDeps, "db" | "invokeStage">;
   /**
-   * `POST /internal/cron/sweep`. Absent in a test that does not sweep, and the
-   * route is then not mounted — the same rule the stage route follows.
+   * `/internal/cron/sweep`, and the sweep that traffic drives. Absent in a
+   * test that does not sweep, and neither is mounted — the same rule the stage
+   * route follows.
    */
-  readonly cron?: Omit<CronRoutesDeps, "db">;
+  readonly cron?: Omit<CronRoutesDeps, "db"> & {
+    /** Overridden by a test that cannot wait for the window to pass. */
+    readonly sweepEverySeconds?: number;
+  };
   /**
    * Apply outstanding migrations before the first request touches a table.
    *
@@ -130,6 +135,34 @@ export const createApp = (deps: AppDeps): Hono => {
     }
     return next();
   });
+
+  if (deps.cron !== undefined) {
+    // Before the routes, because a serverless instance may be frozen the
+    // moment its response is written — work scheduled for afterwards is work
+    // that may never happen.
+    //
+    // `/api/health` reaches it without a token, and that is deliberate: an
+    // idle deployment's only traffic is a platform probe, and the sweep does
+    // nothing but re-invoke work that is already overdue. The throttle bounds
+    // what an unauthenticated caller can cause to one sweep per window, which
+    // is what an authenticated one causes too.
+    app.use(
+      "*",
+      sweepOnTraffic({
+        db: deps.db,
+        invokeStage: deps.cron.invokeStage,
+        onError: (error) => {
+          deps.logger?.error("sweep failed", {
+            message: error instanceof Error ? error.message : "non-error",
+          });
+        },
+        ...(deps.cron.sweepEverySeconds !== undefined && {
+          everySeconds: deps.cron.sweepEverySeconds,
+        }),
+        ...deps.cron.thresholds,
+      }),
+    );
+  }
 
   app.onError((thrown, context) => {
     const { body, status } = toHttpResponse(thrown);
