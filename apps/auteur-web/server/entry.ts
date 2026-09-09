@@ -24,6 +24,9 @@ import { createStageBody } from "./_stages/index.ts";
  * `_routes/`, `_internal/` and `_stages/`.
  */
 
+/** One logger, shared by the invocation path and the app. */
+const log = createLogger({ bound: { component: "api" } });
+
 /**
  * Ask the platform to run one stage, and do not wait for it.
  *
@@ -32,9 +35,17 @@ import { createStageBody } from "./_stages/index.ts";
  * would rebuild the long-running process the whole topology removed, one
  * `await` at a time.
  *
- * A lost request is not a lost run. The queue row stays `queued` and the
- * one-minute sweep re-invokes it, which is why this can afford to ignore its
- * own failure rather than retry into a stage that may already be running.
+ * A lost request is not a lost run: the queue row stays `queued` and the sweep
+ * re-invokes it, which is why this does not retry into a stage that may
+ * already be running.
+ *
+ * **It does say so, though.** This swallowed its own failure entirely, and a
+ * failure that is *systematic* — every invocation refused, rather than one
+ * lost — then looks exactly like a pipeline that is merely slow: the queue
+ * fills, the sweep re-invokes into the same refusal, and nothing anywhere
+ * says why. A non-2xx is logged with its status, because "the request was
+ * made and answered 401" is a different fact from "the request was lost", and
+ * only one of them is what the sweep exists for.
  */
 const invokeStage = async (input: {
   readonly sessionId: string;
@@ -51,23 +62,50 @@ const invokeStage = async (input: {
     body,
     headers: {
       "content-type": "application/json",
+      ...protectionBypass(),
       [SIGNATURE_HEADER]: signPayload(env().AUTEUR_STAGE_SECRET, body),
     },
     method: "POST",
-  }).catch(() => undefined);
+  })
+    .then((response) => {
+      if (!response.ok) {
+        log.error("stage invocation refused", {
+          stageId: input.stageId,
+          status: response.status,
+          url: url.origin,
+        });
+      }
+    })
+    .catch((error: unknown) => {
+      log.error("stage invocation failed", {
+        message: error instanceof Error ? error.message : "non-error thrown",
+        stageId: input.stageId,
+        url: url.origin,
+      });
+    });
 };
 
 /**
- * Where this deployment answers itself.
+ * What lets a deployment call itself when the platform is guarding it.
  *
- * Vercel sets `VERCEL_URL` per deployment, so a preview invokes its own stage
- * function rather than production's — which matters more than it sounds: a
- * preview driving production's pipeline would write a preview's stages into
- * production's database.
+ * Deployment Protection puts an authentication wall in front of a deployment's
+ * own hostname — which is the hostname a stage invokes, so with it on, every
+ * invocation reaches a login page rather than the route. The platform's answer
+ * is a bypass secret it sets in the environment; sending it is what makes a
+ * protected deployment able to talk to itself.
+ *
+ * Absent, this sends nothing: an unprotected deployment needs no header, and a
+ * protected one without the secret is a configuration to fix rather than
+ * something to work around here.
  */
-const selfOrigin = (): string => {
-  const host = process.env["VERCEL_URL"];
-  return host === undefined ? "http://127.0.0.1:3000" : `https://${host}`;
+const protectionBypass = (): Record<string, string> => {
+  const secret = process.env["VERCEL_AUTOMATION_BYPASS_SECRET"];
+  return secret === undefined || secret === ""
+    ? {}
+    : {
+        "x-vercel-protection-bypass": secret,
+        "x-vercel-set-bypass-cookie": "false",
+      };
 };
 
 /**
@@ -98,7 +136,7 @@ const app = boot(() => {
       stageSecret: env().AUTEUR_STAGE_SECRET,
     },
     invokeStage,
-    logger: createLogger({ bound: { component: "api" } }),
+    logger: log,
     // No release phase on this platform: the schema comes up to date on the
     // first request, under `ensureSchema`'s lock.
     migrateOnBoot: true,
