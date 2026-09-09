@@ -21,8 +21,8 @@ import { z } from "zod";
  * whole reason the contract is a value and not a document: a document is a
  * thing two implementations agree with separately until they do not.
  *
- * Every route's request shape is here too, including `/internal/stage`'s —
- * **especially** `/internal/stage`'s. It is the one route a browser never
+ * Every route's request shape is here too, including `/api/internal/stage`'s —
+ * **especially** `/api/internal/stage`'s. It is the one route a browser never
  * calls, which makes it the one whose body is most tempting to trust, and
  * invariant 4 does not have an exception for callers you wrote yourself.
  */
@@ -95,7 +95,7 @@ export type RouteSpec = {
   readonly body?: z.ZodType;
   readonly response: z.ZodType;
   /**
-   * True for `/internal/stage`. Signed with a shared secret and never reached
+   * True for `/api/internal/stage`. Signed with a shared secret and never reached
    * by a browser — which is not authentication and must not be called that:
    * it identifies no one, and naming it authentication invites a permission
    * model on top of a value that carries no principal.
@@ -195,7 +195,7 @@ export const ROUTES = {
     }),
     internal: true,
     method: "POST",
-    path: "/internal/stage",
+    path: "/api/internal/stage",
     response: z.object({
       claimed: z.boolean(),
       enqueued: z.array(z.string().min(1)),
@@ -204,10 +204,10 @@ export const ROUTES = {
   internalSweep: {
     // GET, because that is how the platform's scheduler invokes a path. It
     // carries no body to sign, which is why this route takes a bearer token
-    // rather than `/internal/stage`'s HMAC.
+    // rather than `/api/internal/stage`'s HMAC.
     internal: true,
     method: "GET",
-    path: "/internal/cron/sweep",
+    path: "/api/internal/cron/sweep",
     response: z.object({
       failed: z.array(z.string().min(1)),
       reinvoked: z.array(z.string().min(1)),

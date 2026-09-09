@@ -6,7 +6,7 @@ import type { AdvanceDeps } from "../_routes/advance.ts";
 import { type SweepDeps, sweep } from "./sweep.ts";
 
 /**
- * `/internal/cron/sweep` — the one-minute sweep, as a route.
+ * `/api/internal/cron/sweep` — the one-minute sweep, as a route.
  *
  * `vercel.json`'s cron entry names a path, and a path has to be answerable.
  * Without this the schedule fires into a 404 every minute and every lost stage
@@ -16,7 +16,7 @@ import { type SweepDeps, sweep } from "./sweep.ts";
  * **GET as well as POST, and a bearer rather than a signature.** The platform's
  * scheduler invokes a path with GET and presents
  * `Authorization: Bearer <CRON_SECRET>`; it does not sign a body, so the HMAC
- * `/internal/stage` uses is not something it can produce. A route that
+ * `/api/internal/stage` uses is not something it can produce. A route that
  * insisted on the signature would never be called at all, and nothing would
  * report that — the schedule would run, get a 401, and count it as a delivery.
  *

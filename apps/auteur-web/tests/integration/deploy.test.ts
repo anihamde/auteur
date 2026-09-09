@@ -59,8 +59,8 @@ describe("every public route requires the bearer token", () => {
     );
     expect(UNGUARDED_PATHS).toEqual(["/api/health"]);
     expect([...SIGNED_PATHS].sort()).toEqual([
-      "/internal/cron/sweep",
-      "/internal/stage",
+      "/api/internal/cron/sweep",
+      "/api/internal/stage",
     ]);
   });
 
@@ -93,7 +93,7 @@ describe("the stage secret and the bearer token are different keys", () => {
   test("/internal/stage rejects a valid bearer token", async () => {
     // A browser holding the client's token must not be able to drive the
     // pipeline directly.
-    const response = await app.request("/internal/stage", {
+    const response = await app.request("/api/internal/stage", {
       body: JSON.stringify({
         queueId: newId(),
         sessionId,
@@ -113,9 +113,18 @@ describe("the deploy configuration", () => {
   test("the cron entry names the sweep and no other route", async () => {
     const config = (await Bun.file(
       `${import.meta.dir}/../../../../vercel.json`,
-    ).json()) as { crons: { path: string; schedule: string }[] };
+    ).json()) as {
+      crons: { path: string; schedule: string }[];
+      rewrites?: unknown;
+    };
     expect(config.crons).toHaveLength(1);
-    expect(config.crons[0]?.path).toContain("sweep");
+    // The contract's path, not a substring of it. There are no rewrites: every
+    // route is a real `/api/...` path, so the platform's own file-system
+    // routing delivers it to the catch-all with the path intact. A rewrite
+    // would hand the function the *destination* path, and the app routes on
+    // what it is given.
+    expect(config.crons[0]?.path).toBe(specOf("internalSweep").path);
+    expect(config.rewrites).toBeUndefined();
     // Daily, and that is not the sweep's interval. The plan this deploys on
     // allows one firing a day, so the schedule is a backstop for an idle
     // deployment; traffic drives the sweep at §5.3's frequency. A minute-level

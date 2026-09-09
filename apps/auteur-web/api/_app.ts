@@ -6,6 +6,7 @@ import { toHttpResponse } from "@auteur/errors/to-http-response";
 import type { Logger } from "@auteur/logger/logger";
 import { ensureSchema } from "@auteur/migrations/ensure-schema";
 import { Hono } from "hono";
+import { isInternalPath } from "./_auth.ts";
 import { sweepOnTraffic } from "./_cron/on-traffic.ts";
 import { type CronRoutesDeps, cronRoutes } from "./_cron/route.ts";
 import {
@@ -54,7 +55,7 @@ export type AppDeps = {
    */
   readonly internalStage?: Omit<InternalStageDeps, "db" | "invokeStage">;
   /**
-   * `/internal/cron/sweep`, and the sweep that traffic drives. Absent in a
+   * `/api/internal/cron/sweep`, and the sweep that traffic drives. Absent in a
    * test that does not sweep, and neither is mounted — the same rule the stage
    * route follows.
    */
@@ -110,9 +111,9 @@ export const createApp = (deps: AppDeps): Hono => {
     }
     if (
       unauthenticatedPaths.has(context.req.path) ||
-      context.req.path.startsWith("/internal/")
+      isInternalPath(context.req.path)
     ) {
-      // `/internal/stage` carries the stage secret instead, verified by its own
+      // `/api/internal/stage` carries the stage secret instead, verified by its own
       // handler against the raw body it signs. Two secrets, because a browser
       // holding the client's token must not be able to drive the pipeline.
       return next();

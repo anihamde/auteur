@@ -23,7 +23,7 @@ of which look like request-path code from inside their own package.
 
 Nothing reachable from a function entry point uses a Bun global, and
 **gate 16** enforces it by walking the import graph from
-`apps/auteur-web/api/[[...path]].ts` and `api/_app.ts`, resolving `@auteur/*`
+`apps/auteur-web/api/[...path].ts` and `api/_app.ts`, resolving `@auteur/*`
 through the package manifest.
 
 The replacements are the Node standard library: `node:crypto`'s `createHash`,

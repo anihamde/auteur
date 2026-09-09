@@ -21,7 +21,7 @@ export const ENV_SPEC = {
   },
   AUTEUR_STAGE_SECRET: {
     describe:
-      "Secret for POST /internal/stage. Distinct from the API token so a browser holding the client's token cannot drive the pipeline directly.",
+      "Secret for POST /api/internal/stage. Distinct from the API token so a browser holding the client's token cannot drive the pipeline directly.",
     schema: z.string().min(16),
   },
   /**
@@ -35,7 +35,7 @@ export const ENV_SPEC = {
    * invocation for the life of the schedule.
    *
    * It carries no body to sign, so the sweep cannot use
-   * `AUTEUR_STAGE_SECRET`'s HMAC the way `/internal/stage` does — see
+   * `AUTEUR_STAGE_SECRET`'s HMAC the way `/api/internal/stage` does — see
    * `docs/decisions/0011-the-scheduler-sends-what-it-sends.md`.
    *
    * Kept distinct from the stage secret anyway: the scheduler holds a value it
@@ -44,7 +44,7 @@ export const ENV_SPEC = {
    */
   CRON_SECRET: {
     describe:
-      "Bearer token the platform's scheduler presents on /internal/cron/sweep. The name is Vercel's — set it exactly, or the scheduler sends no Authorization header at all.",
+      "Bearer token the platform's scheduler presents on /api/internal/cron/sweep. The name is Vercel's — set it exactly, or the scheduler sends no Authorization header at all.",
     schema: z.string().min(16),
   },
   DATABASE_URL: {

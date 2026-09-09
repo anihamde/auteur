@@ -133,7 +133,7 @@ export const parseQuery = <Name extends RouteName>(
 /**
  * Every route a browser may call.
  *
- * `/internal/stage` is excluded, and the exclusion is a function rather than a
+ * `/api/internal/stage` is excluded, and the exclusion is a function rather than a
  * comment so the router can be built from it: a route that must never be
  * reachable from a browser should not be reachable by forgetting to exclude
  * it.

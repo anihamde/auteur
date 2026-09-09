@@ -97,7 +97,7 @@ export const createStageBody =
       stageId,
     });
     // The key this stage is completing with, computed from the session as it
-    // stands. `/internal/stage` records it; the artifact stores the same value
+    // stands. `/api/internal/stage` records it; the artifact stores the same value
     // so `readFresh` and `stage_keys` can never disagree about what produced a
     // document.
     const key =

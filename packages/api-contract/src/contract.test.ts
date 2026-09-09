@@ -40,8 +40,8 @@ describe("the seventeen routes", () => {
         "PUT /api/sessions/:id/pins",
         "GET /api/sessions/:id/export",
         "GET /api/sessions/:id/events",
-        "POST /internal/stage",
-        "GET /internal/cron/sweep",
+        "POST /api/internal/stage",
+        "GET /api/internal/cron/sweep",
       ].sort(),
     );
   });
