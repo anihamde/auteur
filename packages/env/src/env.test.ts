@@ -14,6 +14,18 @@ beforeEach(() => {
   resetEnvForTest();
 });
 
+describe("the scheduler's secret is read under the platform's name", () => {
+  test("the key is CRON_SECRET, with no prefix", () => {
+    // Vercel Cron attaches `Authorization: Bearer <value>` only when a
+    // variable named exactly `CRON_SECRET` exists. Renaming this to match the
+    // `AUTEUR_` convention of its neighbours would leave the scheduler sending
+    // no Authorization header at all: the sweep would 401 once a minute for
+    // the life of the deployment, on a schedule that reports each 401 as a
+    // delivered request. There is no other detector for that.
+    expect(ENV_KEYS).toContain("CRON_SECRET");
+  });
+});
+
 describe("a complete environment parses", () => {
   test("every declared key is returned", () => {
     expect(Object.keys(env(complete())).sort()).toEqual([...ENV_KEYS].sort());

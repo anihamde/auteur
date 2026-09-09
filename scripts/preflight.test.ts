@@ -4,8 +4,8 @@ import { problemsIn, report } from "./preflight.ts";
 
 const COMPLETE: Record<string, string> = {
   AUTEUR_API_TOKEN: "a-token-of-at-least-16-chars",
-  AUTEUR_CRON_SECRET: "a-cron-secret-of-16-plus",
   AUTEUR_STAGE_SECRET: "a-stage-secret-of-16-plus",
+  CRON_SECRET: "a-cron-secret-of-16-plus",
   DATABASE_URL: "postgres://user@host/db",
   DATABASE_URL_DIRECT: "postgres://user@host-direct/db",
   RAMP_ROUTER_API_KEY: "rk-live-something",

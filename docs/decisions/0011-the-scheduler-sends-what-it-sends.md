@@ -19,7 +19,7 @@ instance of it.
 ## Decision
 
 `/internal/cron/sweep` accepts **GET and POST**, and authenticates with a
-constant-time comparison against `AUTEUR_CRON_SECRET` rather than an HMAC.
+constant-time comparison against `CRON_SECRET` rather than an HMAC.
 
 **GET, because the scheduler sends GET.** A route's method is not a design
 choice when exactly one caller exists and it is a platform.
@@ -46,7 +46,11 @@ rotating for either rotates for both.
 ## Consequences
 
 - `internalSweep` in `api-contract` carries `method: "GET"`.
-- `AUTEUR_CRON_SECRET` joins `env-spec.ts` as a required key. A deployment
-  without it fails at boot rather than at the first sweep.
+- `CRON_SECRET` joins `env-spec.ts` as a required key — under that name, with
+  no `AUTEUR_` prefix, because the scheduler attaches the header only when a
+  variable of exactly that name exists. A prefixed copy would mean setting one
+  secret twice, and a deployment that set only the platform's name would refuse
+  every invocation. A deployment missing it fails at boot rather than at the
+  first sweep.
 - 0010's other half stands: the route is in the contract, and the deploy test
   still checks `vercel.json`'s path against the contract's.
