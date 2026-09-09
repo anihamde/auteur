@@ -112,7 +112,7 @@ describe("the stage secret and the bearer token are different keys", () => {
 describe("the deploy configuration", () => {
   test("the cron entry names the sweep and no other route", async () => {
     const config = (await Bun.file(
-      `${import.meta.dir}/../../../../vercel.json`,
+      `${import.meta.dir}/../../vercel.json`,
     ).json()) as {
       crons: { path: string; schedule: string }[];
       rewrites?: unknown;
@@ -136,8 +136,11 @@ describe("the deploy configuration", () => {
 
   test("the build output is the client's bundle", async () => {
     const config = (await Bun.file(
-      `${import.meta.dir}/../../../../vercel.json`,
+      `${import.meta.dir}/../../vercel.json`,
     ).json()) as { outputDirectory: string };
-    expect(config.outputDirectory).toBe("apps/auteur-web/dist");
+    // Relative to this package: `vercel.json` lives here, and the deployment
+    // root is this app rather than the repository — which is what puts
+    // `node_modules` beside the function.
+    expect(config.outputDirectory).toBe("dist");
   });
 });

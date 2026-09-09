@@ -1,5 +1,11 @@
 {
+  "compilerOptions": {
+    "types": [
+      "bun"
+    ]
+  },
   "extends": "./packages/tsconfig/base.json",
-  "compilerOptions": { "types": ["bun"] },
-  "include": ["scripts", "api"]
+  "include": [
+    "scripts"
+  ]
 }

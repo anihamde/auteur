@@ -367,7 +367,7 @@ export const CASES: readonly SelfTestCase[] = [
   },
   {
     // Reached through a workspace import, three edges from the entry point.
-    // A check that only scanned `apps/auteur-web/api/` would accept this, and
+    // A check that only scanned `api/` would accept this, and
     // it is the shape the defect actually took: `Bun.env` in `@auteur/env`,
     // green everywhere, `Bun is not defined` on the first request.
     breaks: () =>

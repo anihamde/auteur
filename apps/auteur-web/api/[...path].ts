@@ -4,6 +4,7 @@ import { env } from "@auteur/env/env";
 import { createLogger } from "@auteur/logger/logger";
 import { createRouterProvider } from "@auteur/provider-router/client";
 import { createApp } from "./_app.ts";
+import { boot } from "./_boot.ts";
 import { SIGNATURE_HEADER, signPayload } from "./_internal/signature.ts";
 import { createStageBody } from "./_stages/index.ts";
 
@@ -69,30 +70,39 @@ const selfOrigin = (): string => {
   return host === undefined ? "http://127.0.0.1:3000" : `https://${host}`;
 };
 
-const db = createDb({ endpoint: "pooled", url: env().DATABASE_URL });
+/**
+ * Built inside `boot`, so a missing variable answers with the list of what is
+ * missing rather than crashing the function before a route exists.
+ */
+const app = boot(() => {
+  const db = createDb({ endpoint: "pooled", url: env().DATABASE_URL });
 
-const app = createApp({
-  apiToken: env().AUTEUR_API_TOKEN,
-  cron: {
-    cronSecret: env().CRON_SECRET,
+  return createApp({
+    apiToken: env().AUTEUR_API_TOKEN,
+    cron: {
+      cronSecret: env().CRON_SECRET,
+      invokeStage,
+    },
+    db,
+    // The one place `LISTEN` gets the connection it needs. §7.
+    events: {
+      directDb: createDb({
+        endpoint: "direct",
+        url: env().DATABASE_URL_DIRECT,
+      }),
+    },
+    internalStage: {
+      runStageBody: createStageBody({
+        provider: createRouterProvider({ apiKey: env().RAMP_ROUTER_API_KEY }),
+      }),
+      stageSecret: env().AUTEUR_STAGE_SECRET,
+    },
     invokeStage,
-  },
-  db,
-  // The one place `LISTEN` gets the connection it needs. §7.
-  events: {
-    directDb: createDb({ endpoint: "direct", url: env().DATABASE_URL_DIRECT }),
-  },
-  internalStage: {
-    runStageBody: createStageBody({
-      provider: createRouterProvider({ apiKey: env().RAMP_ROUTER_API_KEY }),
-    }),
-    stageSecret: env().AUTEUR_STAGE_SECRET,
-  },
-  invokeStage,
-  logger: createLogger({ bound: { component: "api" } }),
-  // No release phase on this platform: the schema comes up to date on the
-  // first request, under `ensureSchema`'s lock.
-  migrateOnBoot: true,
+    logger: createLogger({ bound: { component: "api" } }),
+    // No release phase on this platform: the schema comes up to date on the
+    // first request, under `ensureSchema`'s lock.
+    migrateOnBoot: true,
+  });
 });
 
 export const GET = app.fetch;

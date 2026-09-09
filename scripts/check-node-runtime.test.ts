@@ -33,7 +33,7 @@ describe("the graph walked is the one the functions actually load", () => {
     const reached = reachableFrom(ENTRIES);
     expect(reached.size).toBeGreaterThan(1);
     // `@auteur/env` is reached through a workspace specifier, not a relative
-    // path: the walk is not confined to `apps/auteur-web/api/`.
+    // path: the walk is not confined to `api/` itself.
     expect(
       [...reached].some((file) => file.endsWith("packages/env/src/env.ts")),
     ).toBe(true);

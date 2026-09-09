@@ -36,10 +36,20 @@ action.
 
 ## Steps
 
-1. **New Project**, pointed at this repository. Set **Root Directory** to `./`
-   and **Framework Preset** to **Other**. `vercel.json` is at the repository
-   root and its paths are root-relative; a root directory inside the monorepo
-   makes the platform read a configuration that is not there.
+1. **New Project**, pointed at this repository. Set **Root Directory** to
+   `apps/auteur-web`, **Framework Preset** to **Other**, and turn on **Include
+   files outside of the Root Directory** — the build needs `packages/` and the
+   workspace lockfile.
+
+   The root directory is the app, not the repository, and the reason is
+   resolution: workspace packages are linked into the `node_modules` of the
+   package that depends on them, never into the repository root. A function at
+   the repository root cannot resolve `@auteur/*` at all, and fails during
+   import with a module-resolution error before any route exists.
+
+   `apps/auteur-web/vercel.json` holds the configuration; its build and install
+   commands step up to the workspace root, so the whole monorepo is installed
+   and built while the deployment root stays this app.
 2. Add the five variables above that do not come from Neon.
 3. **Deploy.** The build succeeds and the functions fail — there is no database
    yet. That is expected.
@@ -52,9 +62,15 @@ action.
 
 ## Verifying
 
-1. `GET /api/health` answers 200. A 404 means no function was built: the
-   platform creates one per file in `api/` at the root of the deployment, which
-   is what `api/[...path].ts` is for.
+1. `GET /api/health` answers 200.
+
+   A **404** means no function was built. The platform creates one per file in
+   `api/` at the root of the deployment: check the Root Directory is
+   `apps/auteur-web`.
+
+   A **500** naming missing variables is the environment; the response lists
+   every key to fix. A **500** that is the platform's own crash page is a throw
+   during import, and the reason is in the function's log.
 2. `bun run preflight` locally, with the same values in `.env`. It names every
    missing or malformed variable at once rather than the first.
 3. `bun run verify:live` — the four checks that need real credentials: the
