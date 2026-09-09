@@ -26,3 +26,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0015 | [The deployment root is the app, not the repository](decisions/0015-the-deployment-root-is-the-app.md) | accepted | 2026-09-09 |
 | 0016 | [The build produces the deployment](decisions/0016-the-build-produces-the-deployment.md) | accepted | 2026-09-09 |
 | 0017 | [The routes live in `server/`, and the build is told what to build](decisions/0017-the-routes-live-in-server.md) | accepted | 2026-09-09 |
+| 0018 | [The output says which URLs reach the function](decisions/0018-the-output-says-which-urls-reach-the-function.md) | accepted | 2026-09-09 |

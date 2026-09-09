@@ -40,8 +40,14 @@ const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const APP = join(ROOT, "apps/auteur-web");
 const OUT = join(APP, ".vercel/output");
 
-/** The one function, named as the path it answers. */
-export const FUNCTION_DIR = "functions/api/[...path].func";
+/**
+ * The one function, named as the path it answers.
+ *
+ * The name is the platform's catch-all form and the `routes` below are what
+ * point at it: a dynamic name is not matched by its own spelling.
+ */
+const CATCH_ALL = "[...path]";
+export const FUNCTION_DIR = `functions/api/${CATCH_ALL}.func`;
 
 type VercelJson = {
   readonly crons?: readonly {
@@ -91,10 +97,33 @@ export const vcConfig = (maxDuration: number | undefined): string =>
     2,
   )}\n`;
 
+/**
+ * How a URL reaches the function, and how everything else reaches a file.
+ *
+ * A `.func` directory whose name carries a dynamic segment is not matched by
+ * its name alone — the output has to say which URLs go to it, the way a
+ * framework's own generated output does. Without this the deployment contains
+ * a function nothing can reach, and the schedule names a path that resolves to
+ * nothing, which the platform rejects at deploy time: a clean build and a
+ * failed deployment with no message under it.
+ *
+ * The order is the whole of the behaviour. `/api/*` is claimed **before**
+ * `filesystem`, so no static file can shadow a route. `filesystem` then serves
+ * the client bundle. What is left is a path the client owns, and it gets
+ * `index.html` — a single-page app has one document, and a deep link that
+ * 404s is the platform disagreeing with that.
+ */
+const ROUTES = [
+  { dest: `/api/${CATCH_ALL}`, src: "^/api(?:/.*)?$" },
+  { handle: "filesystem" },
+  { dest: "/index.html", src: "/.*" },
+];
+
 export const outputConfig = (source: VercelJson): string =>
   `${JSON.stringify(
     {
       ...(source.crons === undefined ? {} : { crons: source.crons }),
+      routes: ROUTES,
       version: 3,
     },
     null,
