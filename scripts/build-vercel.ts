@@ -11,6 +11,13 @@
  * setting for: source-exporting packages and a builder that treats
  * `node_modules` as already-built JavaScript cannot both be right.
  *
+ * Which is why the source lives in `server/` and not `api/`. A directory
+ * called `api/` is the platform's own trigger: it builds every file there as a
+ * function *in addition* to whatever the build command produced, with its own
+ * TypeScript configuration and its own idea of how to resolve an import. It
+ * did, and it spent two minutes reporting that `node:crypto` does not exist
+ * before deploying something nobody asked it to build.
+ *
  * So the build emits the Build Output API directly:
  *
  *   .vercel/output/
@@ -41,10 +48,20 @@ type VercelJson = {
     readonly path: string;
     readonly schedule: string;
   }[];
-  readonly functions?: Readonly<
-    Record<string, { readonly maxDuration?: number }>
-  >;
 };
+
+/**
+ * How long one invocation may run.
+ *
+ * Here rather than in `vercel.json`, because with the Build Output API the
+ * platform reads it from the generated `.vc-config.json` and nowhere else — a
+ * `functions` entry there would be a second number, matching no source file
+ * and read by nobody.
+ *
+ * The ceiling is one stage: a `draft` on a long preset is a single model call,
+ * and the chain's whole design is that no invocation waits for another.
+ */
+export const MAX_DURATION = 300;
 
 /**
  * The launcher the bundled function exports.
@@ -55,7 +72,7 @@ type VercelJson = {
  * response is a body that never ends.
  */
 const ENTRY = `import { getRequestListener } from "@hono/node-server";
-import handler from "./api/[...path].ts";
+import handler from "./server/entry.ts";
 
 export default getRequestListener(handler);
 `;
@@ -135,7 +152,7 @@ if (import.meta.main) {
   await writeFile(join(OUT, FUNCTION_DIR, "index.mjs"), bundled);
   await writeFile(
     join(OUT, FUNCTION_DIR, ".vc-config.json"),
-    vcConfig(config.functions?.["api/**"]?.maxDuration),
+    vcConfig(MAX_DURATION),
   );
   await writeFile(join(OUT, "config.json"), outputConfig(config));
 

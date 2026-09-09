@@ -16,7 +16,7 @@ import {
   MAX_ATTEMPTS,
 } from "@auteur/stage-queue/queue";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { sweep } from "../../api/_cron/sweep.ts";
+import { sweep } from "../../server/_cron/sweep.ts";
 
 /**
  * The sweep, against a real database and real clock arithmetic.

@@ -2,7 +2,7 @@
 /**
  * Gate 16 — nothing on the serverless path uses a Bun-only global.
  *
- * The functions under `apps/auteur-web/api/` may run on **Node**. Bun is
+ * The function built from `apps/auteur-web/server/` runs on **Node**. Bun is
  * the toolchain — the test runner, the scripts, the local dev server — and
  * that is exactly what makes this hard to notice: `Bun.CryptoHasher`,
  * `Bun.hash`, `Bun.env` and `Bun.sleep` all work in every test and every local
@@ -22,7 +22,7 @@ import { dirname, join, resolve } from "node:path";
 import { PACKAGES } from "./packages.manifest.ts";
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
-const API = join(ROOT, "apps/auteur-web/api");
+const API = join(ROOT, "apps/auteur-web/server");
 
 /** The globals Bun provides and Node does not. */
 const BUN_ONLY = /\bBun\.\w+/g;
@@ -119,12 +119,12 @@ export const findings = (files: Iterable<string>): string[] => {
 /**
  * Every function entry point.
  *
- * `api/[...path].ts` is the file the platform turns into a function. `_app.ts`
+ * `server/entry.ts` is what the build bundles into the function. `_app.ts`
  * is listed too because it is the module every route test mounts, and a global
  * reachable only through it would be a defect the tests share with the
  * deployment.
  */
-export const ENTRIES = [join(API, "[...path].ts"), join(API, "_app.ts")];
+export const ENTRIES = [join(API, "entry.ts"), join(API, "_app.ts")];
 
 if (import.meta.main) {
   const reached = reachableFrom(ENTRIES);

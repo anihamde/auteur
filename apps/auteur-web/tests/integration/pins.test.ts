@@ -13,7 +13,7 @@ import { CATALOGUE } from "@auteur/provider-router/models";
 import { readPins } from "@auteur/session-store/pins";
 import { createSession } from "@auteur/session-store/sessions";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { createApp } from "../../api/_app.ts";
+import { createApp } from "../../server/_app.ts";
 
 const TOKEN = "a-token-of-at-least-16-chars";
 

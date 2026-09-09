@@ -51,7 +51,7 @@
         "apps/*/package.json",
         "package.json",
         "turbo.json",
-        "vercel.json",
+        "apps/auteur-web/vercel.json",
         "docs/decisions/**",
         "docs/DECISIONS.md",
         "docs/guidelines/**",
@@ -68,6 +68,7 @@
     },
     "build": {
       "dependsOn": ["^build"],
+      "env": ["VITE_*"],
       "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/*.test.*"],
       "outputs": ["dist/**", "src/generated/**", "styled-system/**"]
     },

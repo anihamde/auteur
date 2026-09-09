@@ -7,10 +7,5 @@
       "schedule": "0 4 * * *"
     }
   ],
-  "functions": {
-    "api/**": {
-      "maxDuration": 300
-    }
-  },
   "installCommand": "cd ../.. && bun install --frozen-lockfile"
 }

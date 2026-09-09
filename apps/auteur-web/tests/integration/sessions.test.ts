@@ -5,7 +5,7 @@ import { newId } from "@auteur/ids/new-id";
 import { putArtifact } from "@auteur/session-store/artifacts";
 import { putQuestionRound } from "@auteur/session-store/questions";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { createApp } from "../../api/_app.ts";
+import { createApp } from "../../server/_app.ts";
 
 /**
  * The four session routes against a real database.

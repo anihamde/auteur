@@ -16,7 +16,7 @@ import {
   findQueueEntry,
 } from "@auteur/stage-queue/queue";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { createApp } from "../../api/_app.ts";
+import { createApp } from "../../server/_app.ts";
 
 /**
  * The cron path `vercel.json` names must be answerable.
@@ -107,62 +107,53 @@ describe("the path vercel.json's cron names is answerable", () => {
   });
 });
 
-describe("the platform has a function to find", () => {
+describe("the platform builds what we tell it to and nothing else", () => {
   const appRoot = `${import.meta.dir}/../..`;
 
-  test("the functions glob names a directory holding a catch-all", async () => {
-    // The platform builds a function per file in `api/` **at the root of the
-    // deployment**, and the deployment root is this app — `vercel.json` lives
-    // here, and its build and install commands step up to the workspace root.
-    // That is what puts `node_modules` beside the function: workspace packages
-    // are linked into the package that depends on them, not into the
-    // repository root, so an `api/` directory at the repository root cannot
-    // resolve `@auteur/*` at all.
+  test("there is no api/ directory for the zero-config builder to find", async () => {
+    // A directory called `api/` is the platform's own trigger: it compiles
+    // every file there as a function *in addition* to whatever the build
+    // command produced, with its own TypeScript configuration and its own idea
+    // of how to resolve an import. It did exactly that — two minutes of
+    // reporting that `node:crypto` does not exist, and a function nobody asked
+    // it to build, sitting beside the one we bundled.
     //
-    // Get this wrong and the deploy succeeds, the static site serves, and
-    // every route answers 404 — including `/api/health`, which is the thing
-    // one checks to decide whether the deploy worked.
-    const config = (await Bun.file(`${appRoot}/vercel.json`).json()) as {
-      functions: Record<string, unknown>;
-    };
-    const globs = Object.keys(config.functions);
-    expect(globs).toHaveLength(1);
-    const directory = globs[0]?.replace(/\/\*\*$/, "");
-    expect(
-      await Bun.file(`${appRoot}/${directory}/[...path].ts`).exists(),
-    ).toBe(true);
+    // The source lives in `server/`, and `.vercel/output` names the route.
+    expect(await Bun.file(`${appRoot}/api/entry.ts`).exists()).toBe(false);
+    expect(await Bun.file(`${appRoot}/server/entry.ts`).exists()).toBe(true);
   });
 
-  test("every route is under the catch-all's own prefix", () => {
-    // `api/[...path].ts` answers `/api/<something>` and nothing else. A route
-    // outside that prefix would need a rewrite to reach it, and a rewrite
-    // hands the function the *destination* path rather than the requested one
-    // — so the app would route on a path the caller never asked for. That is
-    // why the internal routes are `/api/internal/...`.
+  test("every route is under the prefix the function answers", () => {
+    // The output declares one function at `functions/api/[...path].func`,
+    // which answers `/api/<something>` and nothing else. A route outside that
+    // prefix would need a rewrite, and a rewrite hands the function the
+    // destination path rather than the requested one — so the app would route
+    // on a path the caller never asked for. That is why the internal routes
+    // are `/api/internal/...`.
     const outside = ROUTE_NAMES.map((name) => specOf(name).path).filter(
       (path) => !path.startsWith("/api/"),
     );
     expect(outside).toEqual([]);
   });
 
-  test("nothing under api/ imports a file outside it", async () => {
-    // A function is deployed with the files the platform traces from its
-    // entry. A relative import that climbs out of `api/` is a file that may
-    // not be shipped with it — and the failure is a module-resolution error
-    // during import, before any route exists, which the platform reports as a
-    // crashed function with the reason in a log.
+  test("nothing under server/ imports a file outside it", async () => {
+    // The bundler follows these, so an import climbing out of `server/` is not
+    // fatal the way it was when the platform traced files. It is still the
+    // boundary worth keeping: `server/` is the deployed unit, and a relative
+    // path into `src/` would put client code in the function without anyone
+    // deciding to.
     //
-    // Workspace specifiers are fine: `@auteur/*` resolves through this
-    // package's own `node_modules`, which is beside the function.
+    // Workspace specifiers are fine — they are declared edges, and the bundler
+    // inlines them.
     const offences: string[] = [];
     for await (const relative of new Bun.Glob("**/*.ts").scan({
-      cwd: `${appRoot}/api`,
+      cwd: `${appRoot}/server`,
     })) {
-      const source = await Bun.file(`${appRoot}/api/${relative}`).text();
+      const source = await Bun.file(`${appRoot}/server/${relative}`).text();
       for (const match of source.matchAll(/from\s*["'](\.[^"']*)["']/g)) {
         const specifier = match[1] ?? "";
-        const resolved = resolve(dirname(`/api/${relative}`), specifier);
-        if (!resolved.startsWith("/api/")) {
+        const resolved = resolve(dirname(`/server/${relative}`), specifier);
+        if (!resolved.startsWith("/server/")) {
           offences.push(`${relative}: ${specifier}`);
         }
       }

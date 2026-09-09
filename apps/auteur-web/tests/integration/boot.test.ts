@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { Hono } from "hono";
-import { boot } from "../../api/_boot.ts";
+import { boot } from "../../server/_boot.ts";
 
 describe("a deployment that cannot be configured answers instead of crashing", () => {
   test("an incomplete environment answers every path with the list to fix", async () => {

@@ -4,12 +4,12 @@ import { ROUTE_NAMES, specOf } from "@auteur/api-contract/routes";
 import { newId } from "@auteur/ids/new-id";
 import { createSession } from "@auteur/session-store/sessions";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { createApp } from "../../api/_app.ts";
+import { createApp } from "../../server/_app.ts";
 import {
   GUARDED_PATHS,
   SIGNED_PATHS,
   UNGUARDED_PATHS,
-} from "../../api/_auth.ts";
+} from "../../server/_auth.ts";
 
 /**
  * WP-R11's proof, enumerated from the contract rather than spot-checked.
@@ -143,9 +143,14 @@ describe("the deploy configuration", () => {
       `${import.meta.dir}/../../vercel.json`,
     ).json()) as {
       buildCommand: string;
+      functions?: unknown;
       outputDirectory?: string;
     };
     expect(config.buildCommand).toContain("build:vercel");
     expect(config.outputDirectory).toBeUndefined();
+    // Nor a `functions` entry: there are no source functions to configure, and
+    // the duration the platform reads is the one in the generated
+    // `.vc-config.json`.
+    expect(config.functions).toBeUndefined();
   });
 });
