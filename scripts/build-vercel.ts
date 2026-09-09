@@ -30,8 +30,9 @@
  * Node is the whole of what the deployment does at cold start, and it either
  * loads here or it fails here.
  *
- * `vercel.json` stays the source of the schedule and the duration — this reads
- * them rather than restating them.
+ * The schedule and the duration are declared here, not in `vercel.json`: the
+ * platform reads both files, and a cron entry present in each is rejected as a
+ * duplicate. `vercel.json` is down to the two commands.
  */
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -49,12 +50,28 @@ const OUT = join(APP, ".vercel/output");
 const CATCH_ALL = "[...path]";
 export const FUNCTION_DIR = `functions/api/${CATCH_ALL}.func`;
 
-type VercelJson = {
-  readonly crons?: readonly {
-    readonly path: string;
-    readonly schedule: string;
-  }[];
-};
+/**
+ * The schedule, declared once.
+ *
+ * In this file rather than in `vercel.json`, because with the Build Output API
+ * both are read and the same entry in both is rejected outright: *"A
+ * duplicated cron job with the same schedule and path was found."* The
+ * generated `config.json` is the one the deployment uses, so it is the one
+ * that gets to say it.
+ *
+ * **Daily, and that is not the sweep's interval.** The plan allows one firing
+ * a day; the sweep runs on traffic (decision 0013) and this is the backstop
+ * for a deployment nobody is using. A minute-level expression here is refused
+ * at build time.
+ *
+ * The path is the contract's — `deploy.test.ts` checks it against
+ * `specOf("internalSweep")`, from a test that can import the contract, which
+ * this script cannot: workspace packages are not linked at the repository
+ * root.
+ */
+export const CRONS = [
+  { path: "/api/internal/cron/sweep", schedule: "0 4 * * *" },
+] as const;
 
 /**
  * How long one invocation may run.
@@ -139,16 +156,8 @@ const ROUTES = [
   { dest: "/index.html", src: "/.*" },
 ];
 
-export const outputConfig = (source: VercelJson): string =>
-  `${JSON.stringify(
-    {
-      ...(source.crons === undefined ? {} : { crons: source.crons }),
-      routes: ROUTES,
-      version: 3,
-    },
-    null,
-    2,
-  )}\n`;
+export const outputConfig = (): string =>
+  `${JSON.stringify({ crons: CRONS, routes: ROUTES, version: 3 }, null, 2)}\n`;
 
 /**
  * The function, as one file with everything in it.
@@ -187,10 +196,6 @@ export const bundleFunction = async (): Promise<string> => {
 };
 
 if (import.meta.main) {
-  const config = (await Bun.file(
-    join(APP, "vercel.json"),
-  ).json()) as VercelJson;
-
   await rm(OUT, { force: true, recursive: true });
   await mkdir(join(OUT, FUNCTION_DIR), { recursive: true });
 
@@ -203,7 +208,7 @@ if (import.meta.main) {
     join(OUT, FUNCTION_DIR, ".vc-config.json"),
     vcConfig(MAX_DURATION),
   );
-  await writeFile(join(OUT, "config.json"), outputConfig(config));
+  await writeFile(join(OUT, "config.json"), outputConfig());
 
   const bytes = bundled.length;
   process.stdout.write(

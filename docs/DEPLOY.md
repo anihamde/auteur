@@ -41,6 +41,13 @@ action.
    files outside of the Root Directory** — the build needs `packages/` and the
    workspace lockfile.
 
+   **Leave every Override toggle in Framework Settings off** — Build Command,
+   Output Directory, Install Command. `vercel.json` says what those are, and a
+   project-level Output Directory is the worst of them: the build produces
+   `.vercel/output`, the platform then looks for the directory the setting
+   names, does not find it, and fails the deployment **after** a clean build
+   with an empty error panel.
+
    The root directory is the app, not the repository, and the reason is
    resolution: workspace packages are linked into the `node_modules` of the
    package that depends on them, never into the repository root. A function at
