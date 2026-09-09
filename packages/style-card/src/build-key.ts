@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 /**
  * The card's cache key.
  *
@@ -62,6 +63,6 @@ export const buildKeyComponents = (input: BuildKeyInput): string[] => [
 ];
 
 export const buildKey = (input: BuildKeyInput): string =>
-  new Bun.CryptoHasher("sha256")
+  createHash("sha256")
     .update(buildKeyComponents(input).join("\n"))
     .digest("hex");

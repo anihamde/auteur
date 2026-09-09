@@ -365,6 +365,20 @@ export const CASES: readonly SelfTestCase[] = [
     gate: 15,
     name: "a decision the generated index does not name",
   },
+  {
+    // Reached through a workspace import, three edges from the entry point.
+    // A check that only scanned `apps/auteur-web/api/` would accept this, and
+    // it is the shape the defect actually took: `Bun.env` in `@auteur/env`,
+    // green everywhere, `Bun is not defined` on the first request.
+    breaks: () =>
+      patchFile(
+        "packages/env/src/env.ts",
+        "source: Record<string, string | undefined> = process.env,",
+        "source: Record<string, string | undefined> = Bun.env,",
+      ),
+    gate: 16,
+    name: "a Bun global in a package the functions import",
+  },
 ];
 
 if (import.meta.main) {

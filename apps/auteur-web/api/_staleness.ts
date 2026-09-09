@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Pipeline, Stage } from "@auteur/core/pipeline";
 import type { Session } from "@auteur/core/session";
 import { PROMPT_VERSIONS, type PromptId } from "@auteur/prompt/versions";
@@ -30,7 +31,7 @@ export type StalenessInput = {
 };
 
 const hash = (parts: readonly string[]): string =>
-  new Bun.CryptoHasher("sha256").update(parts.join(" ")).digest("hex");
+  createHash("sha256").update(parts.join(" ")).digest("hex");
 
 /**
  * The session state a stage reads directly, per §7.5.

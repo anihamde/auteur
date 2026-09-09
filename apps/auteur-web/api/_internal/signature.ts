@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { AuteurError } from "@auteur/errors/auteur-error";
 
 /**
@@ -18,7 +19,7 @@ import { AuteurError } from "@auteur/errors/auteur-error";
 export const SIGNATURE_HEADER = "x-auteur-signature";
 
 export const signPayload = (secret: string, raw: string): string =>
-  new Bun.CryptoHasher("sha256", secret).update(raw).digest("hex");
+  createHmac("sha256", secret).update(raw).digest("hex");
 
 /**
  * Verify, or throw `unauthorized`.
@@ -40,11 +41,15 @@ export const requireSignature = (
   }
 };
 
+/**
+ * `timingSafeEqual`, which throws on a length mismatch rather than answering.
+ *
+ * Both sides here are hex digests of a fixed width, so a difference in length
+ * means the presented value is not a signature at all — which is a refusal,
+ * not a comparison.
+ */
 const constantTimeEqual = (left: string, right: string): boolean => {
-  if (left.length !== right.length) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return difference === 0;
+  const a = Buffer.from(left, "utf8");
+  const b = Buffer.from(right, "utf8");
+  return a.length === b.length && timingSafeEqual(a, b);
 };

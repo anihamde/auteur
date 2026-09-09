@@ -76,7 +76,12 @@ export const fetchWork = async (
   }
 
   const call = config.fetch ?? fetch;
-  const sleep = config.sleep ?? ((ms: number) => Bun.sleep(ms));
+  const sleep =
+    config.sleep ??
+    ((ms: number) =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, ms);
+      }));
   let lastProblem: unknown;
 
   for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {

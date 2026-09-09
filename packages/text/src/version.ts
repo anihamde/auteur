@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ABBREVIATIONS } from "./abbreviations.ts";
 import { GUTENBERG_MARKERS } from "./clean.ts";
 
@@ -13,8 +14,16 @@ import { GUTENBERG_MARKERS } from "./clean.ts";
  * Cleaner and segmenter version separately, because re-cleaning requires
  * re-fetching and re-segmenting does not (`docs/ARCHITECTURE.md` §4.2).
  */
+/**
+ * A short digest of the inputs.
+ *
+ * `node:crypto` rather than `Bun.hash`, because this runs in a serverless
+ * function on Node as well as under Bun in tests and scripts. A Bun-only
+ * global here is `Bun is not defined` on the first request of every
+ * deployment, which is a failure with no local symptom at all.
+ */
 const hash = (parts: readonly string[]): string =>
-  Bun.hash(parts.join(" ")).toString(16).padStart(8, "0").slice(0, 8);
+  createHash("sha256").update(parts.join(" ")).digest("hex").slice(0, 8);
 
 /** Changing this invalidates `works.cleaner_version` and forces a re-fetch. */
 export const cleanerVersion = (): string =>

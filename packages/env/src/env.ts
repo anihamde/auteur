@@ -18,7 +18,7 @@ let cached: Env | undefined;
  * five variables should take one run, not five.
  */
 export const env = (
-  source: Record<string, string | undefined> = Bun.env,
+  source: Record<string, string | undefined> = process.env,
 ): Env => {
   if (cached !== undefined) {
     return cached;
