@@ -27,3 +27,31 @@ export const apiBase = (
 export const isDemo = (
   env: Readonly<Record<string, string | undefined>> = import.meta.env,
 ): boolean => env["VITE_DEMO"] === "1";
+
+/**
+ * The bearer token every public route requires.
+ *
+ * Inlined at build time, like every `VITE_*` variable — so it is not something
+ * a deployment can add afterwards without rebuilding, and not something
+ * `preflight` can check either: that reads the server's environment, and this
+ * one is baked into the bundle.
+ *
+ * It throws when unset rather than sending an empty `Authorization` header.
+ * The alternative is a client that renders every screen and answers 401 to
+ * every action a person takes — a build that looks deployed and does nothing,
+ * which is the most expensive shape this failure can have. Demo mode never
+ * reaches here: it issues no requests at all.
+ */
+export const apiToken = (
+  env: Readonly<Record<string, string | undefined>> = import.meta.env,
+): string => {
+  const token = env["VITE_API_TOKEN"];
+  if (token === undefined || token === "") {
+    throw new Error(
+      "VITE_API_TOKEN is unset. It is inlined at build time, so set it in the " +
+        "deployment's environment and rebuild — the same value as the " +
+        "server's AUTEUR_API_TOKEN.",
+    );
+  }
+  return token;
+};

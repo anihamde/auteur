@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { apiBase, isDemo } from "./api-base.ts";
+import { apiBase, apiToken, isDemo } from "./api-base.ts";
 import { demoState, demoTransport } from "./demo/transport.ts";
 import { App } from "./shell/app.tsx";
 import { liveTransport } from "./shell/session-state.ts";
@@ -18,9 +18,24 @@ if (root === null) {
 }
 
 const demo = isDemo();
-const transport = demo
-  ? demoTransport()
-  : liveTransport(apiBase(), import.meta.env["VITE_API_TOKEN"] ?? "");
+
+/**
+ * A misconfigured build says so on the page.
+ *
+ * `apiToken` throws, and an uncaught throw here is a white screen with the
+ * reason in a console nobody has open. The deployment that is missing the
+ * variable is exactly the one whose operator is looking at the page.
+ */
+let transport:
+  | ReturnType<typeof liveTransport>
+  | ReturnType<typeof demoTransport>;
+try {
+  transport = demo ? demoTransport() : liveTransport(apiBase(), apiToken());
+} catch (error) {
+  root.textContent =
+    error instanceof Error ? error.message : "The client is misconfigured.";
+  throw error;
+}
 
 createRoot(root).render(
   <StrictMode>
