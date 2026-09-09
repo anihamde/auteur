@@ -19,27 +19,32 @@ export const ENV_SPEC = {
     describe: "Shared bearer token every public route requires.",
     schema: z.string().min(16),
   },
+  AUTEUR_STAGE_SECRET: {
+    describe:
+      "Secret for POST /internal/stage. Distinct from the API token so a browser holding the client's token cannot drive the pipeline directly.",
+    schema: z.string().min(16),
+  },
   /**
    * What the platform's scheduler presents on the cron route.
    *
-   * Vercel Cron invokes a path with **GET** and, when this variable is set,
-   * `Authorization: Bearer <CRON_SECRET>`. It does not sign a body, so the
-   * sweep cannot use `AUTEUR_STAGE_SECRET`'s HMAC the way `/internal/stage`
-   * does — a scheduler that cannot produce the signature would simply never
-   * fire, silently, which is the failure the sweep exists to prevent.
+   * **Named without the `AUTEUR_` prefix on purpose.** Vercel Cron sends
+   * `Authorization: Bearer <value>` only when a variable named exactly
+   * `CRON_SECRET` is set — the name is the platform's, not ours. Reading a
+   * differently-named copy would mean setting one secret twice under two
+   * names, and a deployment that set only the platform's would refuse every
+   * invocation for the life of the schedule.
+   *
+   * It carries no body to sign, so the sweep cannot use
+   * `AUTEUR_STAGE_SECRET`'s HMAC the way `/internal/stage` does — see
+   * `docs/decisions/0011-the-scheduler-sends-what-it-sends.md`.
    *
    * Kept distinct from the stage secret anyway: the scheduler holds a value it
    * did not choose and cannot rotate, and giving it the key that drives the
    * pipeline would widen what a leak of it reaches.
    */
-  AUTEUR_CRON_SECRET: {
+  CRON_SECRET: {
     describe:
-      "Bearer token the platform's scheduler presents on /internal/cron/sweep. Set the same value as Vercel's CRON_SECRET.",
-    schema: z.string().min(16),
-  },
-  AUTEUR_STAGE_SECRET: {
-    describe:
-      "Secret for POST /internal/stage. Distinct from the API token so a browser holding the client's token cannot drive the pipeline directly.",
+      "Bearer token the platform's scheduler presents on /internal/cron/sweep. The name is Vercel's — set it exactly, or the scheduler sends no Authorization header at all.",
     schema: z.string().min(16),
   },
   DATABASE_URL: {

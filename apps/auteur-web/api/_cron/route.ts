@@ -26,7 +26,7 @@ import { type SweepDeps, sweep } from "./sweep.ts";
 export type CronRoutesDeps = {
   readonly db: Db;
   readonly invokeStage: NonNullable<AdvanceDeps["invokeStage"]>;
-  /** Vercel's `CRON_SECRET`, as `AUTEUR_CRON_SECRET`. */
+  /** Vercel's `CRON_SECRET`, read under that exact name. */
   readonly cronSecret: string;
   readonly thresholds?: Pick<
     SweepDeps,
