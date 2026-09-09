@@ -4,6 +4,7 @@ import { ROUTE_NAMES, specOf } from "@auteur/api-contract/routes";
 import { newId } from "@auteur/ids/new-id";
 import { createSession } from "@auteur/session-store/sessions";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
+import { CRONS } from "../../../../scripts/build-vercel.ts";
 import { createApp } from "../../server/_app.ts";
 import {
   GUARDED_PATHS,
@@ -110,28 +111,25 @@ describe("the stage secret and the bearer token are different keys", () => {
 });
 
 describe("the deploy configuration", () => {
-  test("the cron entry names the sweep and no other route", async () => {
+  test("the schedule names the sweep's own path, and says it once", async () => {
+    // Declared in the build script, not here: the platform reads `vercel.json`
+    // and the generated `config.json` both, and the same entry in each is
+    // rejected — "A duplicated cron job with the same schedule and path was
+    // found." So `vercel.json` must not carry one.
+    //
+    // The path is checked against the contract from this side, because the
+    // script cannot import the contract: workspace packages are linked into
+    // the package that depends on them, never the repository root.
+    expect(CRONS).toHaveLength(1);
+    expect(specOf("internalSweep").path).toBe(CRONS[0]?.path);
+
     const config = (await Bun.file(
       `${import.meta.dir}/../../vercel.json`,
-    ).json()) as {
-      crons: { path: string; schedule: string }[];
-      rewrites?: unknown;
-    };
-    expect(config.crons).toHaveLength(1);
-    // The contract's path, not a substring of it. There are no rewrites: every
-    // route is a real `/api/...` path, so the platform's own file-system
-    // routing delivers it to the catch-all with the path intact. A rewrite
-    // would hand the function the *destination* path, and the app routes on
-    // what it is given.
-    expect(config.crons[0]?.path).toBe(specOf("internalSweep").path);
+    ).json()) as { crons?: unknown; rewrites?: unknown };
+    expect(config.crons).toBeUndefined();
+    // Nor rewrites: every route is a real `/api/...` path, and a rewrite would
+    // hand the function the destination rather than what the caller asked for.
     expect(config.rewrites).toBeUndefined();
-    // Daily, and that is not the sweep's interval. The plan this deploys on
-    // allows one firing a day, so the schedule is a backstop for an idle
-    // deployment; traffic drives the sweep at §5.3's frequency. A minute-level
-    // expression here is rejected at build time by the platform, which is a
-    // deploy that fails rather than a sweep that runs.
-    expect(config.crons[0]?.schedule).not.toContain("*/");
-    expect(config.crons[0]?.schedule?.startsWith("* ")).toBe(false);
   });
 
   test("the build produces the Build Output API, not a directory to guess at", async () => {

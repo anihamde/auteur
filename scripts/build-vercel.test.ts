@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  CRONS,
   FUNCTION_DIR,
   MAX_DURATION,
   outputConfig,
@@ -46,16 +47,22 @@ describe("the generated function configuration", () => {
 });
 
 describe("the generated output configuration", () => {
-  test("the schedule from vercel.json is what the deployment gets", () => {
-    const crons = [{ path: "/api/internal/cron/sweep", schedule: "0 4 * * *" }];
-    expect(JSON.parse(outputConfig({ crons }))).toMatchObject({
-      crons,
-      version: 3,
-    });
+  test("the schedule is declared once, here", () => {
+    // The platform reads `vercel.json` and this generated config both, and the
+    // same entry in each is rejected outright: "A duplicated cron job with the
+    // same schedule and path was found." `vercel.json` is down to the two
+    // commands.
+    expect(JSON.parse(outputConfig())).toMatchObject({ crons: CRONS });
   });
 
-  test("no schedule is no crons key, rather than an empty one", () => {
-    expect(JSON.parse(outputConfig({}))).not.toHaveProperty("crons");
+  test("the schedule is not minute-level", () => {
+    // The plan allows one firing a day. The sweep runs on traffic; this is the
+    // backstop for a deployment nobody is using, and a minute-level expression
+    // is refused at build time.
+    for (const cron of CRONS) {
+      expect(cron.schedule.startsWith("* ")).toBe(false);
+      expect(cron.schedule).not.toContain("*/");
+    }
   });
 
   test("a URL reaches the function, which its name alone does not do", () => {
@@ -64,7 +71,7 @@ describe("the generated output configuration", () => {
     // deployment holds a function nothing can reach and a schedule naming a
     // path that resolves to nothing — which the platform rejects after a clean
     // build, with no message under it.
-    const { routes } = JSON.parse(outputConfig({})) as {
+    const { routes } = JSON.parse(outputConfig()) as {
       routes: { dest?: string; handle?: string; src?: string }[];
     };
     const api = routes[0];
@@ -82,7 +89,7 @@ describe("the generated output configuration", () => {
     // Order is the whole of the behaviour: a static file must not be able to
     // shadow a route, and a path the client owns must reach index.html rather
     // than a 404.
-    const { routes } = JSON.parse(outputConfig({})) as {
+    const { routes } = JSON.parse(outputConfig()) as {
       routes: { dest?: string; handle?: string; src?: string }[];
     };
     expect(routes.map((route) => route.handle ?? route.dest)).toEqual([

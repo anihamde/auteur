@@ -16,6 +16,7 @@ import {
   findQueueEntry,
 } from "@auteur/stage-queue/queue";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
+import { CRONS } from "../../../../scripts/build-vercel.ts";
 import { createApp } from "../../server/_app.ts";
 
 /**
@@ -76,12 +77,16 @@ const sweepRequest = async (
     method,
   });
 
-describe("the path vercel.json's cron names is answerable", () => {
-  test("it is the sweep's path, and it is not a 404", async () => {
-    const config = (await Bun.file(
-      `${import.meta.dir}/../../vercel.json`,
-    ).json()) as { crons: { path: string }[] };
-    expect(config.crons[0]?.path).toBe(ROUTES.internalSweep.path);
+describe("the path the schedule names is answerable", () => {
+  test("it is the sweep's path, and it is not a 404", () => {
+    // The schedule is declared in the build script — the platform reads
+    // `vercel.json` and the generated config both, and the same entry in each
+    // is rejected as a duplicate. Checked against the contract from here
+    // because the script cannot import the contract.
+    expect(ROUTES.internalSweep.path).toBe(CRONS[0]?.path);
+  });
+
+  test("the sweep's path answers", async () => {
     expect((await sweepRequest()).status).toBe(200);
   });
 
