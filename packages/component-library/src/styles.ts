@@ -32,7 +32,7 @@ export const GROUNDS = {
   },
   paper: {
     background: token("surface-paper"),
-    color: token("text-paper-body"),
+    color: token("text-paper"),
   },
 } as const satisfies Record<string, CSSProperties>;
 
@@ -47,7 +47,7 @@ export type Ground = keyof typeof GROUNDS;
  */
 export const controlSurface: CSSProperties = {
   background: token("surface-input"),
-  borderColor: token("border-default"),
+  borderColor: token("border-subtle"),
   borderRadius: token("radius-control"),
   borderStyle: "solid",
   borderWidth: token("rule-hairline"),
