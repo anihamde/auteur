@@ -3,7 +3,7 @@
   "buildCommand": "bun run turbo build --filter=@auteur/app-auteur-web",
   "crons": [
     {
-      "path": "/internal/cron/sweep",
+      "path": "/api/internal/cron/sweep",
       "schedule": "0 4 * * *"
     }
   ],
@@ -13,15 +13,5 @@
     }
   },
   "installCommand": "bun install --frozen-lockfile",
-  "outputDirectory": "apps/auteur-web/dist",
-  "rewrites": [
-    {
-      "destination": "/api",
-      "source": "/api/(.*)"
-    },
-    {
-      "destination": "/api",
-      "source": "/internal/(.*)"
-    }
-  ]
+  "outputDirectory": "apps/auteur-web/dist"
 }

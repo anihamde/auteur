@@ -119,15 +119,15 @@ export const findings = (files: Iterable<string>): string[] => {
 /**
  * Every function entry point.
  *
- * `api/[[...path]].ts` at the repository root is the file the platform turns
+ * `api/[...path].ts` at the repository root is the file the platform turns
  * into a function; it re-exports the app's own catch-all, which is where the
  * graph really starts. `_app.ts` is listed too because it is the module every
  * route test mounts, and a Bun global reachable only through it would be a
  * defect the tests share with the deployment.
  */
 export const ENTRIES = [
-  join(ROOT, "api/[[...path]].ts"),
-  join(API, "[[...path]].ts"),
+  join(ROOT, "api/[...path].ts"),
+  join(API, "[...path].ts"),
   join(API, "_app.ts"),
 ];
 

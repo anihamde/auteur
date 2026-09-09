@@ -1,5 +1,6 @@
 import { claimSweep, SWEEP_EVERY_SECONDS } from "@auteur/stage-queue/sweep";
 import type { MiddlewareHandler } from "hono";
+import { isInternalPath } from "../_auth.ts";
 import { type SweepDeps, sweep } from "./sweep.ts";
 
 /**
@@ -31,10 +32,11 @@ export type OnTrafficDeps = Omit<SweepDeps, "staleAfterSeconds"> & {
 
 export const sweepOnTraffic = (deps: OnTrafficDeps): MiddlewareHandler =>
   async function sweepMiddleware(context, next) {
-    // `/internal/*` is the sweep's own path and the stage route it invokes.
-    // Sweeping from there would let a sweep trigger a sweep, and would put the
-    // work in front of the one request whose latency is a stage's latency.
-    if (context.req.path.startsWith("/internal/")) return next();
+    // The internal routes are the sweep's own path and the stage route it
+    // invokes. Sweeping from there would let a sweep trigger a sweep, and
+    // would put the work in front of the one request whose latency is a
+    // stage's latency.
+    if (isInternalPath(context.req.path)) return next();
 
     try {
       if (await claimSweep(deps.db, deps.everySeconds ?? SWEEP_EVERY_SECONDS)) {

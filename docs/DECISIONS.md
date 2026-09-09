@@ -22,3 +22,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0011 | [The scheduler sends what it sends](decisions/0011-the-scheduler-sends-what-it-sends.md) | accepted | 2026-09-09 |
 | 0012 | [The functions run on Node](decisions/0012-the-functions-run-on-node.md) | accepted | 2026-09-09 |
 | 0013 | [The sweep runs on traffic](decisions/0013-the-sweep-runs-on-traffic.md) | accepted | 2026-09-09 |
+| 0014 | [One catch-all, and no rewrites](decisions/0014-one-catch-all-and-no-rewrites.md) | accepted | 2026-09-09 |

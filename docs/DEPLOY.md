@@ -12,7 +12,7 @@ into the client bundle when it is built.
 | name | scope | what it is |
 | --- | --- | --- |
 | `AUTEUR_API_TOKEN` | Production + Preview | Bearer token every public route requires. |
-| `AUTEUR_STAGE_SECRET` | Production + Preview | Signs `POST /internal/stage`. Distinct from the API token so a browser holding the client's token cannot drive the pipeline directly. |
+| `AUTEUR_STAGE_SECRET` | Production + Preview | Signs `POST /api/internal/stage`. Distinct from the API token so a browser holding the client's token cannot drive the pipeline directly. |
 | `CRON_SECRET` | Production | What the scheduler presents on the sweep. **The name is Vercel's** — it attaches `Authorization: Bearer …` only when a variable of exactly this name exists. |
 | `RAMP_ROUTER_API_KEY` | Production + Preview | Credential for every model call. |
 | `DATABASE_URL` | Production + Preview | Neon's **pooled** endpoint. Its host contains `-pooler`. |
@@ -54,7 +54,7 @@ action.
 
 1. `GET /api/health` answers 200. A 404 means no function was built: the
    platform creates one per file in `api/` at the root of the deployment, which
-   is what `api/[[...path]].ts` is for.
+   is what `api/[...path].ts` is for.
 2. `bun run preflight` locally, with the same values in `.env`. It names every
    missing or malformed variable at once rather than the first.
 3. `bun run verify:live` — the four checks that need real credentials: the

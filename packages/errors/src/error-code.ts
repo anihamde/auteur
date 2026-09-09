@@ -27,7 +27,7 @@ export const ERROR_CODES = [
   /** The caller cancelled. */
   "cancelled",
   /**
-   * The bearer token was absent or wrong, or `/internal/stage` was not signed.
+   * The bearer token was absent or wrong, or `/api/internal/stage` was not signed.
    *
    * Not "authentication failed": auteur is single-user and neither secret
    * identifies anyone. It says the caller does not hold the shared value the

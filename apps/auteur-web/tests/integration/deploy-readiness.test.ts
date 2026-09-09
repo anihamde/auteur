@@ -6,7 +6,7 @@ import {
   expect,
   test,
 } from "bun:test";
-import { ROUTES } from "@auteur/api-contract/routes";
+import { ROUTE_NAMES, ROUTES, specOf } from "@auteur/api-contract/routes";
 import { newId } from "@auteur/ids/new-id";
 import { createSession } from "@auteur/session-store/sessions";
 import {
@@ -120,20 +120,25 @@ describe("the platform has a function to find", () => {
     // one checks to decide whether the deploy worked.
     const config = (await Bun.file(`${repoRoot}/vercel.json`).json()) as {
       functions: Record<string, unknown>;
-      rewrites: { destination: string; source: string }[];
     };
     const globs = Object.keys(config.functions);
     expect(globs).toHaveLength(1);
     const directory = globs[0]?.replace(/\/\*\*$/, "");
     expect(
-      await Bun.file(`${repoRoot}/${directory}/[[...path]].ts`).exists(),
+      await Bun.file(`${repoRoot}/${directory}/[...path].ts`).exists(),
     ).toBe(true);
+  });
 
-    // Both rewrites land on `/api`, which is the catch-all's own path.
-    expect(config.rewrites.map((rule) => rule.destination)).toEqual([
-      "/api",
-      "/api",
-    ]);
+  test("every route is under the catch-all's own prefix", () => {
+    // `api/[...path].ts` answers `/api/<something>` and nothing else. A route
+    // outside that prefix would need a rewrite to reach it, and a rewrite
+    // hands the function the *destination* path rather than the requested one
+    // — so the app would route on a path the caller never asked for. That is
+    // why the internal routes are `/api/internal/...`.
+    const outside = ROUTE_NAMES.map((name) => specOf(name).path).filter(
+      (path) => !path.startsWith("/api/"),
+    );
+    expect(outside).toEqual([]);
   });
 
   test("the root entry re-exports exactly what the app entry exports", async () => {
@@ -153,9 +158,9 @@ describe("the platform has a function to find", () => {
         .filter((name) => name.length > 0 && name === name.toUpperCase())
         .sort();
 
-    const root = await Bun.file(`${repoRoot}/api/[[...path]].ts`).text();
+    const root = await Bun.file(`${repoRoot}/api/[...path].ts`).text();
     const app = await Bun.file(
-      `${repoRoot}/apps/auteur-web/api/[[...path]].ts`,
+      `${repoRoot}/apps/auteur-web/api/[...path].ts`,
     ).text();
     expect(names(root)).toEqual(names(app));
     expect(names(root).length).toBeGreaterThan(0);
@@ -231,7 +236,7 @@ describe("the sweep does not depend on the scheduler's frequency", () => {
       `UPDATE sweep_state SET last_swept_at = now() - interval '1 hour'`,
     );
 
-    await appWithCron().request("/internal/stage", { method: "POST" });
+    await appWithCron().request("/api/internal/stage", { method: "POST" });
 
     expect(invoked).toEqual([]);
   });
