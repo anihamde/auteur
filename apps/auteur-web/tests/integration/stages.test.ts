@@ -23,7 +23,7 @@ import {
   SCRIPTED_MODELS,
   type ScriptedTurn,
 } from "@auteur/test-support/scripted-provider";
-import { createStageBody } from "../../api/_stages/index.ts";
+import { createStageBody } from "../../server/_stages/index.ts";
 
 /**
  * The stage bodies against a scripted provider and a fixture corpus.

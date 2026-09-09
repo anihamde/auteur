@@ -52,12 +52,17 @@ action.
    and built while the deployment root stays this app.
 
    The build produces `.vercel/output` itself — the client bundle and one
-   bundled function — rather than leaving the platform to compile `api/*.ts`
+   bundled function — rather than leaving the platform to compile the routes
    and resolve the rest at runtime. Our workspace packages export TypeScript
    source, which Node cannot import; `bun run build:vercel` bundles all of it
    into a single file. `bundle.test.ts` runs that file under Node against an
    empty database, which is the only check here that answers "would the deploy
    work".
+
+   The routes live in `apps/auteur-web/server/`, not `api/`. A directory called
+   `api/` makes the platform build every file in it as a function *as well*,
+   with its own TypeScript configuration — two minutes of type errors and a
+   function nobody asked for, beside the one we bundled.
 2. Add the five variables above that do not come from Neon.
 3. **Deploy.** The build succeeds and the functions fail — there is no database
    yet. That is expected.
@@ -72,9 +77,9 @@ action.
 
 1. `GET /api/health` answers 200.
 
-   A **404** means no function was built. The platform creates one per file in
-   `api/` at the root of the deployment: check the Root Directory is
-   `apps/auteur-web`.
+   A **404** means the output carries no function for that path: check the
+   Root Directory is `apps/auteur-web` and that the build log ends with
+   `built .vercel/output`.
 
    A **500** naming missing variables is the environment; the response lists
    every key to fix. A **500** that is the platform's own crash page is a throw

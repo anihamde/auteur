@@ -1,12 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { FUNCTION_DIR, outputConfig, vcConfig } from "./build-vercel.ts";
+import {
+  FUNCTION_DIR,
+  MAX_DURATION,
+  outputConfig,
+  vcConfig,
+} from "./build-vercel.ts";
 
 describe("the generated function configuration", () => {
-  test("the duration from vercel.json reaches the function", () => {
-    // The number is stated once, in `vercel.json`, and read from there. Stated
-    // twice, the deployment's real limit would be whichever copy the platform
-    // reads — and the other would go on looking correct.
-    expect(JSON.parse(vcConfig(300))).toMatchObject({ maxDuration: 300 });
+  test("the duration reaches the function", () => {
+    // Stated once. Stated twice — here and in a `vercel.json` the platform no
+    // longer reads for this — the deployment's real limit would be whichever
+    // copy wins, and the other would go on looking correct.
+    expect(JSON.parse(vcConfig(MAX_DURATION))).toMatchObject({
+      maxDuration: MAX_DURATION,
+    });
   });
 
   test("no duration means the platform's default, not a zero", () => {

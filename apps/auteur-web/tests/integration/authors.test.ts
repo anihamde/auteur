@@ -9,7 +9,7 @@ import {
 } from "@auteur/corpus-store/authors";
 import { newId } from "@auteur/ids/new-id";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { createApp } from "../../api/_app.ts";
+import { createApp } from "../../server/_app.ts";
 
 /**
  * `GET /api/authors` against a real database.

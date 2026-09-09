@@ -18,12 +18,12 @@ import {
   listQueueForSession,
 } from "@auteur/stage-queue/queue";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { createApp } from "../../api/_app.ts";
+import { createApp } from "../../server/_app.ts";
 import {
   SIGNATURE_HEADER,
   signPayload,
-} from "../../api/_internal/signature.ts";
-import type { StageBody } from "../../api/_internal/stage.ts";
+} from "../../server/_internal/signature.ts";
+import type { StageBody } from "../../server/_internal/stage.ts";
 
 const TOKEN = "a-token-of-at-least-16-chars";
 const SECRET = "a-stage-secret-of-16-plus";

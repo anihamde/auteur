@@ -23,9 +23,9 @@ import {
 import { recordStageKey } from "@auteur/session-store/stage-keys";
 import { listQueueForSession } from "@auteur/stage-queue/queue";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { createApp } from "../../api/_app.ts";
-import { stalenessInputFor } from "../../api/_routes/advance.ts";
-import { inputKeys } from "../../api/_staleness.ts";
+import { createApp } from "../../server/_app.ts";
+import { stalenessInputFor } from "../../server/_routes/advance.ts";
+import { inputKeys } from "../../server/_staleness.ts";
 
 /**
  * §7.5's six consequences, one test each.

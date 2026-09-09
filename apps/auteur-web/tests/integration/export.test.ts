@@ -13,7 +13,7 @@ import { newId } from "@auteur/ids/new-id";
 import { putArtifact } from "@auteur/session-store/artifacts";
 import { createSession, updateSession } from "@auteur/session-store/sessions";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { createApp } from "../../api/_app.ts";
+import { createApp } from "../../server/_app.ts";
 
 const TOKEN = "a-token-of-at-least-16-chars";
 const AUTHOR = "gutenberg:chekhov-anton-pavlovich-1860";

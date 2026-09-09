@@ -17,7 +17,7 @@ import {
   type Stream,
 } from "@auteur/stream-client/stream-client";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { createApp } from "../../api/_app.ts";
+import { createApp } from "../../server/_app.ts";
 
 const TOKEN = "a-token-of-at-least-16-chars";
 
