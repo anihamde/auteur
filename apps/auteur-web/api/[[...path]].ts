@@ -65,7 +65,7 @@ const invokeStage = async (input: {
  * production's database.
  */
 const selfOrigin = (): string => {
-  const host = Bun.env["VERCEL_URL"];
+  const host = process.env["VERCEL_URL"];
   return host === undefined ? "http://127.0.0.1:3000" : `https://${host}`;
 };
 
