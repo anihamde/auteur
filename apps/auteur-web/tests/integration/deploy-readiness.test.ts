@@ -106,6 +106,62 @@ describe("the path vercel.json's cron names is answerable", () => {
   });
 });
 
+describe("the platform has a function to find", () => {
+  const repoRoot = `${import.meta.dir}/../../../..`;
+
+  test("the functions glob names a directory holding a catch-all", async () => {
+    // Vercel builds a function per file in `api/` **at the root of the
+    // deployment**, and `vercel.json` sits at the repository root, so that is
+    // the repository. The app's own entry point lives beside the app; the root
+    // file re-exports it.
+    //
+    // Get this wrong and the deploy succeeds, the static site serves, and
+    // every route answers 404 — including `/api/health`, which is the thing
+    // one checks to decide whether the deploy worked.
+    const config = (await Bun.file(`${repoRoot}/vercel.json`).json()) as {
+      functions: Record<string, unknown>;
+      rewrites: { destination: string; source: string }[];
+    };
+    const globs = Object.keys(config.functions);
+    expect(globs).toHaveLength(1);
+    const directory = globs[0]?.replace(/\/\*\*$/, "");
+    expect(
+      await Bun.file(`${repoRoot}/${directory}/[[...path]].ts`).exists(),
+    ).toBe(true);
+
+    // Both rewrites land on `/api`, which is the catch-all's own path.
+    expect(config.rewrites.map((rule) => rule.destination)).toEqual([
+      "/api",
+      "/api",
+    ]);
+  });
+
+  test("the root entry re-exports exactly what the app entry exports", async () => {
+    // Compared as two sets read from the two files, not against a written
+    // list: a verb added to the app and not re-exported would 405 in
+    // production and nowhere else, since every app test calls `app.fetch`
+    // directly and never loads this file.
+    //
+    // Read as source rather than imported. Importing either entry constructs
+    // the app — `env()`, two database pools, a provider client — which is the
+    // work the deployment does on a cold start and not something a test should
+    // do to count names.
+    const names = (source: string): string[] =>
+      [...source.matchAll(/export (?:const|default|\{ ?)([\w, ]*)/g)]
+        .flatMap((match) => (match[1] ?? "default").split(","))
+        .map((name) => name.trim())
+        .filter((name) => name.length > 0 && name === name.toUpperCase())
+        .sort();
+
+    const root = await Bun.file(`${repoRoot}/api/[[...path]].ts`).text();
+    const app = await Bun.file(
+      `${repoRoot}/apps/auteur-web/api/[[...path]].ts`,
+    ).text();
+    expect(names(root)).toEqual(names(app));
+    expect(names(root).length).toBeGreaterThan(0);
+  });
+});
+
 describe("the sweep carries the scheduler's token, not the API token", () => {
   test("a request with no token is refused", async () => {
     expect((await sweepRequest(null)).status).toBe(401);
