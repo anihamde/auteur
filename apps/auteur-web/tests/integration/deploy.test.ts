@@ -116,8 +116,13 @@ describe("the deploy configuration", () => {
     ).json()) as { crons: { path: string; schedule: string }[] };
     expect(config.crons).toHaveLength(1);
     expect(config.crons[0]?.path).toContain("sweep");
-    // Every minute: §5.3's sweep interval.
-    expect(config.crons[0]?.schedule).toBe("* * * * *");
+    // Daily, and that is not the sweep's interval. The plan this deploys on
+    // allows one firing a day, so the schedule is a backstop for an idle
+    // deployment; traffic drives the sweep at §5.3's frequency. A minute-level
+    // expression here is rejected at build time by the platform, which is a
+    // deploy that fails rather than a sweep that runs.
+    expect(config.crons[0]?.schedule).not.toContain("*/");
+    expect(config.crons[0]?.schedule?.startsWith("* ")).toBe(false);
   });
 
   test("the build output is the client's bundle", async () => {

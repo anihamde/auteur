@@ -10,7 +10,11 @@ import {
   findQueueEntry,
   MAX_ATTEMPTS,
 } from "../../src/queue.ts";
-import { findStaleClaims, releaseStaleClaim } from "../../src/sweep.ts";
+import {
+  claimSweep,
+  findStaleClaims,
+  releaseStaleClaim,
+} from "../../src/sweep.ts";
 
 let harness: TestDb;
 
@@ -226,5 +230,39 @@ describe("the queue cascades with its session", () => {
       [sessionId],
     );
     expect(rows.rows[0]?.["n"]).toBe("0");
+  });
+});
+
+describe("only one instance sweeps per window", () => {
+  test("two concurrent claims on the sweep: exactly one wins", async () => {
+    // The throttle has to hold across function instances, which do not share
+    // memory. Held in a module-level timestamp this would let every cold start
+    // sweep immediately — and a cold start per request is the normal case on
+    // this platform, so the throttle would be no throttle at all.
+    await harness.db.query(
+      `UPDATE sweep_state SET last_swept_at = now() - interval '1 hour'`,
+    );
+
+    const [a, b] = await Promise.all([
+      claimSweep(harness.db, 30),
+      claimSweep(harness.other, 30),
+    ]);
+
+    expect([a, b].filter(Boolean)).toHaveLength(1);
+  });
+
+  test("a claim inside the window is refused, and outside it granted", async () => {
+    await harness.db.query(
+      `UPDATE sweep_state SET last_swept_at = now() - interval '1 hour'`,
+    );
+    expect(await claimSweep(harness.db, 30)).toBe(true);
+    expect(await claimSweep(harness.db, 30)).toBe(false);
+    // Zero seconds is what a test uses to mean "now"; the comparison is
+    // strictly less-than, so the row must be aged rather than the window
+    // shrunk to nothing.
+    await harness.db.query(
+      `UPDATE sweep_state SET last_swept_at = now() - interval '31 seconds'`,
+    );
+    expect(await claimSweep(harness.db, 30)).toBe(true);
   });
 });

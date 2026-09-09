@@ -152,3 +152,41 @@ export const abandonStaleClaim = async (
   );
   return (result.rowCount ?? 0) === 1;
 };
+
+/**
+ * How often traffic may drive a sweep.
+ *
+ * Short, because it is the interval a stalled story waits before it recovers,
+ * and long enough that a burst of requests does not run ten of them. The
+ * platform's own scheduler is a backstop for an idle deployment rather than
+ * the primary trigger — a Hobby project is limited to one cron firing a day,
+ * and a run that stalls at two in the afternoon must not resume tomorrow.
+ */
+export const SWEEP_EVERY_SECONDS = 30;
+
+/**
+ * Win the right to sweep, or find that someone else already has.
+ *
+ * A conditional `UPDATE ... RETURNING`, exactly like claiming a queue row: the
+ * database decides, once, and every other instance gets no row back. An
+ * in-memory timestamp would be one per function instance, which on a platform
+ * that runs instances in parallel is no throttle at all.
+ *
+ * It is deliberately not transactional with the sweep it authorizes. A sweep
+ * that dies halfway leaves the timestamp advanced and the next one happens a
+ * few seconds later; holding a transaction open across the sweep's own writes
+ * would serialize them behind it for the sake of that.
+ */
+export const claimSweep = async (
+  db: Db,
+  everySeconds: number = SWEEP_EVERY_SECONDS,
+): Promise<boolean> => {
+  const result = await db.query(
+    `UPDATE sweep_state
+        SET last_swept_at = now()
+      WHERE last_swept_at < now() - make_interval(secs => $1)
+      RETURNING only_row`,
+    [everySeconds],
+  );
+  return result.rows.length === 1;
+};

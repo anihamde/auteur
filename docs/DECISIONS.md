@@ -21,3 +21,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0010 | [The sweep is a route, and there are seventeen](decisions/0010-the-sweep-is-a-route.md) | accepted | 2026-09-08 |
 | 0011 | [The scheduler sends what it sends](decisions/0011-the-scheduler-sends-what-it-sends.md) | accepted | 2026-09-09 |
 | 0012 | [The functions run on Node](decisions/0012-the-functions-run-on-node.md) | accepted | 2026-09-09 |
+| 0013 | [The sweep runs on traffic](decisions/0013-the-sweep-runs-on-traffic.md) | accepted | 2026-09-09 |

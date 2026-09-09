@@ -22,7 +22,9 @@ export const listQueueForSession = async (
 ```ts
 export const QUEUED_AFTER_SECONDS = 60
 export const STALE_AFTER_SECONDS = 300
+export const SWEEP_EVERY_SECONDS = 30
 export const abandonStaleClaim = async (
+export const claimSweep = async (
 export const findAbandonedQueued = async (
 export const findStaleClaims = async (
 export const releaseStaleClaim = async (
