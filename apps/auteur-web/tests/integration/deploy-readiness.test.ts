@@ -6,6 +6,7 @@ import {
   expect,
   test,
 } from "bun:test";
+import { dirname, resolve } from "node:path";
 import { ROUTE_NAMES, ROUTES, specOf } from "@auteur/api-contract/routes";
 import { newId } from "@auteur/ids/new-id";
 import { createSession } from "@auteur/session-store/sessions";
@@ -78,7 +79,7 @@ const sweepRequest = async (
 describe("the path vercel.json's cron names is answerable", () => {
   test("it is the sweep's path, and it is not a 404", async () => {
     const config = (await Bun.file(
-      `${import.meta.dir}/../../../../vercel.json`,
+      `${import.meta.dir}/../../vercel.json`,
     ).json()) as { crons: { path: string }[] };
     expect(config.crons[0]?.path).toBe(ROUTES.internalSweep.path);
     expect((await sweepRequest()).status).toBe(200);
@@ -107,25 +108,28 @@ describe("the path vercel.json's cron names is answerable", () => {
 });
 
 describe("the platform has a function to find", () => {
-  const repoRoot = `${import.meta.dir}/../../../..`;
+  const appRoot = `${import.meta.dir}/../..`;
 
   test("the functions glob names a directory holding a catch-all", async () => {
-    // Vercel builds a function per file in `api/` **at the root of the
-    // deployment**, and `vercel.json` sits at the repository root, so that is
-    // the repository. The app's own entry point lives beside the app; the root
-    // file re-exports it.
+    // The platform builds a function per file in `api/` **at the root of the
+    // deployment**, and the deployment root is this app — `vercel.json` lives
+    // here, and its build and install commands step up to the workspace root.
+    // That is what puts `node_modules` beside the function: workspace packages
+    // are linked into the package that depends on them, not into the
+    // repository root, so an `api/` directory at the repository root cannot
+    // resolve `@auteur/*` at all.
     //
     // Get this wrong and the deploy succeeds, the static site serves, and
     // every route answers 404 — including `/api/health`, which is the thing
     // one checks to decide whether the deploy worked.
-    const config = (await Bun.file(`${repoRoot}/vercel.json`).json()) as {
+    const config = (await Bun.file(`${appRoot}/vercel.json`).json()) as {
       functions: Record<string, unknown>;
     };
     const globs = Object.keys(config.functions);
     expect(globs).toHaveLength(1);
     const directory = globs[0]?.replace(/\/\*\*$/, "");
     expect(
-      await Bun.file(`${repoRoot}/${directory}/[...path].ts`).exists(),
+      await Bun.file(`${appRoot}/${directory}/[...path].ts`).exists(),
     ).toBe(true);
   });
 
@@ -141,29 +145,29 @@ describe("the platform has a function to find", () => {
     expect(outside).toEqual([]);
   });
 
-  test("the root entry re-exports exactly what the app entry exports", async () => {
-    // Compared as two sets read from the two files, not against a written
-    // list: a verb added to the app and not re-exported would 405 in
-    // production and nowhere else, since every app test calls `app.fetch`
-    // directly and never loads this file.
+  test("nothing under api/ imports a file outside it", async () => {
+    // A function is deployed with the files the platform traces from its
+    // entry. A relative import that climbs out of `api/` is a file that may
+    // not be shipped with it — and the failure is a module-resolution error
+    // during import, before any route exists, which the platform reports as a
+    // crashed function with the reason in a log.
     //
-    // Read as source rather than imported. Importing either entry constructs
-    // the app — `env()`, two database pools, a provider client — which is the
-    // work the deployment does on a cold start and not something a test should
-    // do to count names.
-    const names = (source: string): string[] =>
-      [...source.matchAll(/export (?:const|default|\{ ?)([\w, ]*)/g)]
-        .flatMap((match) => (match[1] ?? "default").split(","))
-        .map((name) => name.trim())
-        .filter((name) => name.length > 0 && name === name.toUpperCase())
-        .sort();
-
-    const root = await Bun.file(`${repoRoot}/api/[...path].ts`).text();
-    const app = await Bun.file(
-      `${repoRoot}/apps/auteur-web/api/[...path].ts`,
-    ).text();
-    expect(names(root)).toEqual(names(app));
-    expect(names(root).length).toBeGreaterThan(0);
+    // Workspace specifiers are fine: `@auteur/*` resolves through this
+    // package's own `node_modules`, which is beside the function.
+    const offences: string[] = [];
+    for await (const relative of new Bun.Glob("**/*.ts").scan({
+      cwd: `${appRoot}/api`,
+    })) {
+      const source = await Bun.file(`${appRoot}/api/${relative}`).text();
+      for (const match of source.matchAll(/from\s*["'](\.[^"']*)["']/g)) {
+        const specifier = match[1] ?? "";
+        const resolved = resolve(dirname(`/api/${relative}`), specifier);
+        if (!resolved.startsWith("/api/")) {
+          offences.push(`${relative}: ${specifier}`);
+        }
+      }
+    }
+    expect(offences).toEqual([]);
   });
 });
 

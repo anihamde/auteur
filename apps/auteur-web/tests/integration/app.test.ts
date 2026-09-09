@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { errorResponseSchema, ROUTES } from "@auteur/api-contract/routes";
 import { createDb } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
-import { createApp } from "./_app.ts";
+import { createApp } from "../../api/_app.ts";
 
 const TOKEN = "a-token-of-at-least-16-chars";
 

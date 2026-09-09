@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "bun run turbo build --filter=@auteur/app-auteur-web",
+  "buildCommand": "cd ../.. && bun run turbo build --filter=@auteur/app-auteur-web",
   "crons": [
     {
       "path": "/api/internal/cron/sweep",
@@ -12,6 +12,6 @@
       "maxDuration": 300
     }
   },
-  "installCommand": "bun install --frozen-lockfile",
-  "outputDirectory": "apps/auteur-web/dist"
+  "installCommand": "cd ../.. && bun install --frozen-lockfile",
+  "outputDirectory": "dist"
 }
