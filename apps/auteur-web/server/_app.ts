@@ -23,6 +23,7 @@ import { healthRoutes } from "./_routes/health.ts";
 import { modelRoutes } from "./_routes/models.ts";
 import { pinRoutes } from "./_routes/pins.ts";
 import { type RegenerateDeps, regenerateRoutes } from "./_routes/regenerate.ts";
+import { selectAuthorRoutes } from "./_routes/select-author.ts";
 import { sessionRoutes } from "./_routes/sessions.ts";
 
 /**
@@ -233,6 +234,13 @@ export const createApp = (deps: AppDeps): Hono => {
       db: deps.db,
       ...(deps.invokeStage !== undefined && { invokeStage: deps.invokeStage }),
       ...(deps.recordSpan !== undefined && { recordSpan: deps.recordSpan }),
+    }),
+  );
+  app.route(
+    "/",
+    selectAuthorRoutes({
+      db: deps.db,
+      ...(deps.invokeStage !== undefined && { invokeStage: deps.invokeStage }),
     }),
   );
   app.route("/", sessionRoutes({ db: deps.db }));

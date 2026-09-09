@@ -57,10 +57,12 @@ export const AuthorScreen = ({
     };
   }, [query, transport]);
 
-  const choose = async (authorId: string): Promise<void> => {
+  const choose = async (author: AuthorRow): Promise<void> => {
     if (sessionId === undefined) return;
+    // The whole row, not its id: `sessions.author_id` references a table
+    // search never writes, and this is the moment the author becomes one.
     await transport.client.call("selectAuthor", {
-      body: { authorId },
+      body: { author },
       params: { id: sessionId },
     });
     const view = await transport.client.call("session", {
@@ -111,7 +113,7 @@ export const AuthorScreen = ({
                   what is known. */}
               <p>{author.detail}</p>
               {author.kind === "full-text" ? (
-                <Button onClick={() => void choose(author.id)}>
+                <Button onClick={() => void choose(author)}>
                   {COPY.author.next}
                 </Button>
               ) : (
