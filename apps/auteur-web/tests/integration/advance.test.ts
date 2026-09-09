@@ -248,3 +248,95 @@ describe("advance's scope", () => {
     expect(response.status).toBe(400);
   });
 });
+
+describe("choosing an author is the other moment work begins", () => {
+  /** The row the screen is holding, which is what the choice carries. */
+  const rowFor = (id: string) => ({
+    birthYear: 1860,
+    deathYear: 1904,
+    detail: "16 works",
+    displayName: id,
+    id,
+    kind: "full-text" as const,
+    workCount: 16,
+  });
+
+  const chooseAuthor = async (
+    app: ReturnType<typeof createApp>,
+    authorId: string,
+  ): Promise<{ enqueued: string[] }> => {
+    const response = await app.request(`/api/sessions/${sessionId}/author`, {
+      body: JSON.stringify({ author: rowFor(authorId) }),
+      headers: {
+        authorization: `Bearer ${TOKEN}`,
+        "content-type": "application/json",
+      },
+      method: "POST",
+    });
+    expect(response.status).toBe(200);
+    return ROUTES.selectAuthor.response.parse(await response.json()) as {
+      enqueued: string[];
+    };
+  };
+
+  test("it records the author and enqueues the research stages", async () => {
+    // Nothing on the research screen calls `advance`: it renders four stages
+    // already running, because choosing the author started them. Without this
+    // the screen shows four rows that never move.
+    const app = createApp({ apiToken: TOKEN, db: harness.db });
+
+    const { enqueued } = await chooseAuthor(app, "gutenberg:chekhov");
+
+    expect(enqueued).toEqual([
+      "corpus-select",
+      "work-fetch",
+      "prosody-compute",
+      "style-extract",
+    ]);
+    expect((await requireSession(harness.db, sessionId)).authorId).toBe(
+      "gutenberg:chekhov",
+    );
+    expect(
+      (await listQueueForSession(harness.db, sessionId)).map(
+        (row) => row.stageId,
+      ),
+    ).toEqual(enqueued);
+  });
+
+  test("choosing the same author again enqueues nothing", async () => {
+    // Staleness is computed from the author, so re-choosing restales nothing —
+    // the same property that makes a completed rail row free to click.
+    const app = createApp({ apiToken: TOKEN, db: harness.db });
+    await chooseAuthor(app, "gutenberg:chekhov");
+    await harness.db.query(`DELETE FROM stage_queue`);
+    for (const stage of [
+      "corpus-select",
+      "work-fetch",
+      "prosody-compute",
+      "style-extract",
+    ]) {
+      const input = await stalenessInputFor(harness.db, sessionId);
+      await recordStageKey(
+        harness.db,
+        sessionId,
+        stage,
+        inputKeys(input).get(stage) ?? "",
+      );
+    }
+
+    expect((await chooseAuthor(app, "gutenberg:chekhov")).enqueued).toEqual([]);
+  });
+
+  test("a different author restales the run", async () => {
+    const app = createApp({ apiToken: TOKEN, db: harness.db });
+    await chooseAuthor(app, "gutenberg:chekhov");
+    await harness.db.query(`DELETE FROM stage_queue`);
+
+    expect((await chooseAuthor(app, "gutenberg:borges")).enqueued).toEqual([
+      "corpus-select",
+      "work-fetch",
+      "prosody-compute",
+      "style-extract",
+    ]);
+  });
+});

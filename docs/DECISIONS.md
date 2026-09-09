@@ -29,3 +29,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0018 | [The output says which URLs reach the function](decisions/0018-the-output-says-which-urls-reach-the-function.md) | accepted | 2026-09-09 |
 | 0019 | [The duration is one the plan accepts](decisions/0019-the-duration-is-one-the-plan-accepts.md) | accepted | 2026-09-09 |
 | 0020 | [The schedule is declared once](decisions/0020-the-schedule-is-declared-once.md) | accepted | 2026-09-09 |
+| 0021 | [Selecting an author records one](decisions/0021-selecting-an-author-records-one.md) | accepted | 2026-09-09 |

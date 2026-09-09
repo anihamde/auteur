@@ -107,53 +107,70 @@ export const stalenessInputFor = async (
   };
 };
 
+/**
+ * Enqueue every stale stage up to a step, and ask for the first.
+ *
+ * Shared by `advance` and `selectAuthor` rather than written twice: choosing an
+ * author is the other moment work begins, and a second opinion about what is
+ * stale — held in a route — is a second thing to keep correct. §7.1 says only
+ * one route *starts* work; this is that decision expressed once, called from
+ * the two places that make it.
+ *
+ * Every stale stage is enqueued, in graph order, **before** the first is
+ * invoked. Enqueuing only the first would make the chain depend on each stage
+ * knowing its successors, and a lost invocation would then lose the rest of the
+ * run rather than one step of it.
+ */
+export const enqueueStaleUpTo = async (
+  deps: AdvanceDeps,
+  sessionId: string,
+  to: Step,
+): Promise<string[]> => {
+  const target = LAST_STAGE_FOR_STEP[to];
+  if (target === undefined) {
+    // `idea` and `author` are screens, not work. An empty list is the honest
+    // result; refusing would make the caller special-case two of seven steps.
+    return [];
+  }
+
+  const input = await stalenessInputFor(deps.db, sessionId);
+  const stale = staleUpTo(input, target);
+  if (stale.length === 0) {
+    // Re-entering a step and changing nothing restales nothing, which is what
+    // makes the design's clickable completed rail rows free.
+    return [];
+  }
+
+  const rows = stale.map((stageId) => ({
+    id: newId(),
+    sessionId,
+    stageId,
+  }));
+  for (const row of rows) {
+    await enqueueStage(deps.db, row);
+  }
+
+  const first = rows[0];
+  if (first !== undefined && deps.invokeStage !== undefined) {
+    await deps.invokeStage({
+      queueId: first.id,
+      sessionId,
+      stageId: first.stageId,
+    });
+  }
+
+  return stale;
+};
+
 export const advanceRoutes = (deps: AdvanceDeps): Hono => {
   const routes = new Hono();
-  const { db } = deps;
 
   routes.post(ROUTES.advance.path, async (context) => {
     const id = idOf(context.req.param("id") ?? "");
     const body = parseBody("advance", await context.req.json());
-    const input = await stalenessInputFor(db, id);
-
-    const target = LAST_STAGE_FOR_STEP[body.to];
-    if (target === undefined) {
-      // `idea` and `author` are screens, not work. Answering with an empty list
-      // is the honest result; refusing would make the client special-case two
-      // of the seven steps.
-      return context.json({ enqueued: [] });
-    }
-
-    const stale = staleUpTo(input, target);
-    if (stale.length === 0) {
-      // Re-entering a step and changing nothing restales nothing, which is what
-      // makes the design's clickable completed rail rows free.
-      return context.json({ enqueued: [] });
-    }
-
-    // Every stale stage is enqueued, in graph order, before the first is
-    // invoked. Enqueuing only the first would make the chain depend on each
-    // stage knowing its successors, and a lost invocation would then lose the
-    // rest of the run rather than one step of it.
-    const rows = stale.map((stageId) => ({
-      id: newId(),
-      sessionId: id,
-      stageId,
-    }));
-    for (const row of rows) {
-      await enqueueStage(db, row);
-    }
-
-    const first = rows[0];
-    if (first !== undefined && deps.invokeStage !== undefined) {
-      await deps.invokeStage({
-        queueId: first.id,
-        sessionId: id,
-        stageId: first.stageId,
-      });
-    }
-
-    return context.json({ enqueued: stale });
+    return context.json({
+      enqueued: await enqueueStaleUpTo(deps, id, body.to),
+    });
   });
 
   return routes;

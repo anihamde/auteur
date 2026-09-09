@@ -258,7 +258,16 @@ export const ROUTES = {
     response: z.object({ enqueued: z.array(z.string().min(1)) }),
   },
   selectAuthor: {
-    body: z.object({ authorId: z.string().min(1) }),
+    /**
+     * The whole row the screen is showing, not just its id.
+     *
+     * `sessions.author_id` references `authors(id)`, and nothing had ever
+     * written that table: search reads Gutendex and deliberately does not
+     * store what it finds, because typing a name must not fetch a corpus. So
+     * the row arrives with the choice — the client is holding it already — and
+     * this is the moment an author becomes something this system knows about.
+     */
+    body: z.object({ author: authorResultSchema }),
     method: "POST",
     params: idParam,
     path: "/api/sessions/:id/author",
