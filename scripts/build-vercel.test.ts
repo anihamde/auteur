@@ -34,11 +34,48 @@ describe("the generated function configuration", () => {
 describe("the generated output configuration", () => {
   test("the schedule from vercel.json is what the deployment gets", () => {
     const crons = [{ path: "/api/internal/cron/sweep", schedule: "0 4 * * *" }];
-    expect(JSON.parse(outputConfig({ crons }))).toEqual({ crons, version: 3 });
+    expect(JSON.parse(outputConfig({ crons }))).toMatchObject({
+      crons,
+      version: 3,
+    });
   });
 
   test("no schedule is no crons key, rather than an empty one", () => {
-    expect(JSON.parse(outputConfig({}))).toEqual({ version: 3 });
+    expect(JSON.parse(outputConfig({}))).not.toHaveProperty("crons");
+  });
+
+  test("a URL reaches the function, which its name alone does not do", () => {
+    // A `.func` whose name carries a dynamic segment is not matched by that
+    // name: the output has to say which URLs go to it. Without this the
+    // deployment holds a function nothing can reach and a schedule naming a
+    // path that resolves to nothing — which the platform rejects after a clean
+    // build, with no message under it.
+    const { routes } = JSON.parse(outputConfig({})) as {
+      routes: { dest?: string; handle?: string; src?: string }[];
+    };
+    const api = routes[0];
+    expect(api?.dest).toBe(
+      `/api/${FUNCTION_DIR.split("/").pop()?.replace(".func", "") ?? ""}`,
+    );
+    expect(new RegExp(api?.src ?? "").test("/api/health")).toBe(true);
+    expect(new RegExp(api?.src ?? "").test("/api/internal/cron/sweep")).toBe(
+      true,
+    );
+    expect(new RegExp(api?.src ?? "").test("/assets/index.js")).toBe(false);
+  });
+
+  test("routes claim /api before the filesystem, and the client after it", () => {
+    // Order is the whole of the behaviour: a static file must not be able to
+    // shadow a route, and a path the client owns must reach index.html rather
+    // than a 404.
+    const { routes } = JSON.parse(outputConfig({})) as {
+      routes: { dest?: string; handle?: string; src?: string }[];
+    };
+    expect(routes.map((route) => route.handle ?? route.dest)).toEqual([
+      "/api/[...path]",
+      "filesystem",
+      "/index.html",
+    ]);
   });
 });
 
