@@ -65,7 +65,7 @@ const VARIANTS: Readonly<Record<ButtonVariant, Record<string, string>>> = {
   },
   secondary: {
     background: token("surface-card"),
-    borderColor: token("border-default"),
+    borderColor: token("border-subtle"),
     borderStyle: "solid",
     borderWidth: token("rule-hairline"),
     color: token("text-body"),

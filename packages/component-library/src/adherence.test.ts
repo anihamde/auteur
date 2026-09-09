@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { designVariables } from "@auteur/tokens/preset";
 import { Glob } from "bun";
 
 /**
@@ -75,5 +76,45 @@ describe("no component carries a value a token already has", () => {
     // Guards the guard: an empty glob would make every assertion above pass.
     const files = await sources();
     expect(files.size).toBeGreaterThan(1);
+  });
+});
+
+describe("every token a component names actually exists", () => {
+  test("no reference points at a token the design system does not declare", async () => {
+    // The failure this catches has no symptom a type or a lint can see: an
+    // undefined custom property makes the whole declaration invalid, so the
+    // element silently inherits — cream prose on a cream card, readable in
+    // review and not on the screen. `--text-paper-body` and
+    // `--border-default` were both invented, and both shipped.
+    //
+    // The axe contrast rule cannot catch it either: component tests render
+    // without the design stylesheet loaded, so there are no resolved colours
+    // to compare (decision 0009).
+    const declared = new Set(
+      [...designVariables().keys()].map((name) => name.slice(2)),
+    );
+    const undefinedNames = new Set<string>();
+    for (const [, source] of await sources()) {
+      for (const match of source.matchAll(
+        /token\("([\w-]+)"\)|var\(--([\w-]+)\)/g,
+      )) {
+        const name = match[1] ?? match[2];
+        // `token(name)` — the helper's own definition, not a reference.
+        if (name === undefined || name === "token") continue;
+        if (!declared.has(name)) undefinedNames.add(name);
+      }
+    }
+    expect([...undefinedNames].sort()).toEqual([]);
+  });
+
+  test("the check sees the references it is meant to", async () => {
+    // Guards the guard: a regex that matched nothing would pass above.
+    const found = new Set<string>();
+    for (const [, source] of await sources()) {
+      for (const match of source.matchAll(/token\("([\w-]+)"\)/g)) {
+        if (match[1] !== undefined) found.add(match[1]);
+      }
+    }
+    expect(found.size).toBeGreaterThan(30);
   });
 });
