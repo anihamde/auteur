@@ -12,6 +12,7 @@
       "turbo.json",
       "!**/.turbo/**/*",
       "!**/dist/**/*",
+      "!**/.vercel/**/*",
       "!**/coverage/**/*",
       "!**/node_modules/**/*",
       "!**/styled-system/**/*",

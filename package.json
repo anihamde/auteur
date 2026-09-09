@@ -3,6 +3,7 @@
     "@base-ui-components/react": "1.0.0-rc.0",
     "@biomejs/biome": "^2.5.11",
     "@happy-dom/global-registrator": "^20.11.6",
+    "@hono/node-server": "^1.19.9",
     "@pandacss/dev": "^1.12.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.6",
@@ -39,6 +40,7 @@
   "private": true,
   "scripts": {
     "build:install-modules": "[ $CI$CLAUDE_CODE_REMOTE$VERCEL ] && true || bun install",
+    "build:vercel": "bun run turbo build --filter=@auteur/app-auteur-web && bun scripts/build-vercel.ts",
     "decisions:index": "bun scripts/decisions-index.ts",
     "discrimination": "bun scripts/discrimination.ts",
     "fix:api-surface": "bun scripts/api-surface.ts",

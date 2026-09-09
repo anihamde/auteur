@@ -8,7 +8,7 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/migrations/ensure-schema`
 
 ```ts
-export const ensureSchema = async (db: Db): Promise<void> =>
+export const ensureSchema = async (
 export const resetSchemaMemoForTest = (db: Db): void =>
 ```
 

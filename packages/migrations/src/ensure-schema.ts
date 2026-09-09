@@ -99,10 +99,27 @@ const applyOne = async (
  * migration's transaction, means every snapshot is taken after the previous
  * writer committed.
  *
+ * **The two handles are not interchangeable.** The fast path is a single
+ * statement and belongs on whatever handle the caller already has — pooled, in
+ * the deployment, because that is what every route uses. The slow path holds a
+ * session-level lock across several statements, which a pooled connection
+ * cannot do: it hands each statement to whichever backend is free, so a lock
+ * taken by one statement is not held for the next. `migrateWith` is therefore
+ * a **direct** handle, and defaults to `db` only because a test's handle is
+ * already direct.
+ *
+ * Getting this wrong has no local symptom and a total one in production: every
+ * integration suite runs against a direct handle, and the deployment's first
+ * request — on the empty database, where the slow path is the only path —
+ * fails and keeps failing.
+ *
  * Nobody runs a migration by hand, in any environment. `bun run migration:new`
  * scaffolds a file; it does not apply one.
  */
-export const ensureSchema = async (db: Db): Promise<void> => {
+export const ensureSchema = async (
+  db: Db,
+  migrateWith: Db = db,
+): Promise<void> => {
   const existing = inFlight.get(db);
   if (existing !== undefined) {
     return existing;
@@ -122,7 +139,7 @@ export const ensureSchema = async (db: Db): Promise<void> => {
       return;
     }
 
-    const client = (await db.connect()) as unknown as Client;
+    const client = (await migrateWith.connect()) as unknown as Client;
     try {
       await client.query("SELECT pg_advisory_lock($1)", [ADVISORY_LOCK_KEY]);
       try {

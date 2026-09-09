@@ -106,7 +106,12 @@ export const createApp = (deps: AppDeps): Hono => {
 
   app.use("*", async (context, next) => {
     if (deps.migrateOnBoot === true) {
-      migrated ??= ensureSchema(deps.db);
+      // The lock the slow path holds needs a dedicated connection, which a
+      // pooled handle cannot give — it hands each statement to whichever
+      // backend is free. `events.directDb` is the one handle that can.
+      // Falling back to `deps.db` covers a test whose only handle is already
+      // direct.
+      migrated ??= ensureSchema(deps.db, deps.events?.directDb ?? deps.db);
       await migrated;
     }
     if (

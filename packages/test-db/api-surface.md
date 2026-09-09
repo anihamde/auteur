@@ -15,5 +15,5 @@ export const seedSession = async (
 ## `@auteur/test-db/test-db`
 
 ```ts
-export const createTestDb = async (): Promise<TestDb> =>
+export const createTestDb = async (
 ```
