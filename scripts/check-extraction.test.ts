@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { CLAIM_PATHS, EXEMPLARS } from "../packages/core/src/style-card.ts";
+import { CATALOGUE } from "../packages/provider-router/src/models.ts";
 import {
+  contextOf,
   judge,
   PROBE,
   request,
@@ -171,5 +173,70 @@ describe("a refused request is not a contract failure", () => {
     });
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(outcome.lines[0]).toContain("429");
+  });
+});
+
+describe("a cut-off answer is a budget, not a prompt", () => {
+  test("an incomplete status and its reason are reported", () => {
+    // A Responses call that hits `max_output_tokens` returns partial content,
+    // and under a strict schema the fragment can be a valid object with empty
+    // arrays in it — indistinguishable from a model that read the prompt and
+    // declined. The two want completely different fixes.
+    expect(
+      contextOf(
+        {
+          incomplete_details: { reason: "max_output_tokens" },
+          status: "incomplete",
+          usage: { output_tokens: 8000 },
+        },
+        '{"exemplars":[],"fields":[]}',
+      ),
+    ).toEqual([
+      "status incomplete, incomplete: max_output_tokens, 8000 output tokens, 28 characters of text",
+      'answer began: {"exemplars":[],"fields":[]}',
+    ]);
+  });
+
+  test("a complete answer says so without an incomplete clause", () => {
+    expect(contextOf({ status: "completed" }, "{}")[0]).toBe(
+      "status completed, 2 characters of text",
+    );
+  });
+
+  test("a gateway that says none of it still reports the text length", () => {
+    // The field names are this gateway's; a different one may carry none of
+    // them, and the probe must degrade to something rather than to nothing.
+    expect(contextOf({}, "")).toEqual(["0 characters of text"]);
+  });
+
+  test("the context reaches the verdict, not just the console", () => {
+    const outcome = judge('{"exemplars":[],"fields":[]}', PROBE, [
+      "status incomplete, incomplete: max_output_tokens",
+    ]);
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.lines).toContain(
+        "status incomplete, incomplete: max_output_tokens",
+      );
+    }
+  });
+});
+
+describe("the probe sends what production sends", () => {
+  test("the model's own output ceiling, not the probe's idea of enough", async () => {
+    // `callModel` defaults `maxTokens` to `model.maxOutputTokens`. A probe
+    // with a smaller number is a stricter test than the product ever runs, and
+    // an answer cut off at that number would be reported as a prompt failure
+    // production does not have.
+    let sent: Record<string, unknown> = {};
+    await runExtractionProbe("key", "claude-sonnet-5", PROBE, {
+      fetch: async (_url, init) => {
+        sent = JSON.parse(init.body) as Record<string, unknown>;
+        return new Response("{}", { status: 200 });
+      },
+    });
+    const row = CATALOGUE.find((entry) => entry.id === "claude-sonnet-5");
+    expect(row).toBeDefined();
+    expect(sent["max_output_tokens"]).toBe(row?.maxOutputTokens);
   });
 });

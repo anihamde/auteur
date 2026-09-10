@@ -38,11 +38,21 @@ import {
   extractionSchema,
 } from "../packages/pipeline/src/extract.ts";
 import { styleExtract } from "../packages/prompt/src/style-extract.ts";
+import { CATALOGUE } from "../packages/provider-router/src/models.ts";
 import { type Fetch, RESPONSES_URL } from "./check-stage-schemas.ts";
 import fixture from "./fixtures/extraction-probe.json" with { type: "json" };
 
-/** Room for twenty-two readings and up to fifteen exemplars, and no more. */
-const MAX_OUTPUT_TOKENS = 8_000;
+/**
+ * The ceiling production sends, which is the model's own.
+ *
+ * `callModel` defaults `maxTokens` to `context.model.maxOutputTokens`, so a
+ * probe with its own smaller number would be a stricter test than the product
+ * ever runs — and an answer cut off at 8,000 would be reported as a prompt
+ * failure that production never has. A probe must send what production sends
+ * or it is measuring something else.
+ */
+const maxOutputTokensFor = (modelId: string): number =>
+  CATALOGUE.find((row) => row.id === modelId)?.maxOutputTokens ?? 8_000;
 
 export type Probe = {
   readonly authorName: string;
@@ -115,7 +125,51 @@ export const request = (
  * short a required claim, which is the state the deployment reached — a stage
  * that succeeded at everything except producing a card.
  */
-export const judge = (text: string, probe: Probe): ExtractionOutcome => {
+/**
+ * What the gateway said about the answer, beside the answer itself.
+ *
+ * A Responses call that hits `max_output_tokens` comes back `incomplete` with
+ * partial content — which, under a strict schema, can be a structurally valid
+ * object with empty arrays in it. That is indistinguishable from a model that
+ * read the prompt and declined, and the two want completely different fixes:
+ * one is a budget, the other is the prompt. The gateway says which, in a field
+ * this used to throw away.
+ *
+ * The text sample is here for the same reason. "The answer is not an
+ * extraction" is a state; the first two hundred characters of it are a reason.
+ */
+export const contextOf = (payload: unknown, text: string): string[] => {
+  const status = Reflect.get(payload as object, "status");
+  const incomplete = Reflect.get(payload as object, "incomplete_details");
+  const reason =
+    typeof incomplete === "object" && incomplete !== null
+      ? Reflect.get(incomplete, "reason")
+      : undefined;
+  const usage = Reflect.get(payload as object, "usage");
+  const output =
+    typeof usage === "object" && usage !== null
+      ? Reflect.get(usage, "output_tokens")
+      : undefined;
+  return [
+    [
+      typeof status === "string" ? `status ${status}` : undefined,
+      typeof reason === "string" ? `incomplete: ${reason}` : undefined,
+      typeof output === "number"
+        ? `${output.toString()} output tokens`
+        : undefined,
+      `${text.length.toString()} characters of text`,
+    ]
+      .filter((part) => part !== undefined)
+      .join(", "),
+    ...(text === "" ? [] : [`answer began: ${text.slice(0, 200)}`]),
+  ];
+};
+
+export const judge = (
+  text: string,
+  probe: Probe,
+  context: readonly string[] = [],
+): ExtractionOutcome => {
   const parsed = extractionSchema.safeParse(
     ((): unknown => {
       try {
@@ -133,8 +187,11 @@ export const judge = (text: string, probe: Probe): ExtractionOutcome => {
           .map(
             (issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`,
           ),
-        "The model answered, and the answer is not an extraction. That is the",
-        "prompt's failure, not the gateway's — the schema was accepted.",
+        ...context,
+        "A `status` of `incomplete` is a budget, not a prompt: the answer was",
+        "cut off at `max_output_tokens` and a strict schema can make the",
+        "fragment structurally valid with empty arrays in it. Anything else",
+        "here is the prompt — the schema was accepted.",
       ],
       ok: false,
     };
@@ -280,7 +337,7 @@ export const runExtractionProbe = async (
     body: JSON.stringify({
       input: prompt,
       instructions: "Return only JSON matching the declared schema.",
-      max_output_tokens: MAX_OUTPUT_TOKENS,
+      max_output_tokens: maxOutputTokensFor(modelId),
       model: modelId,
       store: false,
       text: {
@@ -307,5 +364,7 @@ export const runExtractionProbe = async (
       ok: false,
     };
   }
-  return judge(textOf(await response.json()), probe);
+  const payload: unknown = await response.json();
+  const text = textOf(payload);
+  return judge(text, probe, contextOf(payload, text));
 };
