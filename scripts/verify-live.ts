@@ -39,6 +39,7 @@ import { subscribe } from "../packages/event-store/src/listen.ts";
  */
 import { served } from "../packages/provider-router/src/gateway-models.ts";
 import { CATALOGUE } from "../packages/provider-router/src/models.ts";
+import { INVOCATION_CEILING_SECONDS } from "../packages/stage-queue/src/sweep.ts";
 import { runExtractionProbe } from "./check-extraction.ts";
 import { compare, unservedCandidates } from "./check-router-catalogue.ts";
 import { checkAll } from "./check-stage-schemas.ts";
@@ -302,15 +303,38 @@ export const checkExtraction = async (
 ): Promise<SubReport> => {
   const name = "a real model satisfies the extraction contract";
   const outcome = await probe(apiKey, modelId);
-  return outcome.ok
-    ? {
-        lines: [
-          `${outcome.fields.toString()} fields and ${outcome.exemplars.toString()} exemplars from ${modelId}, and a card built from them`,
-        ],
-        name,
-        ok: true,
-      }
-    : { lines: outcome.lines, name, ok: false };
+  if (!outcome.ok) {
+    return { lines: outcome.lines, name, ok: false };
+  }
+  const cost = outcome.cost;
+  return {
+    lines: [
+      `${outcome.fields.toString()} fields and ${outcome.exemplars.toString()} exemplars from ${modelId}, and a card built from them`,
+      // Reported on a pass, not only on a failure. A stage runs inside one
+      // 60-second invocation, this probe sends nine short passages and the
+      // deployment sends forty long ones — so a pass that takes most of the
+      // minute here is a stage that cannot fit there, and the check would
+      // otherwise say nothing about it.
+      ...(cost === undefined
+        ? []
+        : [
+            [
+              `${cost.seconds.toFixed(1)}s`,
+              cost.inputTokens === undefined
+                ? undefined
+                : `${cost.inputTokens.toLocaleString("en-US")} in`,
+              cost.outputTokens === undefined
+                ? undefined
+                : `${cost.outputTokens.toLocaleString("en-US")} out`,
+              `against a ${INVOCATION_CEILING_SECONDS.toString()}s invocation ceiling, on a corpus far smaller than a real one`,
+            ]
+              .filter((part) => part !== undefined)
+              .join(", "),
+          ]),
+    ],
+    name,
+    ok: true,
+  };
 };
 
 export const missing = (name: string, variable: string): SubReport => ({
