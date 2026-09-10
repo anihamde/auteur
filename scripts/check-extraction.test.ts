@@ -3,6 +3,7 @@ import { CLAIM_PATHS, EXEMPLARS } from "../packages/core/src/style-card.ts";
 import { CATALOGUE } from "../packages/provider-router/src/models.ts";
 import {
   contextOf,
+  costOf,
   judge,
   PROBE,
   request,
@@ -238,5 +239,52 @@ describe("the probe sends what production sends", () => {
     const row = CATALOGUE.find((entry) => entry.id === "claude-sonnet-5");
     expect(row).toBeDefined();
     expect(sent["max_output_tokens"]).toBe(row?.maxOutputTokens);
+  });
+});
+
+describe("what the call cost, on a pass", () => {
+  test("tokens out of the usage block, and the wall clock", () => {
+    expect(
+      costOf({ usage: { input_tokens: 4321, output_tokens: 2100 } }, 58.4),
+    ).toEqual({ inputTokens: 4321, outputTokens: 2100, seconds: 58.4 });
+  });
+
+  test("a gateway that reports no usage still reports the seconds", () => {
+    // The seconds are this side's measurement and always available; the tokens
+    // are the gateway's and may not be. Losing the seconds with them would
+    // lose the number that decides whether a stage fits in an invocation.
+    expect(costOf({}, 12)).toEqual({ seconds: 12 });
+  });
+
+  test("the cost reaches a passing verdict, not only a failing one", async () => {
+    // A stage that passes at 58 seconds against nine short passages is a stage
+    // that fails against forty long ones. A check silent on a pass would say
+    // nothing about the one thing that decides the topology.
+    const answer = JSON.stringify({
+      exemplars: ids.slice(0, EXEMPLARS.min).map((id) => ({
+        demonstrates: "d",
+        passageId: id,
+      })),
+      fields: CLAIM_PATHS.map((claim, index) => ({
+        citationPassageId: ids[index % ids.length],
+        path: claim.path,
+        value: claim.kind === "list" ? ["a"] : "a",
+      })),
+    });
+    const outcome = await runExtractionProbe("key", "claude-sonnet-5", PROBE, {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            output_text: answer,
+            usage: { input_tokens: 9, output_tokens: 3000 },
+          }),
+          { status: 200 },
+        ),
+    });
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.cost?.outputTokens).toBe(3000);
+      expect(outcome.cost?.seconds).toBeGreaterThanOrEqual(0);
+    }
   });
 });

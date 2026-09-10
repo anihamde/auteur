@@ -195,3 +195,21 @@ describe("a check reads the same alone as it does in the summary", () => {
     expect(render([report])).toContain(renderOne(report));
   });
 });
+
+describe("a passing extraction still reports what it cost", () => {
+  test("seconds and tokens beside the ceiling it has to fit inside", () => {
+    // The check that says "ok" while sitting at the invocation ceiling is the
+    // one that lets a stage ship unable to run on a real corpus.
+    return checkExtraction("key", "claude-sonnet-5", async () => ({
+      cost: { inputTokens: 4321, outputTokens: 2100, seconds: 58.4 },
+      exemplars: 9,
+      fields: 22,
+      ok: true,
+    })).then((report) => {
+      expect(report.ok).toBe(true);
+      expect(report.lines[1]).toContain("58.4s");
+      expect(report.lines[1]).toContain("2,100 out");
+      expect(report.lines[1]).toContain("60s invocation ceiling");
+    });
+  });
+});

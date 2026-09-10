@@ -91,7 +91,26 @@ export const textOf = (payload: unknown): string => {
 };
 
 export type ExtractionOutcome =
-  | { readonly ok: true; readonly fields: number; readonly exemplars: number }
+  | {
+      readonly ok: true;
+      readonly fields: number;
+      readonly exemplars: number;
+      /**
+       * What the call cost, which is the number that decides the topology.
+       *
+       * A stage runs inside one 60-second invocation. This probe sends nine
+       * short passages and the deployment sends forty of four hundred to nine
+       * hundred words, so if the probe is near the ceiling the deployment is
+       * past it — and the fix is to split the stage, not to retry it. Whether
+       * the cost is in generating the answer or in reading the prompt decides
+       * *how* to split, and only the token counts say which.
+       */
+      readonly cost?: {
+        readonly seconds: number;
+        readonly inputTokens?: number;
+        readonly outputTokens?: number;
+      };
+    }
   | { readonly ok: false; readonly lines: readonly string[] };
 
 /**
@@ -165,10 +184,36 @@ export const contextOf = (payload: unknown, text: string): string[] => {
   ];
 };
 
+export type Cost = {
+  readonly seconds: number;
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+};
+
+/** Tokens and seconds, out of the gateway's own `usage` block. */
+export const costOf = (payload: unknown, seconds: number): Cost => {
+  const usage = Reflect.get(payload as object, "usage");
+  const read = (key: string): number | undefined => {
+    const value =
+      typeof usage === "object" && usage !== null
+        ? Reflect.get(usage, key)
+        : undefined;
+    return typeof value === "number" ? value : undefined;
+  };
+  const input = read("input_tokens");
+  const output = read("output_tokens");
+  return {
+    ...(input !== undefined && { inputTokens: input }),
+    ...(output !== undefined && { outputTokens: output }),
+    seconds,
+  };
+};
+
 export const judge = (
   text: string,
   probe: Probe,
   context: readonly string[] = [],
+  cost?: Cost,
 ): ExtractionOutcome => {
   const parsed = extractionSchema.safeParse(
     ((): unknown => {
@@ -200,7 +245,8 @@ export const judge = (
   // the `AuteurError` it throws carries the issues. Catching is how the probe
   // reports the finding rather than dying on it.
   try {
-    return built(parsed.data, probe);
+    const outcome = built(parsed.data, probe);
+    return outcome.ok && cost !== undefined ? { ...outcome, cost } : outcome;
   } catch (thrown) {
     return {
       lines: [...issuesOf(thrown), ...census(parsed.data)],
@@ -332,6 +378,7 @@ export const runExtractionProbe = async (
   config: { readonly fetch?: Fetch; readonly url?: string } = {},
 ): Promise<ExtractionOutcome> => {
   const call = config.fetch ?? (fetch as unknown as Fetch);
+  const started = Date.now();
   const { prompt, schema } = request(probe);
   const response = await call(config.url ?? RESPONSES_URL, {
     body: JSON.stringify({
@@ -366,5 +413,10 @@ export const runExtractionProbe = async (
   }
   const payload: unknown = await response.json();
   const text = textOf(payload);
-  return judge(text, probe, contextOf(payload, text));
+  return judge(
+    text,
+    probe,
+    contextOf(payload, text),
+    costOf(payload, (Date.now() - started) / 1000),
+  );
 };
