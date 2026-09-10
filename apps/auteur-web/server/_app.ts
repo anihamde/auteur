@@ -17,6 +17,7 @@ import { type AdvanceDeps, advanceRoutes } from "./_routes/advance.ts";
 import { answerRoutes } from "./_routes/answers.ts";
 import { authorRoutes } from "./_routes/authors.ts";
 import { cancelRoutes } from "./_routes/cancel.ts";
+import { corpusProbeRoutes } from "./_routes/corpus-probe.ts";
 import { type EventRoutesDeps, eventRoutes } from "./_routes/events.ts";
 import { exportRoutes } from "./_routes/export.ts";
 import { healthRoutes } from "./_routes/health.ts";
@@ -215,6 +216,9 @@ export const createApp = (deps: AppDeps): Hono => {
   app.route("/", modelRoutes());
   if (deps.cron !== undefined) {
     app.route("/", cronRoutes({ db: deps.db, ...deps.cron }));
+    // Temporary; see `_routes/corpus-probe.ts`. Mounted with the sweep because
+    // it carries the same secret.
+    app.route("/", corpusProbeRoutes({ cronSecret: deps.cron.cronSecret }));
   }
   if (deps.internalStage !== undefined) {
     app.route(
