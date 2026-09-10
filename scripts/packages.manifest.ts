@@ -141,6 +141,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     devDeps: [],
     exports: {
       "auteur-error": src("auteur-error.ts"),
+      "detail-line": src("detail-line.ts"),
       "error-code": src("error-code.ts"),
       "is-auteur-error": src("is-auteur-error.ts"),
       "to-http-response": src("to-http-response.ts"),

@@ -11,6 +11,12 @@ change and needs a contract review, per the implementation plan's gate 4.
 export class AuteurError extends Error
 ```
 
+## `@auteur/errors/detail-line`
+
+```ts
+export const detailLine = (error: AuteurError): string | undefined =>
+```
+
 ## `@auteur/errors/error-code`
 
 ```ts

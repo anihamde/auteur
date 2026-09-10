@@ -239,6 +239,7 @@ export const createApp = (deps: AppDeps): Hono => {
         ...deps.internalStage,
         db: deps.db,
         eventDb: transactional(deps),
+        ...(deps.logger !== undefined && { logger: deps.logger }),
         ...(deps.invokeStage !== undefined && {
           invokeStage: deps.invokeStage,
         }),

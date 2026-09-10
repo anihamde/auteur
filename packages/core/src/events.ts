@@ -49,6 +49,14 @@ export const sessionEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     code: z.string(),
+    /**
+     * What the thing that failed said, bounded — see `errors/detail-line`.
+     *
+     * Optional because not every failure has an upstream with a sentence: a
+     * schema violation's detail is a zod issue tree, which is a log's business
+     * and not a reader's.
+     */
+    detail: z.string().optional(),
     message: z.string(),
     stageId: z.string(),
     type: z.literal("stage_error"),

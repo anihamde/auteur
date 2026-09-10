@@ -4,9 +4,11 @@ import { DEFAULT_PIPELINE } from "@auteur/config/stages";
 import type { SessionEvent } from "@auteur/core/events";
 import type { Db } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
+import { detailLine } from "@auteur/errors/detail-line";
 import { isAuteurError } from "@auteur/errors/is-auteur-error";
 import { append } from "@auteur/event-store/events";
 import { newId } from "@auteur/ids/new-id";
+import type { Logger } from "@auteur/logger/logger";
 import { recordStageKey } from "@auteur/session-store/stage-keys";
 import {
   claimStage,
@@ -66,6 +68,15 @@ export type InternalStageDeps = {
   readonly invokeStage?: AdvanceDeps["invokeStage"];
   /** Identifies this invocation in `stage_queue.claimed_by`. */
   readonly claimant?: () => string;
+  /**
+   * Where a stage's failure is recorded in full.
+   *
+   * The route catches and answers 200 — a failed stage is an outcome, not a
+   * failed request — so `app.onError` never sees it and nothing else logs it
+   * either. Without this the only trace of a failure anywhere is the
+   * `stage_error` event, whose message is written for a reader.
+   */
+  readonly logger?: Logger;
 };
 
 /** The stages the pipeline would run after this one, in graph order. */
@@ -119,8 +130,23 @@ export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
       const error = isAuteurError(thrown)
         ? thrown
         : new AuteurError("internal", "The stage failed.");
+      // The whole of it, structured. `createLogger` redacts by key name at
+      // every depth, so a provider body spliced in whole loses its
+      // `authorization` without this having to remember to.
+      deps.logger?.error("stage failed", {
+        code: error.code,
+        detail: error.detail,
+        // The thrown message, not the mapped one: everything that is not an
+        // `AuteurError` becomes the same "The stage failed." sentence, and
+        // this is the only place the real one survives.
+        message: thrown instanceof Error ? thrown.message : "non-error thrown",
+        sessionId: body.sessionId,
+        stageId: body.stageId,
+      });
+      const detail = detailLine(error);
       await emit({
         code: error.code,
+        ...(detail !== undefined && { detail }),
         message: error.message,
         stageId: body.stageId,
         type: "stage_error",
