@@ -1,11 +1,11 @@
-import { pathFor } from "@auteur/api-contract/contract";
 import { createDb } from "@auteur/db/db";
 import { env } from "@auteur/env/env";
 import { createLogger } from "@auteur/logger/logger";
 import { createRouterProvider } from "@auteur/provider-router/client";
+import { waitUntil } from "@vercel/functions";
 import { createApp } from "./_app.ts";
 import { boot } from "./_boot.ts";
-import { SIGNATURE_HEADER, signPayload } from "./_internal/signature.ts";
+import { createInvokeStage } from "./_internal/invoke-stage.ts";
 import { createStageBody } from "./_stages/index.ts";
 
 /**
@@ -26,64 +26,6 @@ import { createStageBody } from "./_stages/index.ts";
 
 /** One logger, shared by the invocation path and the app. */
 const log = createLogger({ bound: { component: "api" } });
-
-/**
- * Ask the platform to run one stage, and do not wait for it.
- *
- * Deliberately fire-and-forget: `advance` must return before any stage runs
- * (§7.1), and a stage's last act is to ask for the next one — awaiting here
- * would rebuild the long-running process the whole topology removed, one
- * `await` at a time.
- *
- * A lost request is not a lost run: the queue row stays `queued` and the sweep
- * re-invokes it, which is why this does not retry into a stage that may
- * already be running.
- *
- * **It does say so, though.** This swallowed its own failure entirely, and a
- * failure that is *systematic* — every invocation refused, rather than one
- * lost — then looks exactly like a pipeline that is merely slow: the queue
- * fills, the sweep re-invokes into the same refusal, and nothing anywhere
- * says why. A non-2xx is logged with its status, because "the request was
- * made and answered 401" is a different fact from "the request was lost", and
- * only one of them is what the sweep exists for.
- */
-const invokeStage = async (input: {
-  readonly sessionId: string;
-  readonly stageId: string;
-  readonly queueId: string;
-}): Promise<void> => {
-  const body = JSON.stringify({
-    queueId: input.queueId,
-    sessionId: input.sessionId,
-    stageId: input.stageId,
-  });
-  const url = new URL(pathFor("internalStage", {}), selfOrigin());
-  void fetch(url, {
-    body,
-    headers: {
-      "content-type": "application/json",
-      ...protectionBypass(),
-      [SIGNATURE_HEADER]: signPayload(env().AUTEUR_STAGE_SECRET, body),
-    },
-    method: "POST",
-  })
-    .then((response) => {
-      if (!response.ok) {
-        log.error("stage invocation refused", {
-          stageId: input.stageId,
-          status: response.status,
-          url: url.origin,
-        });
-      }
-    })
-    .catch((error: unknown) => {
-      log.error("stage invocation failed", {
-        message: error instanceof Error ? error.message : "non-error thrown",
-        stageId: input.stageId,
-        url: url.origin,
-      });
-    });
-};
 
 /**
  * What lets a deployment call itself when the platform is guarding it.
@@ -131,6 +73,26 @@ const protectionBypass = (): Record<string, string> => {
         "x-vercel-set-bypass-cookie": "false",
       };
 };
+
+/**
+ * The invocation, wired to the platform.
+ *
+ * `waitUntil` is what keeps this instance alive until the request is actually
+ * sent. Without it the promise was dropped and the instance froze with the
+ * response, so no stage was ever started by anything but a person with curl.
+ *
+ * Built at module scope rather than inside `boot`, and safe there because
+ * every value it needs is a thunk: `env()` is read per invocation, so a missing
+ * `AUTEUR_STAGE_SECRET` still reaches `boot`'s error response instead of
+ * crashing the function before a route exists.
+ */
+const invokeStage = createInvokeStage({
+  extraHeaders: protectionBypass,
+  logger: log,
+  origin: selfOrigin,
+  stageSecret: () => env().AUTEUR_STAGE_SECRET,
+  waitUntil,
+});
 
 /**
  * Built inside `boot`, so a missing variable answers with the list of what is

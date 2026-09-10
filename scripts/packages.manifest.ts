@@ -713,7 +713,15 @@ export const PACKAGES: readonly PackageSpec[] = [
 
 export const APPS: readonly AppSpec[] = [
   {
-    deps: ["@hono/node-server", "hono", "react", "react-dom", "vite", "zod"],
+    deps: [
+      "@hono/node-server",
+      "@vercel/functions",
+      "hono",
+      "react",
+      "react-dom",
+      "vite",
+      "zod",
+    ],
     description:
       "The client and every route. Vite build plus one function per route, on Vercel.",
     devDeps: [
