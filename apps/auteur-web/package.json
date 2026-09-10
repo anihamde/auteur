@@ -32,6 +32,7 @@
     "@auteur/text": "workspace:*",
     "@auteur/tokens": "workspace:*",
     "@hono/node-server": "catalog:",
+    "@vercel/functions": "catalog:",
     "hono": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
