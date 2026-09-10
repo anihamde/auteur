@@ -17,6 +17,7 @@ export const readSince = async (
 ## `@auteur/event-store/listen`
 
 ```ts
+export const END_TIMEOUT_MS = 1000
 export const subscribe = async (
 ```
 

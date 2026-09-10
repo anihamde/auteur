@@ -91,7 +91,9 @@ export const subscribe = async (
       // depend on the socket ever closing.
       await Promise.race([
         client.end().catch(() => undefined),
-        Bun.sleep(END_TIMEOUT_MS),
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, END_TIMEOUT_MS);
+        }),
       ]);
     }
     if (cause === undefined) {
