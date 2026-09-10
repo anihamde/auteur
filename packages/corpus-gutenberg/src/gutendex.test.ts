@@ -111,3 +111,36 @@ describe("paging", () => {
     expect(calls).toBe(1);
   });
 });
+
+describe("the client says who it is", () => {
+  test("a search carries a User-Agent", async () => {
+    // Node's fetch sends none, and gutendex answers 403 to a request without
+    // one: on the deployment every author search failed while the same url
+    // from a laptop returned thirty books.
+    let seen: Readonly<Record<string, string>> | undefined;
+    await searchPage("chekhov", {
+      baseUrl: "https://corpus.auteur.test",
+      fetch: async (_url, init) => {
+        seen = init?.headers;
+        return Response.json({ next: null, results: [] });
+      },
+    });
+
+    expect(seen?.["user-agent"]).toContain("auteur/");
+    // A contact address, because a free public service being asked
+    // automatically should be able to find a person.
+    expect(seen?.["user-agent"]).toContain("https://");
+  });
+
+  test("it asks for json", async () => {
+    let seen: Readonly<Record<string, string>> | undefined;
+    await searchPage("chekhov", {
+      baseUrl: "https://corpus.auteur.test",
+      fetch: async (_url, init) => {
+        seen = init?.headers;
+        return Response.json({ next: null, results: [] });
+      },
+    });
+    expect(seen?.["accept"]).toBe("application/json");
+  });
+});

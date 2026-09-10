@@ -27,7 +27,9 @@ export const plainTextUrl = (book: GutendexBook): string | undefined =>
 ## `@auteur/corpus-gutenberg/gutendex`
 
 ```ts
+export const CORPUS_HEADERS: Readonly<Record<string, string>> =
 export const GUTENDEX_BASE = "https://gutendex.com"
+export const USER_AGENT = "auteur/0.1 (+https://github.com/anihamde/auteur)"
 export const searchBooks = async (
 export const searchPage = async (
 ```
