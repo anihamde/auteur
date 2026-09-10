@@ -30,6 +30,13 @@ export const IdeaScreen = ({
         lengthPreset: preset,
       },
     });
+    // Advancing is what moves the wizard. `author` runs no stages, so this
+    // enqueues nothing and records where the reader now is — without it the
+    // session was created and the screen never changed.
+    await transport.client.call("advance", {
+      body: { to: "author" },
+      params: { id: session.id },
+    });
     const view = await transport.client.call("session", {
       params: { id: session.id },
     });
