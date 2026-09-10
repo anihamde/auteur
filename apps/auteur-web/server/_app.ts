@@ -106,9 +106,10 @@ const unauthenticatedPaths = new Set(
 /**
  * The handle a write that needs a transaction runs on.
  *
- * `events.directDb` before `directDb` for the deployment's sake — they are the
- * same connection there — and `db` last, for a test whose only handle is
- * already direct.
+ * `directDb` first, because it is the one declared for this purpose.
+ * `events.directDb` next, so a test that already opened a direct handle for the
+ * stream does not have to name it twice — on the deployment they are the same
+ * connection. `db` last, for a test whose only handle is already direct.
  */
 const transactional = (deps: AppDeps): Db =>
   deps.directDb ?? deps.events?.directDb ?? deps.db;

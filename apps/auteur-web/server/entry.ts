@@ -115,7 +115,11 @@ const invokeStage = async (input: {
  */
 const selfOrigin = (): string => {
   const host = process.env["VERCEL_URL"];
-  return host === undefined ? "http://127.0.0.1:3000" : `https://${host}`;
+  // Empty is unset, the same reading `protectionBypass` takes below. `https://`
+  // with no host is a url that parses and reaches nothing.
+  return host === undefined || host === ""
+    ? "http://127.0.0.1:3000"
+    : `https://${host}`;
 };
 
 const protectionBypass = (): Record<string, string> => {
