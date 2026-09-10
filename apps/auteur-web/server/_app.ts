@@ -198,14 +198,7 @@ export const createApp = (deps: AppDeps): Hono => {
       ...(deps.invokeStage !== undefined && { invokeStage: deps.invokeStage }),
     }),
   );
-  app.route(
-    "/",
-    authorRoutes({
-      db: deps.db,
-      ...(deps.logger !== undefined && { logger: deps.logger }),
-      ...(deps.providers !== undefined && { providers: deps.providers }),
-    }),
-  );
+  app.route("/", authorRoutes({ db: deps.db }));
   app.route("/", answerRoutes({ db: deps.db }));
   app.route("/", cancelRoutes({ db: deps.db }));
   if (deps.events !== undefined) {

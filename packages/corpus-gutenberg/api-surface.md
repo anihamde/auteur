@@ -53,7 +53,7 @@ export const spread = <Entry>(
 
 ```ts
 export const createGutenbergProvider = (
-export const detailLine = (author: AuthorResult): string =>
+export const detailLine = (
 export const searchAll = async (
 export const withLocalFacts = async (
 ```

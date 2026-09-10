@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { errorResponseSchema, ROUTES } from "@auteur/api-contract/routes";
 import { putCard } from "@auteur/card-store/cards";
 import type { StyleCard } from "@auteur/core/style-card";
-import type { CorpusProvider } from "@auteur/corpus-gutenberg/provider";
 import {
   recordMeasuredWords,
   upsertAuthor,
@@ -12,11 +11,13 @@ import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
 import { createApp } from "../../server/_app.ts";
 
 /**
- * `GET /api/authors` against a real database.
+ * `GET /api/authors` against the catalogue this system holds.
  *
- * The providers are injected fixtures: the route's job is the union, the local
- * facts and the detail line, and reaching Gutendex to test any of those would
- * make the suite fail when a third party is slow.
+ * It used to inject provider fixtures, because the route called `gutendex.com`
+ * on every keystroke. That host answers a bot challenge to a datacenter
+ * address (decision 0023), so the catalogue is imported once and searched
+ * here — and these tests seed rows rather than stub a network, which is the
+ * same thing the deployment does.
  */
 
 const TOKEN = "a-token-of-at-least-16-chars";
@@ -32,73 +33,44 @@ afterAll(async () => {
   await harness.close();
 });
 
-const fullText: CorpusProvider = {
-  id: "gutenberg",
-  kind: "full-text",
-  search: async () => [
-    {
-      birthYear: 1860,
-      deathYear: 1904,
-      displayName: "Chekhov, Anton Pavlovich",
-      id: CHEKHOV,
-      kind: "full-text",
-      translators: ["Constance Garnett"],
-      workCount: 12,
-    },
-  ],
+const seed = async (
+  id: string,
+  displayName: string,
+  workCount: number,
+): Promise<void> => {
+  await upsertAuthor(harness.db, {
+    birthYear: 1860,
+    deathYear: 1904,
+    displayName,
+    id,
+    kind: "full-text",
+    measuredWords: null,
+    provider: "gutenberg",
+    workCount,
+  });
 };
 
-const secondary: CorpusProvider = {
-  id: "secondary",
-  kind: "secondary",
-  search: async () => [
-    {
-      birthYear: 1923,
-      deathYear: 1985,
-      displayName: "Calvino, Italo",
-      id: "secondary:calvino-italo-1923",
-      kind: "secondary",
-      translators: [],
-      workCount: 0,
-    },
-  ],
-};
-
-const search = async (
-  query: string,
-  providers: readonly CorpusProvider[] = [fullText],
-): Promise<Response> => {
-  const app = createApp({ apiToken: TOKEN, db: harness.db, providers });
+const search = async (query: string): Promise<Response> => {
+  const app = createApp({ apiToken: TOKEN, db: harness.db });
   return app.request(`/api/authors?q=${encodeURIComponent(query)}`, {
     headers: { authorization: `Bearer ${TOKEN}` },
   });
 };
 
+const parsed = async (query: string) =>
+  ROUTES.authors.response.parse(await (await search(query)).json());
+
 describe("the three §5.3 detail-line states appear as three distinct shapes", () => {
   test("never fetched: the count is knowable, the words are not", async () => {
-    const response = await search("chekhov");
-    expect(response.status).toBe(200);
-    const body = ROUTES.authors.response.parse(await response.json());
+    await seed(CHEKHOV, "Chekhov, Anton Pavlovich", 12);
+    const body = await parsed("chekhov");
     expect(body.results[0]?.detail).toBe("12 works · not yet measured");
     expect(body.results[0]?.measuredWords).toBeUndefined();
   });
 
   test("corpus measured, no card yet", async () => {
-    await upsertAuthor(harness.db, {
-      birthYear: 1860,
-      deathYear: 1904,
-      displayName: "Chekhov, Anton Pavlovich",
-      id: CHEKHOV,
-      kind: "full-text",
-      measuredWords: null,
-      provider: "gutenberg",
-      workCount: 12,
-    });
     await recordMeasuredWords(harness.db, CHEKHOV, 214_000);
-
-    const body = ROUTES.authors.response.parse(
-      await (await search("chekhov")).json(),
-    );
+    const body = await parsed("chekhov");
     expect(body.results[0]?.detail).toBe(
       "12 works · 214,000 words measured · no card yet",
     );
@@ -106,9 +78,9 @@ describe("the three §5.3 detail-line states appear as three distinct shapes", (
   });
 
   test("card built: the design's row, with the version and the confidence", async () => {
-    // The third state is only reachable because the lookup composes two tables.
-    // One that read `authors` alone would say "no card yet" however many cards
-    // existed, and this assertion is what catches that.
+    // Only reachable because the query composes two tables. One that read
+    // `authors` alone would say "no card yet" however many cards existed, and
+    // this assertion is what catches that.
     await putCard(harness.db, {
       authorId: CHEKHOV,
       buildKey: "authors-route-fixture",
@@ -117,9 +89,7 @@ describe("the three §5.3 detail-line states appear as three distinct shapes", (
       id: newId(),
       provenance: "full-text",
     });
-    const body = ROUTES.authors.response.parse(
-      await (await search("chekhov")).json(),
-    );
+    const body = await parsed("chekhov");
     expect(body.results[0]?.detail).toBe(
       "12 works · 214,000 words · card@1, confidence 0.86",
     );
@@ -127,52 +97,49 @@ describe("the three §5.3 detail-line states appear as three distinct shapes", (
   });
 });
 
-describe("the union", () => {
-  test("a secondary provider appends rather than reorders", async () => {
-    const body = ROUTES.authors.response.parse(
-      await (await search("anything", [fullText, secondary])).json(),
-    );
-    expect(body.results.map((author) => author.kind)).toEqual([
-      "full-text",
-      "secondary",
-    ]);
+describe("what a reader types finds what the catalogue stores", () => {
+  test("a surname matches a name stored surname-first with forenames after", async () => {
+    // The catalogue stores "Chekhov, Anton Pavlovich". A prefix match finds
+    // that; a reader typing "anton" gets nothing from one, which is why the
+    // query is unanchored.
+    expect((await parsed("anton")).results[0]?.id).toBe(CHEKHOV);
   });
 
-  test("a provider that throws does not fail the union, and is named", async () => {
-    const failing: CorpusProvider = {
-      id: "secondary",
-      kind: "secondary",
-      search: () => Promise.reject(new Error("upstream refused")),
-    };
-    const response = await search("anything", [fullText, failing]);
-    expect(response.status).toBe(200);
-    const body = ROUTES.authors.response.parse(await response.json());
-    expect(body.results).toHaveLength(1);
-    expect(body.unavailable).toEqual(["secondary"]);
+  test("case does not matter", async () => {
+    expect((await parsed("CHEKHOV")).results[0]?.id).toBe(CHEKHOV);
   });
 
-  test("every provider failing is 200 with an empty list and the names", async () => {
-    // Not a 500: the search worked, and what it found is nothing plus a reason.
-    const failing = (id: string): CorpusProvider => ({
-      id,
-      kind: "secondary",
-      search: () => Promise.reject(new Error("down")),
-    });
-    const response = await search("anything", [failing("a"), failing("b")]);
+  test("a name nobody stored finds nothing, and that is not an error", async () => {
+    const response = await search("zzzzzznobody");
     expect(response.status).toBe(200);
     const body = ROUTES.authors.response.parse(await response.json());
     expect(body.results).toEqual([]);
-    expect(body.unavailable).toEqual(["a", "b"]);
+  });
+
+  test("the author with more works comes first", async () => {
+    // Two people share a surname often. The count is the only thing here that
+    // distinguishes the one a reader probably meant, and it is already the
+    // number the detail line shows.
+    await seed("gutenberg:prolific-a-1860", "Prolific, Ann", 400);
+    await seed("gutenberg:prolific-b-1860", "Prolific, Bert", 2);
+    expect(
+      (await parsed("prolific")).results.map((row) => row.displayName),
+    ).toEqual(["Prolific, Ann", "Prolific, Bert"]);
+  });
+});
+
+describe("nothing is asked of anyone else", () => {
+  test("unavailable is empty, because no provider was asked", async () => {
+    // The field stays: the screen renders it and a secondary tier (PRD §8) is
+    // the shape this grows into. Empty is the honest answer to "which
+    // providers failed" when none were called.
+    expect((await parsed("chekhov")).unavailable).toEqual([]);
   });
 });
 
 describe("the query is parsed, never trusted", () => {
   test("a missing q is 400, not an empty search", async () => {
-    const app = createApp({
-      apiToken: TOKEN,
-      db: harness.db,
-      providers: [fullText],
-    });
+    const app = createApp({ apiToken: TOKEN, db: harness.db });
     const response = await app.request("/api/authors", {
       headers: { authorization: `Bearer ${TOKEN}` },
     });
@@ -183,7 +150,19 @@ describe("the query is parsed, never trusted", () => {
   });
 
   test("an empty q is 400", async () => {
-    const response = await search("");
-    expect(response.status).toBe(400);
+    expect((await search("")).status).toBe(400);
+  });
+
+  test("a percent sign is a character, not a wildcard", async () => {
+    // It reaches an ILIKE pattern. Bound, so never an injection — and still
+    // wrong before this was escaped: `%` became `%%%` and returned every
+    // author in the catalogue to someone who typed one character.
+    expect((await parsed("%")).results).toEqual([]);
+  });
+
+  test("an underscore is a character too", async () => {
+    // `_` matches any single character, so "chekho_" would find Chekhov and
+    // "_" would find everyone.
+    expect((await parsed("_")).results).toEqual([]);
   });
 });
