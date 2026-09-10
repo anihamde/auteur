@@ -202,4 +202,33 @@ describe("the seam", () => {
     expect(union.results).toEqual([]);
     expect(union.unavailable).toEqual(["a", "b"]);
   });
+
+  test("the reason reaches the caller, not just the name", async () => {
+    // "gutenberg unavailable" is the whole of what a screen should say and the
+    // whole of what anyone could learn: the rejection was read for its status
+    // and dropped. An operator needs the cause, and it was already in hand.
+    const seen: { id: string; message: string }[] = [];
+    const failing: CorpusProvider = {
+      id: "secondary",
+      kind: "secondary",
+      search: () => Promise.reject(new Error("upstream refused")),
+    };
+
+    await searchAll([failing], "chekhov", (id, reason) => {
+      seen.push({
+        id,
+        message: reason instanceof Error ? reason.message : "not an error",
+      });
+    });
+
+    expect(seen).toEqual([{ id: "secondary", message: "upstream refused" }]);
+  });
+
+  test("a provider that answers reports nothing", async () => {
+    const seen: string[] = [];
+    await searchAll([respondingWithFixture()], "chekhov", (id) => {
+      seen.push(id);
+    });
+    expect(seen).toEqual([]);
+  });
 });

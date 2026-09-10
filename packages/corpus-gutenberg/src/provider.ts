@@ -146,9 +146,23 @@ export type SearchUnion = {
  * renders it, and a reader knows the list is short rather than concluding the
  * author does not exist.
  */
+/**
+ * What to do with the reason a provider was unavailable.
+ *
+ * The union answers with a list of ids, which is the right shape for a screen:
+ * "gutenberg unavailable — this list is short" is what a reader needs. It is
+ * not what an operator needs, and until this existed the reason was discarded
+ * where it was caught — a settled rejection, read for its status and dropped.
+ *
+ * So the caller is handed it. A route logs it; a test asserts on it; nothing is
+ * obliged to care.
+ */
+export type OnUnavailable = (providerId: string, reason: unknown) => void;
+
 export const searchAll = async (
   providers: readonly CorpusProvider[],
   query: string,
+  onUnavailable?: OnUnavailable,
 ): Promise<SearchUnion> => {
   const settled = await Promise.allSettled(
     providers.map(async (provider) => provider.search(query)),
@@ -163,6 +177,7 @@ export const searchAll = async (
       continue;
     }
     unavailable.push(provider.id);
+    onUnavailable?.(provider.id, outcome.reason);
   }
   return { results, unavailable };
 };
