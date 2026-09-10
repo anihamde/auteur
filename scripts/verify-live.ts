@@ -1,4 +1,7 @@
 #!/usr/bin/env bun
+import { createDb } from "../packages/db/src/db.ts";
+import { channelFor } from "../packages/event-store/src/events.ts";
+import { subscribe } from "../packages/event-store/src/listen.ts";
 /**
  * `bun run verify:live` — **[key][net]** the one verification pass.
  *
@@ -6,9 +9,10 @@
  * single sitting: credentials go in, one command runs, one report comes out.
  * Four sub-reports, each separately green or naming what moved:
  *
- *  1. **The catalogue** — every row whose declared capability differs from the
- *     gateway's. Until this runs, every `source` column is `declared` and the
- *     tier lists are ordered against a guess.
+ *  1. **The catalogue** — whether the committed model catalogue still matches
+ *     what the gateway serves, and whether every tier candidate is a model
+ *     that exists. The second is the one that took the product down: not one
+ *     id in the hand-written table was real, and nothing asked (decision 0028).
  *  2. **The catalogue import** — search and `corpus-select` both read
  *     `authors` and `catalogue_works`, and on a fresh database both are empty.
  *     Nothing else says so: search answers 200 with no rows.
@@ -23,9 +27,10 @@
  * a green run a claim: every declared value was right. A pass that quietly
  * rewrote what it found would report success for having changed the answer.
  */
-import { createDb } from "../packages/db/src/db.ts";
-import { channelFor } from "../packages/event-store/src/events.ts";
-import { subscribe } from "../packages/event-store/src/listen.ts";
+import { served } from "../packages/provider-router/src/gateway-models.ts";
+import { CATALOGUE } from "../packages/provider-router/src/models.ts";
+import { compare, unservedCandidates } from "./check-router-catalogue.ts";
+import { fetchModels } from "./probe-router-catalogue.ts";
 
 export type SubReport = {
   readonly name: string;
@@ -174,6 +179,51 @@ export const checkCatalogue = async (
   };
 };
 
+/**
+ * The committed catalogue against the gateway's live list.
+ *
+ * This slot used to print that the measurement half of the probe was unwritten
+ * and every row was tagged `declared`. Both were true and neither was the
+ * problem: the catalogue named models the gateway had never served, and the one
+ * check that would have said so never called it. It calls it now.
+ */
+export const checkCatalogueDrift = async (
+  apiKey: string,
+  fetchIds: (key: string) => Promise<readonly string[]> = async (key) =>
+    served(await fetchModels(key)).map((model) => model.id),
+): Promise<SubReport> => {
+  const name = "the model catalogue matches the gateway";
+  const gatewayIds = await fetchIds(apiKey);
+  const drift = compare(
+    CATALOGUE.map((row) => row.id),
+    gatewayIds,
+  );
+  const unserved = unservedCandidates(gatewayIds);
+  const lines = [
+    ...drift.missingFromGateway.map((id) => `no longer served: ${id}`),
+    ...drift.absentFromCatalogue.map((id) => `not in the catalogue: ${id}`),
+    ...unserved.map((id) => `tier candidate nothing serves: ${id}`),
+  ];
+  return lines.length === 0
+    ? {
+        lines: [
+          `${CATALOGUE.length.toString()} rows, and every tier candidate exists`,
+        ],
+        name,
+        ok: true,
+      }
+    : {
+        lines: [
+          ...lines,
+          "Re-run `bun run catalogue:models` and commit the diff. A tier",
+          "candidate nothing serves is a stage that fails at its first model",
+          "call, which is what this check exists for.",
+        ],
+        name,
+        ok: false,
+      };
+};
+
 export const missing = (name: string, variable: string): SubReport => ({
   lines: [
     `${variable} is unset, so this was not checked.`,
@@ -192,12 +242,11 @@ if (import.meta.main) {
 
   reports.push(
     routerKey === undefined
-      ? missing("the catalogue's declared capabilities", "RAMP_ROUTER_API_KEY")
-      : unchecked(
-          "the catalogue's declared capabilities",
-          'The measurement half of the gateway probe is not written; every row is tagged "declared".',
-          "bun scripts/probe-router-responses.ts",
-        ),
+      ? missing(
+          "the model catalogue matches the gateway",
+          "RAMP_ROUTER_API_KEY",
+        )
+      : await checkCatalogueDrift(routerKey),
   );
 
   if (databaseUrl === undefined) {

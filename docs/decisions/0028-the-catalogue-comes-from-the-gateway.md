@@ -75,6 +75,19 @@ model the gateway serves that the generated file has not got, and — the one th
 took the product down — **a tier candidate that is in neither**. Without a key
 it fails and says so, because not checking is not the same as passing.
 
+**Both sides of that comparison apply the same rule**, which is why dropping
+deprecated models is one exported function rather than a `filter` in two
+places. The first version filtered only the catalogue side and was therefore red
+on the day it was written — seven deprecated models reported missing, with a
+remedy ("re-run the generator") that drops them again. A check that cannot pass
+is a check nobody runs twice.
+
+**`verify:live`'s first sub-report is this check.** It used to print that the
+measurement half of the gateway probe was unwritten and every row was tagged
+`declared`. Both were true, and neither was the problem: the catalogue named
+models the gateway had never served, and the one thing that would have said so
+never called it.
+
 **The schema describes what is read and ignores the rest.** Decision 0022's
 rule, applied to a second upstream: the `router` block carries modalities,
 reasoning efforts and verbosity, and describing them would only add ways for a

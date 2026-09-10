@@ -60,21 +60,16 @@ export type CatalogueRow = {
 };
 
 /**
- * The catalogue.
- *
- * Ordered by creator then capability, which is the order the model panel
- * renders and therefore an ordering nothing may sort at run time.
- *
- * The `structuredOutput` column carries the **conservative assumption** where
- * documentation is thin (§4/S1): a `false` that turns out to be a `true` costs
- * money, and a `true` that turns out to be a `false` fails a typed stage
- * mid-session. Six of the seven model stages are typed.
- */
-/**
  * The catalogue, as the gateway last answered.
  *
  * Ordered by creator then id, which is the order the model panel renders and
  * therefore an ordering nothing may sort at run time.
+ *
+ * `structuredOutput` used to carry a **conservative assumption** where
+ * documentation was thin — a `false` that is really a `true` costs money, and a
+ * `true` that is really a `false` fails a typed stage mid-session. There is
+ * nothing left to be conservative about: the gateway reports it per model, and
+ * six of the seven model stages depend on it being right.
  */
 export const CATALOGUE: readonly CatalogueRow[] = GENERATED_CATALOGUE;
 

@@ -14,7 +14,9 @@
  *  - a catalogue row the gateway no longer serves, which is a pin waiting to
  *    fail mid-session;
  *  - a model the gateway serves that the catalogue has never heard of, which
- *    means the generated file is stale;
+ *    means the generated file is stale. Deprecated models are not that: the
+ *    catalogue drops them on purpose, and both sides of the comparison apply
+ *    the same rule so the check is not red on the day it is written;
  *  - **a tier candidate that is in neither**, which is the one that took the
  *    product down: resolution walks the list, finds nothing, and the session
  *    fails at its first model call.
@@ -22,6 +24,7 @@
  * With no key it says so and fails. Not checking is not the same as passing.
  */
 import { TIER_CANDIDATES } from "../packages/config/src/tiers.ts";
+import { served } from "../packages/provider-router/src/gateway-models.ts";
 import { CATALOGUE } from "../packages/provider-router/src/models.ts";
 import { fetchModels } from "./probe-router-catalogue.ts";
 
@@ -119,7 +122,12 @@ if (import.meta.main) {
     );
     process.exit(1);
   }
-  const gatewayIds = (await fetchModels(key)).map((model) => model.id);
+  // `served`, not every id the gateway lists: the catalogue drops deprecated
+  // models deliberately, so comparing against the unfiltered list reports every
+  // one of them as missing and tells the reader to regenerate — which drops
+  // them again. The two sides have to apply the same rule, which is why it is
+  // one function.
+  const gatewayIds = served(await fetchModels(key)).map((model) => model.id);
   const drift = compare(
     CATALOGUE.map((row) => row.id),
     gatewayIds,

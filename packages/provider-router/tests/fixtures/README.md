@@ -1,16 +1,22 @@
-# Synthesised, not recorded
+# Reduced, and named so
 
-Every `*.sse` file here is **synthesised against the OpenAI Responses event
-grammar**, not captured from `api.router.com`. The build environment has no
-gateway credential and no egress to it (`docs/IMPLEMENTATION-PLAN.md` §4), so
-these are what a correct stream is believed to look like rather than what one
-was observed to be.
+`gateway-models.reduced.json` carries the gateway's **own values** — every id,
+context window, output ceiling, structured-output flag, status and price is what
+`GET /v1/models` answered on 2026-09-10 — in an envelope reduced to the fields
+this code reads.
 
-WP-X0's verification pass records real transcripts and replaces them. Until it
-does, a test passing here means this package agrees with the grammar — which is
-worth having, and is not the same as agreeing with the gateway.
+The distinction matters, which is why the name says it. A `.recorded.` file
+would claim the schema has been proved against the shape the gateway actually
+sends, and it has not: the live `router` block also carries modalities,
+reasoning efforts, verbosity, descriptions and listing order, and this file has
+none of them. What the fixture proves is the conversion — prices to integer
+micros, deprecated rows dropped, the clamp, the ordering — over real values.
 
-The bytes are replayed through a real `OpenAI` client with an injected `fetch`,
-so the SDK's own SSE decoder, error classification and abort handling are all
-exercised. A fake that skipped the SDK would only prove this package agrees
-with itself.
+The schema's tolerance for fields it does not read is tested directly, by
+`gateway-models.test.ts` adding one, rather than by this file happening to
+contain some.
+
+**A refresh replaces this file with what the gateway sends**, under a
+`.recorded.` name, on the first run of `bun run catalogue:models` from a machine
+that also saves the response. Until then the gap is here in writing rather than
+implied by a filename.

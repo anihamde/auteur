@@ -77,10 +77,13 @@ const MICRO_DIGITS = 6;
  * explain. So the string is split and padded instead: no float ever exists.
  */
 export const microsFrom = (price: string): number => {
-  const [whole = "0", fraction = ""] = price.split(".");
-  if (!/^\d+$/.test(whole) || !/^\d*$/.test(fraction)) {
+  // The whole string, not its first two segments: `"1.2.3"` split and destructured
+  // yields `1` and `2`, both of which pass a per-segment test, and the price
+  // silently becomes $1.20.
+  if (!/^\d+(?:\.\d+)?$/.test(price)) {
     throw new Error(`"${price}" is not a decimal price.`);
   }
+  const [whole = "0", fraction = ""] = price.split(".");
   if (fraction.length > MICRO_DIGITS) {
     throw new Error(
       `"${price}" is finer than a micro, which this cannot represent without rounding.`,
@@ -106,11 +109,25 @@ const creatorFrom = (ownedBy: string): string =>
 export const DEFAULT_MODEL_ID = "claude-opus-5";
 
 /**
- * The gateway's answer as catalogue rows.
+ * The models this system will use, which is not every model the gateway lists.
  *
  * **Deprecated models are dropped.** The gateway still answers for them, and a
  * row here is a model a session can be pinned to — so keeping one is a pin
  * waiting to fail mid-run on a schedule nobody here controls.
+ *
+ * One function, because two places need the rule and disagreeing about it is
+ * its own failure: the generator writes rows from this, and the drift check
+ * compares against it. A check that compared the catalogue to the *unfiltered*
+ * list would report seven models missing on the day the catalogue was written
+ * and tell the reader to regenerate, which drops them again.
+ */
+export const served = (
+  models: readonly GatewayModel[],
+): readonly GatewayModel[] =>
+  models.filter((model) => model.router.status !== "deprecated");
+
+/**
+ * The gateway's answer as catalogue rows.
  *
  * Ordered by creator then id, which is the order the model panel renders and
  * therefore an ordering nothing may sort at run time.
@@ -118,17 +135,18 @@ export const DEFAULT_MODEL_ID = "claude-opus-5";
 export const toCatalogueRows = (
   models: readonly GatewayModel[],
 ): CatalogueRow[] =>
-  models
-    .filter((model) => model.router.status !== "deprecated")
+  served(models)
     .map((model) => ({
       contextWindow: model.router.limits.context_window,
       creator: creatorFrom(model.owned_by),
       ...(model.id === DEFAULT_MODEL_ID && { default: true as const }),
       displayName: model.display_name,
       id: model.id,
-      // The gateway reports a max output equal to the whole window for several
-      // models. That is what it says, and the registry only refuses the
-      // reverse, so it is passed through rather than second-guessed here.
+      // The gateway reports a max output equal to the whole window for
+      // twenty-six models, which the registry allows. What it refuses is a
+      // ceiling *above* the window, so this clamps rather than trusting: one
+      // such row would fail the whole catalogue's registration on the first
+      // boot after a refresh, and no row is worth that.
       maxOutputTokens: Math.min(
         model.router.limits.max_output_tokens,
         model.router.limits.context_window,

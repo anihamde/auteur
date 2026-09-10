@@ -18,6 +18,7 @@ export const DEFAULT_MODEL_ID = "claude-opus-5"
 export const gatewayModelsSchema = z.object(
 export const microsFrom = (price: string): number =>
 export const parseGatewayModels = (payload: unknown): GatewayModel[] =>
+export const served = (
 export const toCatalogueRows = (
 ```
 
