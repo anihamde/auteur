@@ -66,9 +66,9 @@ runtime that does not freeze.
 
 **The invocation moves out of `entry.ts`** into `_internal/invoke-stage.ts`.
 A defect in the one module nothing imports and nothing covered is a defect with
-no way to be caught; five tests now cover the dispatch, the signature over the
-raw body, the bypass header, and the two log lines that distinguish a refusal
-from a loss.
+no way to be caught; six tests now cover the dispatch with and without the
+platform call, the signature over the raw body, the bypass header, and the two
+log lines that distinguish a refusal from a loss.
 
 ## What was rejected
 

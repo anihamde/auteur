@@ -75,15 +75,16 @@ const protectionBypass = (): Record<string, string> => {
 };
 
 /**
- * Built inside `boot`, so a missing variable answers with the list of what is
- * missing rather than crashing the function before a route exists.
- */
-/**
  * The invocation, wired to the platform.
  *
  * `waitUntil` is what keeps this instance alive until the request is actually
  * sent. Without it the promise was dropped and the instance froze with the
  * response, so no stage was ever started by anything but a person with curl.
+ *
+ * Built at module scope rather than inside `boot`, and safe there because
+ * every value it needs is a thunk: `env()` is read per invocation, so a missing
+ * `AUTEUR_STAGE_SECRET` still reaches `boot`'s error response instead of
+ * crashing the function before a route exists.
  */
 const invokeStage = createInvokeStage({
   extraHeaders: protectionBypass,
@@ -93,6 +94,10 @@ const invokeStage = createInvokeStage({
   waitUntil,
 });
 
+/**
+ * Built inside `boot`, so a missing variable answers with the list of what is
+ * missing rather than crashing the function before a route exists.
+ */
 const app = boot(() => {
   const db = createDb({ endpoint: "pooled", url: env().DATABASE_URL });
   // Two direct handles, not one, and the difference is what each does with a
