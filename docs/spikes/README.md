@@ -13,7 +13,7 @@ anyone knows the answer.
 | Note | Question | Written by |
 |---|---|---|
 | `s1-router-capabilities.md` | Which catalogue rows' declared capabilities differ from the gateway's? Which models accept a strict schema? | `scripts/check-router-catalogue.ts`, `scripts/probe-router-responses.ts` |
-| `s2-gutendex-schema.md` | Which field names in `corpus-gutenberg/src/schema.ts` differ from a real response? | `scripts/probe-gutendex.ts` |
+| ~~`s2-gutendex-schema.md`~~ | **Answered, and the question dissolved.** A probe from inside a function found `gutendex.com` answering Cloudflare's managed challenge to every datacenter address, so the catalogue is imported into this database and nothing parses a gutendex response (decisions 0023 and 0025). `verify:live` checks that the import has landed instead. | — |
 | `s3-latinate-precision.md` | What precision does the suffix classifier reach against the hand-labelled set, and does §4.3's 0.85 threshold keep it scored or demote it? | `scripts/score-latinate.ts` |
 
 ## What is provisional until they land
@@ -24,9 +24,6 @@ anyone knows the answer.
 - **The tier candidate lists are ordered against those declared columns.**
   `packages/config/src/tiers.ts` says so in its own docstring: a corrected row
   changes what resolution picks with no edit there.
-- **The gutendex fixtures are named `*.synthetic.json`.** The name is the
-  claim — they were written from documentation, and `probe-gutendex.ts`
-  replaces them with recorded ones under their recorded names.
 - **`latinateGate()` returns `{ scored: true, validated: false }`,** and every
   `FitMeasure` it produces carries `classifier: { validated: false }` so the UI
   reads "latinate ratio (suffix proxy, unvalidated)". A reader is never shown

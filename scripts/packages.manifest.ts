@@ -400,21 +400,19 @@ export const PACKAGES: readonly PackageSpec[] = [
 
   // ------------------------------------------------------------------- service
   {
-    deps: ["zod"],
-    description: "gutendex client, text fetch, work and passage selection.",
+    deps: [],
+    description:
+      "Project Gutenberg text fetch and cleaning, work and passage selection.",
     devDeps: [],
     exports: {
+      "author-row": src("author-row.ts"),
       authors: src("authors.ts"),
       fetch: src("fetch.ts"),
-      gutendex: src("gutendex.ts"),
       passages: src("passages.ts"),
-      provider: src("provider.ts"),
-      schema: src("schema.ts"),
     },
     layer: "service",
     name: "corpus-gutenberg",
     workspaceDeps: ["core", "corpus-store", "errors", "ids", "logger", "text"],
-    workspaceDevDeps: ["test-db"],
   },
   {
     coverage: 0.9,

@@ -102,7 +102,7 @@ Two packages are foundation-layer that a reader might expect elsewhere:
 | `card-store` | The style-card cache, versioned per author |
 | `corpus-store` | The `works` and `passages` cache, keyed by source and cleaner version |
 | `event-store` | The durable per-session event log the SSE stream replays from |
-| `corpus-gutenberg` | gutendex client, text fetch, work and passage selection |
+| `corpus-gutenberg` | Project Gutenberg text fetch and cleaning, work and passage selection |
 | `style-card` | Compose measured + derived + overlay; version; confidence |
 | `style-fit` | Bands, verdicts, and the deterministic half of the report |
 | `export` | Markdown export, and the label no export can omit |
@@ -2164,7 +2164,7 @@ Two things this document adds that neither source asks for:
 
 | Risk | Mitigation, or the honest absence of one |
 |---|---|
-| **The gutendex schema in §5.2 is unverified.** No network access to it from this session. | Build order step 3 begins with a probe that records a real response and pins the schema. Every field is parsed rather than cast, so a wrong guess is a loud failure on the first search. |
+| ~~**The gutendex schema in §5.2 is unverified.**~~ **Closed, differently than expected.** A probe from inside a function found `gutendex.com` answering Cloudflare's managed challenge to every datacenter address. | Nothing reads that schema: the catalogue is imported into this database and search reads it (decision 0023). `verify:live` checks that the import has run, which is the failure that replaced it. |
 | **`structuredOutput` and `maxOutputTokens` per model are unknown.** Neither is in the gateway's models route. | Build order step 2 is a spike against the live endpoint. If no `cheap`-tier model supports strict schemas, `critique` moves to `balanced` and the cost target in §10 gets worse — that is the outcome to measure, not to design around now. |
 | **A corpus spanning several translators measures none of them.** Two translators' sentence lengths averaged together are a number no prose has. | `corpus-select` prefers one translator where the choice exists, and the card lists those it drew on (§5.2). Measuring the translation itself is not the risk — that is the prose an English reader has — but blending two is. |
 | **The latinate proxy may not classify well enough to score.** It is a suffix list. | Gated rather than hoped about: a hand-labelled 500-type validation set decides whether it is a scored measure or a prompt hint (§4.3). The gate runs in build step 3, before anything depends on the answer. |

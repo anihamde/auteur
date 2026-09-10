@@ -9,9 +9,9 @@
  *  1. **The catalogue** — every row whose declared capability differs from the
  *     gateway's. Until this runs, every `source` column is `declared` and the
  *     tier lists are ordered against a guess.
- *  2. **The gutendex schema** — the field names in
- *     `corpus-gutenberg/src/schema.ts` were written from documentation, not
- *     from a response.
+ *  2. **The catalogue import** — search and `corpus-select` both read
+ *     `authors` and `catalogue_works`, and on a fresh database both are empty.
+ *     Nothing else says so: search answers 200 with no rows.
  *  3. **The latinate classifier** — precision against the hand-labelled set,
  *     and the keep-or-demote verdict §4.3 specifies.
  *  4. **`LISTEN`/`NOTIFY` on Neon's direct endpoint** — the mechanism is
@@ -26,7 +26,6 @@
 import { createDb } from "../packages/db/src/db.ts";
 import { channelFor } from "../packages/event-store/src/events.ts";
 import { subscribe } from "../packages/event-store/src/listen.ts";
-import { probeLive } from "./probe-gutendex.ts";
 
 export type SubReport = {
   readonly name: string;
@@ -122,31 +121,57 @@ export const unchecked = (
 
 /** A sub-report for a check that cannot run because a credential is absent. */
 /**
- * The committed schema against a live response.
+ * Whether the catalogue has been imported into this database.
  *
- * This is the check that mattered tonight: `schema.ts` was written from
- * documentation, never against a response, and a parse failure surfaces on the
- * deployment as "gutenberg unavailable" with no reason attached.
+ * Author search and `corpus-select` both read `authors` and `catalogue_works`
+ * (decision 0023), and on a fresh database both are empty. Nothing else in the
+ * system says so: search answers 200 with an empty list, which is also what a
+ * misspelt name looks like, and the run fails two screens later with
+ * `corpus_unavailable`.
  */
-export const checkGutendex = async (
-  probe: typeof probeLive = probeLive,
+export const checkCatalogue = async (
+  count: (table: string) => Promise<number>,
 ): Promise<SubReport> => {
-  const result = await probe("chekhov");
-  return result.ok
-    ? {
-        lines: [`the live response parsed: ${result.books.toString()} books`],
-        name: "the gutendex response shape",
-        ok: true,
-      }
-    : {
-        lines: [
-          result.problem,
-          "Every difference is a field ARCHITECTURE.md §5.2 got wrong, and it",
-          "reaches a reader as an empty author list.",
-        ],
-        name: "the gutendex response shape",
-        ok: false,
-      };
+  const name = "the catalogue is imported";
+  // A count that throws is this check's answer, not an error to propagate: the
+  // table not existing means the schema has never come up against this
+  // database, which is the same finding one step earlier. Letting it out would
+  // lose the other three sub-reports to a stack trace.
+  const counted = await Promise.all([
+    count("authors"),
+    count("catalogue_works"),
+  ]).catch((cause: unknown) => cause);
+  if (!Array.isArray(counted)) {
+    return {
+      lines: [
+        counted instanceof Error ? counted.message : "the count failed",
+        "The schema comes up on the first request to the deployment. Reach",
+        "`/api/health` once, then run `bun run catalogue:import`.",
+      ],
+      name,
+      ok: false,
+    };
+  }
+  const [authors = 0, works = 0] = counted;
+  if (authors === 0 || works === 0) {
+    return {
+      lines: [
+        `authors: ${authors.toString()}, catalogue_works: ${works.toString()}`,
+        "Search finds nobody and a run fails with corpus_unavailable. Run",
+        "`bun run catalogue:import` from a machine with egress, pointed at",
+        "this database.",
+      ],
+      name,
+      ok: false,
+    };
+  }
+  return {
+    lines: [
+      `${authors.toLocaleString("en-US")} authors, ${works.toLocaleString("en-US")} works`,
+    ],
+    name,
+    ok: true,
+  };
 };
 
 export const missing = (name: string, variable: string): SubReport => ({
@@ -163,6 +188,7 @@ if (import.meta.main) {
   const reports: SubReport[] = [];
   const routerKey = Bun.env["RAMP_ROUTER_API_KEY"];
   const directUrl = Bun.env["DATABASE_URL_DIRECT"];
+  const databaseUrl = Bun.env["DATABASE_URL"];
 
   reports.push(
     routerKey === undefined
@@ -174,7 +200,24 @@ if (import.meta.main) {
         ),
   );
 
-  reports.push(await checkGutendex());
+  if (databaseUrl === undefined) {
+    reports.push(missing("the catalogue is imported", "DATABASE_URL"));
+  } else {
+    const db = createDb({ endpoint: "pooled", url: databaseUrl });
+    reports.push(
+      await checkCatalogue(async (table) => {
+        // The table names come from this file, never from input, which is the
+        // only way an identifier may vary at all.
+        const sql =
+          table === "authors"
+            ? "SELECT count(*)::int AS n FROM authors"
+            : "SELECT count(*)::int AS n FROM catalogue_works";
+        const result = await db.query<{ n: number }>(sql);
+        return result.rows[0]?.n ?? 0;
+      }),
+    );
+    await db.close();
+  }
 
   reports.push(
     unchecked(

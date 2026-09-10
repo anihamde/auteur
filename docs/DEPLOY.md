@@ -120,10 +120,11 @@ action.
    plan's ceiling fails exactly this way.
 2. `bun run preflight` locally, with the same values in `.env`. It names every
    missing or malformed variable at once rather than the first.
-3. `bun run verify:live` — the checks that need real credentials, from a
-   machine with egress. Two of them run: the Gutendex response schema against
-   a live response, and `LISTEN`/`NOTIFY` on Neon's direct endpoint. Two do
-   not, and say so rather than passing: the gateway probe's measurement half
+3. `bun run verify:live` — the checks that need real credentials, with
+   `DATABASE_URL` and `DATABASE_URL_DIRECT` pointed at the deployment's
+   database. Two of them run: whether the catalogue import has landed in this
+   database, and whether `LISTEN`/`NOTIFY` works on Neon's direct endpoint. Two
+   do not, and say so rather than passing: the gateway probe's measurement half
    is unwritten, and the latinate classifier's labelled set does not exist.
 
    A failing run naming an unwritten check is the honest state. A run that

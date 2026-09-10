@@ -1,12 +1,12 @@
 # @auteur/corpus-gutenberg
 
-gutendex client, text fetch, work and passage selection.
+Project Gutenberg text fetch and cleaning, work and passage selection.
 
 Layer: `service`. It may import packages in its own layer or below, never above.
 
 ## Dependencies
 
-`@auteur/core`, `@auteur/corpus-store`, `@auteur/errors`, `@auteur/ids`, `@auteur/logger`, `@auteur/text`, `zod`
+`@auteur/core`, `@auteur/corpus-store`, `@auteur/errors`, `@auteur/ids`, `@auteur/logger`, `@auteur/text`
 
 ## Public surface
 

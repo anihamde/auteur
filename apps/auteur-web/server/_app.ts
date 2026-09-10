@@ -1,5 +1,4 @@
 import { type RouteName, specOf } from "@auteur/api-contract/routes";
-import type { CorpusProvider } from "@auteur/corpus-gutenberg/provider";
 import type { Db } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { toHttpResponse } from "@auteur/errors/to-http-response";
@@ -17,7 +16,6 @@ import { type AdvanceDeps, advanceRoutes } from "./_routes/advance.ts";
 import { answerRoutes } from "./_routes/answers.ts";
 import { authorRoutes } from "./_routes/authors.ts";
 import { cancelRoutes } from "./_routes/cancel.ts";
-import { corpusProbeRoutes } from "./_routes/corpus-probe.ts";
 import { type EventRoutesDeps, eventRoutes } from "./_routes/events.ts";
 import { exportRoutes } from "./_routes/export.ts";
 import { healthRoutes } from "./_routes/health.ts";
@@ -41,11 +39,6 @@ export type AppDeps = {
   /** Every `/api` route but `health` requires this as a bearer token. */
   readonly apiToken: string;
   readonly logger?: Logger;
-  /**
-   * Corpus providers for `GET /api/authors`. Injected so a route test runs
-   * offline against a fixture; the default is the one provider that exists.
-   */
-  readonly providers?: readonly CorpusProvider[];
   /** Asks the platform to run a stage now. See `_routes/advance.ts`. */
   readonly invokeStage?: AdvanceDeps["invokeStage"];
   /** Where a regenerated selection's span is handed on. See `regenerate.ts`. */
@@ -209,9 +202,6 @@ export const createApp = (deps: AppDeps): Hono => {
   app.route("/", modelRoutes());
   if (deps.cron !== undefined) {
     app.route("/", cronRoutes({ db: deps.db, ...deps.cron }));
-    // Temporary; see `_routes/corpus-probe.ts`. Mounted with the sweep because
-    // it carries the same secret.
-    app.route("/", corpusProbeRoutes({ cronSecret: deps.cron.cronSecret }));
   }
   if (deps.internalStage !== undefined) {
     app.route(

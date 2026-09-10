@@ -149,36 +149,6 @@ export const ROUTES = {
     path: "/api/sessions/:id/cancel",
     response: z.object({ cancelling: z.boolean() }),
   },
-  corpusProbe: {
-    internal: true,
-    /**
-     * **Temporary.** It answers one question the deployment cannot be asked
-     * any other way: which of the corpus hosts this network can reach.
-     *
-     * Search fails from the functions and succeeds from a laptop, so the
-     * difference is the network — and the catalogue and the book text live on
-     * two different hosts. Whether the second is reachable decides between
-     * holding the catalogue locally and proxying everything, and nothing in
-     * the pipeline can get far enough to find out: `work-fetch` runs after
-     * `corpus-select`, which is the stage that fails.
-     *
-     * It takes no input, reaches two fixed urls, and returns statuses. Delete
-     * it once the answer is recorded in a decision.
-     */
-    method: "GET",
-    path: "/api/internal/corpus-probe",
-    response: z.object({
-      results: z.array(
-        z.object({
-          detail: z.string(),
-          host: z.string().min(1),
-          ms: z.number().int().nonnegative(),
-          outcome: z.enum(["ok", "refused", "timeout", "error"]),
-          status: z.number().int().nullable(),
-        }),
-      ),
-    }),
-  },
   createSession: {
     body: z.object({
       constraints: z.string().nullable().optional(),
