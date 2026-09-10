@@ -19,10 +19,14 @@ into the client bundle when it is built.
 | `DATABASE_URL_DIRECT` | Production + Preview | Neon's **unpooled** endpoint. |
 | `VITE_API_TOKEN` | Production + Preview | The same value as `AUTEUR_API_TOKEN`, for the client. |
 
-The two database URLs are not interchangeable. Every route but one uses the
-pooled endpoint, because function instances are plural and short-lived; the SSE
-route uses the direct one, because `LISTEN` is a session-level feature and a
-pooled `LISTEN` is accepted and then never delivers anything.
+The two database URLs are not interchangeable. Reads and ordinary writes use
+the pooled endpoint, because function instances are plural and short-lived. The
+direct endpoint is for the two things pooled mode cannot do: the SSE route's
+`LISTEN`, which is session-level and through a pooler is accepted and then never
+delivers anything; and a write that must be one transaction — appending an event
+with its `NOTIFY`, and replacing a session's pins. **Both are required.**
+Without `DATABASE_URL_DIRECT` no stage can record an event, which presents as a
+run that never starts.
 
 `VITE_API_TOKEN` is inlined **at build time**. Adding it to a deployment that
 already exists does nothing until the next build, and `bun run preflight`
