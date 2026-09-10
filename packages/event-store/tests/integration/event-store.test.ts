@@ -158,6 +158,99 @@ describe("append happens before fan-out, never the other way round", () => {
   });
 });
 
+describe("a lost connection ends one subscription, not the process", () => {
+  test("a terminated backend is survivable, and the next subscriber gets a live connection", async () => {
+    // `pg` removes its own error listener when a client is checked out, so a
+    // backend that dies mid-stream — Neon scaling to zero, a restart, an admin
+    // terminating it — emits `error` on an emitter with nothing listening. In
+    // Node that is an unhandled `error` event, and it takes the process with
+    // it: one dropped connection would end every stream and every request on
+    // the instance rather than the one stream that lost its connection.
+    const sessionId = await freshSession();
+    const listener = createDb({ endpoint: "direct", max: 1, url: harness.url });
+    try {
+      const subscription = await subscribe(
+        listener,
+        sessionId,
+        () => undefined,
+      );
+
+      const pids = await harness.other.query<{ pid: number }>(
+        `SELECT pid FROM pg_stat_activity
+          WHERE datname = current_database() AND query LIKE 'LISTEN %'`,
+      );
+      expect(pids.rows.length).toBeGreaterThan(0);
+      for (const row of pids.rows) {
+        await harness.other.query(`SELECT pg_terminate_backend($1)`, [
+          row["pid"],
+        ]);
+      }
+
+      for (
+        let attempt = 0;
+        attempt < 200 && !subscription.lost();
+        attempt += 1
+      ) {
+        await Bun.sleep(10);
+      }
+      expect(subscription.lost()).toBe(true);
+      // Closing after the loss is a no-op rather than a throw: the route calls
+      // it on abort and again in its `finally`.
+      await subscription.close();
+
+      // The pool holds one connection, so this only succeeds if the dead one
+      // was handed back rather than left checked out.
+      const next = await subscribe(listener, sessionId, () => undefined);
+      await next.close();
+    } finally {
+      await listener.close();
+    }
+  }, 20_000);
+});
+
+describe("a connection lost while closing is still handed back", () => {
+  test("close() resolves and the pool's only slot is free again", async () => {
+    // `close()` marks itself closed before awaiting `UNLISTEN`, so a backend
+    // dying during that round trip used to reach an error listener that saw
+    // "already closing" and returned without releasing — while the rejected
+    // `UNLISTEN` threw past the release. The client stayed checked out for the
+    // life of the process, and four of those empty a direct pool: the failure
+    // the error listener exists to prevent, reached by the other path.
+    const sessionId = await freshSession();
+    const listener = createDb({ endpoint: "direct", max: 1, url: harness.url });
+    try {
+      const subscription = await subscribe(
+        listener,
+        sessionId,
+        () => undefined,
+      );
+      const pids = await harness.other.query<{ pid: number }>(
+        `SELECT pid FROM pg_stat_activity
+          WHERE datname = current_database() AND query LIKE 'LISTEN %'`,
+      );
+
+      for (const row of pids.rows) {
+        await harness.other.query(`SELECT pg_terminate_backend($1)`, [
+          row["pid"],
+        ]);
+      }
+      // Closed without waiting for the error event, so `UNLISTEN` goes to a
+      // connection that is already gone. It resolves rather than throwing: a
+      // caller asking to stop listening does not need an error about the
+      // listening having already stopped, and this is awaited inside a
+      // stream's `finally` where a throw becomes an unhandled rejection.
+      await subscription.close();
+
+      // The pool holds one connection. This is the assertion that the slot came
+      // back rather than being lost with the client.
+      const next = await subscribe(listener, sessionId, () => undefined);
+      await next.close();
+    } finally {
+      await listener.close();
+    }
+  }, 20_000);
+});
+
 describe("the run claim stops a double-clicked advance", () => {
   test("two claims on one session: one wins, one gets undefined", async () => {
     const sessionId = await freshSession();
