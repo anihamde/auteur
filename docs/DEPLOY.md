@@ -105,6 +105,25 @@ action.
    `gutenberg.org`, answers the deployment normally and is still fetched at run
    time.
 
+## Deployment Protection
+
+A stage runs by the deployment asking itself, over HTTP, to run it, so the
+protection setting decides whether the pipeline runs at all.
+
+Standard Protection guards a deployment's generated hostname —
+`auteur-<hash>-<team>.vercel.app` — and leaves the project's production domain
+open. The server addresses the production domain for exactly that reason, so
+production needs nothing configured. What it looks like when that is wrong: the
+site loads, an author can be chosen, the research screen never moves, and the
+function log repeats `stage invocation refused` with `status: 401`.
+
+Two variables bear on it, neither required in production:
+
+| name | scope | what it is |
+| --- | --- | --- |
+| `AUTEUR_SELF_ORIGIN` | Production | The whole origin to address instead of the one the platform reports. For a custom domain in front of the deployment. |
+| `VERCEL_AUTOMATION_BYPASS_SECRET` | Preview | The platform's own, from **Settings → Deployment Protection → Protection Bypass for Automation**. A preview addresses its own guarded hostname, so without this a preview's pipeline does not run. It reaches the function only with **Settings → Environment Variables → Automatically expose System Environment Variables** on, and only after a redeploy. |
+
 ## Verifying
 
 1. `GET /api/health` answers 200.

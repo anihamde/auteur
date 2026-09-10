@@ -6,6 +6,7 @@ import { waitUntil } from "@vercel/functions";
 import { createApp } from "./_app.ts";
 import { boot } from "./_boot.ts";
 import { createInvokeStage } from "./_internal/invoke-stage.ts";
+import { selfOriginFrom } from "./_internal/self-origin.ts";
 import { createStageBody } from "./_stages/index.ts";
 
 /**
@@ -28,42 +29,26 @@ import { createStageBody } from "./_stages/index.ts";
 const log = createLogger({ bound: { component: "api" } });
 
 /**
+ * The origin this function addresses when it asks for a stage.
+ *
+ * The rule, and why it is not `VERCEL_URL`, is in `self-origin.ts`. Here
+ * because this module and it alone reads the environment.
+ */
+const selfOrigin = (): string => selfOriginFrom(process.env);
+
+/**
  * What lets a deployment call itself when the platform is guarding it.
  *
  * Deployment Protection puts an authentication wall in front of a deployment's
- * own hostname — which is the hostname a stage invokes, so with it on, every
- * invocation reaches a login page rather than the route. The platform's answer
- * is a bypass secret it sets in the environment; sending it is what makes a
- * protected deployment able to talk to itself.
+ * generated hostname, which is the hostname a **preview** invokes: without this
+ * every invocation there reaches a login page rather than the route. Production
+ * addresses the alias instead and needs no header at all — this is what keeps
+ * previews working, not what keeps the pipeline running.
  *
  * Absent, this sends nothing: an unprotected deployment needs no header, and a
  * protected one without the secret is a configuration to fix rather than
  * something to work around here.
  */
-/**
- * The origin this function answers on.
- *
- * `VERCEL_URL` is the deployment's own host, so an invocation reaches the
- * deployment that made it rather than whatever the production alias points at —
- * a preview must not drive production's pipeline. Absent, this is a local
- * `vite dev`.
- *
- * It was deleted by the change that added the bypass header below, and nothing
- * noticed: `apps/auteur-web/tsconfig.json` still named the `api/` directory
- * this one replaced, so no typecheck ever read this file. Every invocation
- * threw `selfOrigin is not defined` before it reached `fetch`, which the
- * `void`ed promise then swallowed — so the queue filled, the sweep re-invoked
- * into the same throw, and nothing anywhere said why.
- */
-const selfOrigin = (): string => {
-  const host = process.env["VERCEL_URL"];
-  // Empty is unset, the same reading `protectionBypass` takes below. `https://`
-  // with no host is a url that parses and reaches nothing.
-  return host === undefined || host === ""
-    ? "http://127.0.0.1:3000"
-    : `https://${host}`;
-};
-
 const protectionBypass = (): Record<string, string> => {
   const secret = process.env["VERCEL_AUTOMATION_BYPASS_SECRET"];
   return secret === undefined || secret === ""
