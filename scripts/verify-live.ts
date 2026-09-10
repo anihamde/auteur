@@ -18,7 +18,12 @@ import { subscribe } from "../packages/event-store/src/listen.ts";
  *     Nothing else says so: search answers 200 with no rows.
  *  3. **The latinate classifier** — precision against the hand-labelled set,
  *     and the keep-or-demote verdict §4.3 specifies.
- *  4. **`LISTEN`/`NOTIFY` on Neon's direct endpoint** — the mechanism is
+ *  4. **The stage schemas** — whether the gateway accepts each of the five
+ *     structured-output schemas the stages send. `strict: true` is a narrower
+ *     dialect than JSON Schema and a request outside it is refused whole; three
+ *     stage failures in one afternoon were exactly that, and every test in the
+ *     repository sends its schema to a fake, so none of them could see it.
+ *  5. **`LISTEN`/`NOTIFY` on Neon's direct endpoint** — the mechanism is
  *     verified on stock Postgres; Neon specifically is not, and a pooled
  *     `LISTEN` is accepted and then never delivers, which is the worst shape a
  *     failure can take.
@@ -30,7 +35,9 @@ import { subscribe } from "../packages/event-store/src/listen.ts";
 import { served } from "../packages/provider-router/src/gateway-models.ts";
 import { CATALOGUE } from "../packages/provider-router/src/models.ts";
 import { compare, unservedCandidates } from "./check-router-catalogue.ts";
+import { checkAll } from "./check-stage-schemas.ts";
 import { fetchModels } from "./probe-router-catalogue.ts";
+import { STAGE_SCHEMAS } from "./stage-schemas.ts";
 
 export type SubReport = {
   readonly name: string;
@@ -224,6 +231,49 @@ export const checkCatalogueDrift = async (
       };
 };
 
+/**
+ * The gateway's word on every schema a stage sends.
+ *
+ * The one check here that cannot be replaced by a unit test, and the reason is
+ * structural: every test in this repository hands its schema to a stub, so the
+ * dialect the gateway actually enforces is asserted nowhere. `value: {}`,
+ * `minItems` silently ignored, and a null inside an enum all shipped green.
+ *
+ * Five small requests, output capped at sixteen tokens, replies discarded. A
+ * refusal arrives before generation, so this is fast and nearly free — which is
+ * what makes it worth running before every deploy rather than after one.
+ */
+export const checkStageSchemas = async (
+  apiKey: string,
+  modelId = "claude-sonnet-5",
+  probe = checkAll,
+): Promise<SubReport> => {
+  const name = "the gateway accepts every stage schema";
+  const verdicts = await probe(apiKey, modelId, STAGE_SCHEMAS);
+  const refused = verdicts.filter((verdict) => !verdict.accepted);
+  return refused.length === 0
+    ? {
+        lines: [
+          `${verdicts.length.toString()} schemas, all accepted by ${modelId}`,
+        ],
+        name,
+        ok: true,
+      }
+    : {
+        lines: [
+          ...refused.map(
+            (verdict) => `${verdict.stageId}: ${verdict.reason ?? "refused"}`,
+          ),
+          "A schema outside strict mode is refused whole, before a token is",
+          "generated — so the stage fails every time and says only that the",
+          "gateway failed. Fix the schema and record the rule in",
+          "`apps/auteur-web/tests/integration/stage-schemas.test.ts`.",
+        ],
+        name,
+        ok: false,
+      };
+};
+
 export const missing = (name: string, variable: string): SubReport => ({
   lines: [
     `${variable} is unset, so this was not checked.`,
@@ -267,6 +317,12 @@ if (import.meta.main) {
     );
     await db.close();
   }
+
+  reports.push(
+    routerKey === undefined
+      ? missing("the gateway accepts every stage schema", "RAMP_ROUTER_API_KEY")
+      : await checkStageSchemas(routerKey),
+  );
 
   reports.push(
     unchecked(

@@ -157,10 +157,21 @@ production:
 
 4. `bun run verify:live` — the checks that need real credentials, with
    `DATABASE_URL` and `DATABASE_URL_DIRECT` pointed at the deployment's
-   database. Two of them run: whether the catalogue import has landed in this
-   database, and whether `LISTEN`/`NOTIFY` works on Neon's direct endpoint. Two
-   do not, and say so rather than passing: the gateway probe's measurement half
-   is unwritten, and the latinate classifier's labelled set does not exist.
+   database. **Run it before every deploy that changes a prompt or a schema.**
+
+   Four of the five run: whether the committed catalogue still matches what the
+   gateway serves, whether the catalogue import has landed in this database,
+   whether the gateway accepts each of the five structured-output schemas the
+   stages send, and whether `LISTEN`/`NOTIFY` works on Neon's direct endpoint.
+   One does not, and says so rather than passing: the latinate classifier's
+   labelled set does not exist.
+
+   The schema check is the one no test in the repository can replace. Every
+   test here hands its schema to a stub, so the dialect `strict: true` actually
+   enforces is asserted nowhere else — and a schema outside it is refused
+   whole, before a token is generated, which presents as a stage that fails
+   every time and says only that the gateway failed. It costs five requests
+   with output capped at sixteen tokens.
 
    A failing run naming an unwritten check is the honest state. A run that
    reported four passes would mean nothing ran — which is what it did until

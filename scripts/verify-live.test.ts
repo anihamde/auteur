@@ -3,6 +3,7 @@ import { CATALOGUE } from "../packages/provider-router/src/models.ts";
 import {
   checkCatalogue,
   checkCatalogueDrift,
+  checkStageSchemas,
   exitCodeFor,
   missing,
   render,
@@ -105,5 +106,41 @@ describe("the catalogue check asks the gateway", () => {
       CATALOGUE.map((row) => row.id),
     );
     expect(report.ok).toBe(true);
+  });
+});
+
+describe("the gateway's word on the stage schemas", () => {
+  test("every schema accepted is a pass that names the model", async () => {
+    const report = await checkStageSchemas(
+      "key",
+      "claude-sonnet-5",
+      async () => [
+        { accepted: true, stageId: "outline" },
+        { accepted: true, stageId: "clarify" },
+      ],
+    );
+    expect(report.ok).toBe(true);
+    expect(report.lines[0]).toContain("claude-sonnet-5");
+  });
+
+  test("one refusal fails the check and carries the gateway's sentence", async () => {
+    // The sentence is the whole finding. A report that said "a schema was
+    // refused" would send the reader to the same log this exists to replace.
+    const report = await checkStageSchemas(
+      "key",
+      "claude-sonnet-5",
+      async () => [
+        { accepted: true, stageId: "outline" },
+        {
+          accepted: false,
+          reason: "Enum value None does not match declared type 'string'",
+          stageId: "style-extract",
+        },
+      ],
+    );
+    expect(report.ok).toBe(false);
+    expect(report.lines[0]).toBe(
+      "style-extract: Enum value None does not match declared type 'string'",
+    );
   });
 });
