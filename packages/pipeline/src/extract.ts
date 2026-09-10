@@ -29,7 +29,11 @@ import { z } from "zod";
  * how a citation ends up naming a work the passage does not belong to.
  */
 export const extractedFieldSchema = z.object({
-  citationPassageId: z.uuid().optional(),
+  // Nullable as well as optional. The gateway's strict `json_schema` mode
+  // requires every property in `required`, so "no citation for this field" can
+  // only be sent as `null` — and a schema that accepted only `undefined` made
+  // every uncited field fail the parse of the whole extraction.
+  citationPassageId: z.uuid().nullish(),
   path: z.string().min(1),
   value: z.union([z.string().min(1), z.array(z.string().min(1))]),
 });
@@ -85,10 +89,9 @@ export const toEvidence = (
 ): Evidence[] => {
   const byId = new Map(passages.map((passage) => [passage.id, passage]));
   return extraction.fields.map((field) => {
+    const cited = field.citationPassageId;
     const passage =
-      field.citationPassageId === undefined
-        ? undefined
-        : byId.get(field.citationPassageId);
+      cited === undefined || cited === null ? undefined : byId.get(cited);
     return {
       path: field.path,
       value: field.value,

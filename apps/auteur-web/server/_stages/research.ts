@@ -60,7 +60,7 @@ export const corpusCandidateSchema: z.ZodType<CorpusCandidate> = z.object({
   translator: z.string().nullable(),
 });
 
-const CORPUS_JSON_SCHEMA = {
+export const CORPUS_JSON_SCHEMA = {
   additionalProperties: false,
   properties: {
     chosen: {
