@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { exitCodeFor, missing, render, type SubReport } from "./verify-live.ts";
+import {
+  checkGutendex,
+  exitCodeFor,
+  missing,
+  render,
+  type SubReport,
+  unchecked,
+} from "./verify-live.ts";
 
 const ok = (name: string): SubReport => ({ lines: [], name, ok: true });
 
@@ -30,5 +37,32 @@ describe("the pass fails on any discrepancy rather than absorbing it", () => {
     expect(render([ok("a"), ok("b")])).toContain(
       "Every declared value was right",
     );
+  });
+});
+
+describe("a check that did not run does not report ok", () => {
+  test("an unwritten check fails, and names what would run it", () => {
+    // Three of these four reported `ok: true` with a note naming the script
+    // that would have checked them. A green run then meant "nothing ran",
+    // which is the one thing this pass exists to make impossible.
+    const report = unchecked("a thing", "Nobody wrote it.", "bun probe.ts");
+    expect(report.ok).toBe(false);
+    expect(report.lines.join(" ")).toContain("bun probe.ts");
+    expect(exitCodeFor([report])).toBe(1);
+  });
+
+  test("the gutendex check reports the parse failure, not a command", async () => {
+    const report = await checkGutendex(async () => ({
+      ok: false,
+      problem: "results.0.authors: Required",
+    }));
+    expect(report.ok).toBe(false);
+    expect(report.lines[0]).toBe("results.0.authors: Required");
+  });
+
+  test("a live response that parses is the only thing that passes it", async () => {
+    const report = await checkGutendex(async () => ({ books: 32, ok: true }));
+    expect(report.ok).toBe(true);
+    expect(report.lines[0]).toContain("32 books");
   });
 });

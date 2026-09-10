@@ -38,31 +38,44 @@ export const checkPayload = (payload: unknown): ProbeResult => {
   }
 };
 
-if (import.meta.main) {
-  const query = process.argv[2] ?? "chekhov";
-  const url = `${ENDPOINT}?search=${encodeURIComponent(query)}&languages=en`;
-  process.stdout.write(`GET ${url}\n`);
+export const searchUrlFor = (query: string): string =>
+  `${ENDPOINT}?search=${encodeURIComponent(query)}&languages=en`;
 
+/**
+ * Ask the live service and parse what it answers.
+ *
+ * Exported so `verify:live` runs the same check rather than printing a note
+ * telling someone to run this file. A check that reports `ok` and names the
+ * command that would have checked it is not a check.
+ */
+export const probeLive = async (
+  query: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ProbeResult> => {
   let payload: unknown;
   try {
-    const response = await fetch(url);
+    const response = await fetchImpl(searchUrlFor(query));
     if (!response.ok) {
-      process.stderr.write(
-        `gutendex answered ${response.status.toString()}.\n`,
-      );
-      process.exit(1);
+      return {
+        ok: false,
+        problem: `gutendex answered ${response.status.toString()}.`,
+      };
     }
     payload = await response.json();
   } catch (thrown) {
-    process.stderr.write(
-      `Could not reach gutendex: ${thrown instanceof Error ? thrown.message : String(thrown)}\n` +
-        "This environment's egress policy denies gutendex.com; this script is\n" +
-        "WP-X0's live half and needs open egress.\n",
-    );
-    process.exit(1);
+    return {
+      ok: false,
+      problem: `could not reach gutendex: ${thrown instanceof Error ? thrown.message : String(thrown)}`,
+    };
   }
+  return checkPayload(payload);
+};
 
-  const result = checkPayload(payload);
+if (import.meta.main) {
+  const query = process.argv[2] ?? "chekhov";
+  process.stdout.write(`GET ${searchUrlFor(query)}\n`);
+
+  const result = await probeLive(query);
   if (!result.ok) {
     process.stderr.write(
       `The committed schema does not accept the live response.\n${result.problem}\n\n` +
