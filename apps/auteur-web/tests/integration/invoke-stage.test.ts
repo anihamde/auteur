@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { ROUTES } from "@auteur/api-contract/routes";
 import { createLogger } from "@auteur/logger/logger";
-import { createInvokeStage } from "../../server/_internal/invoke-stage.ts";
+import {
+  createInvokeStage,
+  DISPATCH_GRACE_MS,
+} from "../../server/_internal/invoke-stage.ts";
 import {
   SIGNATURE_HEADER,
   signPayload,
@@ -115,6 +118,57 @@ describe("what it sends is what the internal route requires", () => {
   });
 });
 
+describe("the caller is held for the dispatch, not for the stage", () => {
+  test("a callee that does not answer releases the caller at the grace period", async () => {
+    // `waitUntil` holds the instance until the promise settles, and the callee
+    // does not answer until its stage is done — so a caller that waited for
+    // the response was alive for its own stage *and* its successor's, against
+    // one 60-second ceiling. The deployment logged a 200 and
+    // `Task timed out after 60 seconds` on the same request.
+    const handed: Promise<unknown>[] = [];
+    let released: ((value: Response) => void) | undefined;
+    let waited = 0;
+    const invoke = createInvokeStage(
+      deps({
+        delay: async (ms) => {
+          waited = ms;
+        },
+        fetch: () =>
+          new Promise<Response>((resolve) => {
+            released = resolve;
+          }),
+        waitUntil: (promise) => handed.push(promise),
+      }),
+    );
+
+    await invoke(input);
+    // Settles on the timer while the response is still outstanding.
+    await expect(handed[0]).resolves.toBeUndefined();
+    expect(waited).toBe(DISPATCH_GRACE_MS);
+    released?.(new Response("{}", { status: 200 }));
+  });
+
+  test("a refusal inside the grace period is still logged", async () => {
+    // The whole point of keeping any grace at all: a 401 or a 500 comes back
+    // immediately, and it is the one thing the caller can usefully report.
+    const lines: string[] = [];
+    const handed: Promise<unknown>[] = [];
+    const invoke = createInvokeStage(
+      deps({
+        // A timer that never fires, so only the response can settle the race.
+        delay: () => new Promise<void>(() => undefined),
+        fetch: async () => new Response("", { status: 401 }),
+        logger: { ...silent, error: (message: string) => lines.push(message) },
+        waitUntil: (promise) => handed.push(promise),
+      }),
+    );
+
+    await invoke(input);
+    await Promise.all(handed);
+    expect(lines).toEqual(["stage invocation refused"]);
+  });
+});
+
 describe("a systematic refusal says so", () => {
   test("a non-2xx is logged with its status", async () => {
     // "The request was made and answered 401" is a different fact from "the
@@ -124,6 +178,8 @@ describe("a systematic refusal says so", () => {
     const invoke = createInvokeStage(
       deps({
         fetch: async () => new Response("", { status: 401 }),
+        // No grace: this asserts what the answer produces, not the race.
+        graceMs: 0,
         logger: {
           ...silent,
           error: (message: string, fields?: unknown) => {
@@ -148,6 +204,7 @@ describe("a systematic refusal says so", () => {
     const invoke = createInvokeStage(
       deps({
         fetch: () => Promise.reject(new TypeError("fetch failed")),
+        graceMs: 0,
         logger: { ...silent, error: (message: string) => lines.push(message) },
         waitUntil: (promise) => handed.push(promise),
       }),

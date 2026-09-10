@@ -12,6 +12,22 @@ import { SIGNATURE_HEADER, signPayload } from "./signature.ts";
  * production too.
  */
 
+/**
+ * How long the calling instance stays alive after asking for a stage.
+ *
+ * Generous for what it covers — a request leaving inside one region, and a
+ * rejection coming straight back — and far short of a stage. The cost of it
+ * being too short is a refusal that goes unlogged; the cost of waiting for the
+ * response was every caller dying with its successor.
+ */
+export const DISPATCH_GRACE_MS = 5_000;
+
+/** `setTimeout` as a promise. `Bun.sleep` is not on the serverless path (gate 16). */
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
 export type InvokeStageInput = {
   readonly sessionId: string;
   readonly stageId: string;
@@ -32,6 +48,14 @@ export type InvokeStageDeps = {
    * the runtime, which is correct for a `vite dev` that never freezes.
    */
   readonly waitUntil?: (promise: Promise<unknown>) => void;
+  /**
+   * How long the caller is held for. Overridden by a test that cannot wait.
+   *
+   * Milliseconds, and the default is `DISPATCH_GRACE_MS`.
+   */
+  readonly graceMs?: number;
+  /** The timer, injectable so a test does not spend the grace period. */
+  readonly delay?: (ms: number) => Promise<void>;
   /** `Fetch` rather than `typeof fetch`: the latter also demands `preconnect`. */
   readonly fetch?: Fetch;
 };
@@ -53,6 +77,22 @@ export type InvokeStageDeps = {
  * rescue it because it shared the defect. `_app.ts` states the rule this broke,
  * in a comment about why the sweep runs before the routes: work scheduled for
  * after the response is work that may never happen.
+ *
+ * **But it is handed a race, not the request.** `waitUntil` holds the instance
+ * until the promise settles, and the callee does not answer until its stage is
+ * finished — so a caller that waited for the response was alive for its own
+ * stage *and* its successor's, against one 60-second ceiling. The deployment
+ * showed it plainly: a `POST /api/internal/stage` that answered 200 and logged
+ * `Task timed out after 60 seconds` in the same entry, because the stage
+ * succeeded and the instance was then killed waiting on the next one. Two
+ * stages billed to one invocation, and a pair of ordinary stages exceeding the
+ * ceiling together while neither exceeded it alone.
+ *
+ * The grace period is what the instance is actually needed for: long enough for
+ * the request to leave — a small POST inside one region — and for a refusal to
+ * come back, since a 401 or a 500 arrives immediately. Not long enough to wait
+ * out a stage. After it, the callee owns its own run and this instance has
+ * nothing left to do.
  *
  * A lost request is still not a lost run: the queue row stays `queued` and the
  * sweep re-invokes it, which is why this does not retry into a stage that may
@@ -100,5 +140,15 @@ export const createInvokeStage =
           url: url.origin,
         });
       });
-    deps.waitUntil?.(dispatched);
+    // Whichever comes first: the answer, or the end of the grace period. A
+    // refusal answers well inside it and is logged; a stage that runs for a
+    // minute is left to its own instance.
+    const held =
+      deps.graceMs === 0
+        ? dispatched
+        : Promise.race([
+            dispatched,
+            (deps.delay ?? sleep)(deps.graceMs ?? DISPATCH_GRACE_MS),
+          ]);
+    deps.waitUntil?.(held);
   };
