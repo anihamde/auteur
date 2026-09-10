@@ -31,3 +31,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0020 | [The schedule is declared once](decisions/0020-the-schedule-is-declared-once.md) | accepted | 2026-09-09 |
 | 0021 | [Selecting an author records one](decisions/0021-selecting-an-author-records-one.md) | accepted | 2026-09-09 |
 | 0022 | [A schema describes what is read](decisions/0022-a-schema-describes-what-is-read.md) | accepted | 2026-09-10 |
+| 0023 | [The corpus index is held here](decisions/0023-the-corpus-index-is-held-here.md) | accepted | 2026-09-10 |
