@@ -11,11 +11,12 @@ change and needs a contract review, per the implementation plan's gate 4.
 export const MAX_ATTEMPTS = 3
 export const claimStage = async (
 export const completeStage = async (
+export const enqueueForRun = async (
 export const enqueueStage = async (
 export const failStage = async (
+export const findLiveStage = async (
 export const findQueueEntry = async (
 export const listQueueForSession = async (
-export const retireFinished = async (
 ```
 
 ## `@auteur/stage-queue/sweep`

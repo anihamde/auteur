@@ -34,19 +34,30 @@ enqueue committed. Without it a retry runs the next stage twice.
 
 ## Decision
 
-**A stage about to run again has its finished rows removed first.**
-`retireFinished(db, sessionId, stageIds)` deletes the `done` and `error` rows
-for those stages, and the enqueue that follows inserts a fresh attempt-0 row.
-It is called from the three places that ask a stage to run again: the advance
-and select-author path, `regenerate`, and the successor enqueue in
-`/api/internal/stage` — the last because on a second run every successor still
-carries the first run's finished row, so without it the chain stops one stage
-in.
+**`enqueueForRun` is what asks a stage to run**, and it answers with the row
+that will run it. It is called from the three places that ask a stage to run
+again: the advance and select-author path, `regenerate`, and the successor
+enqueue in `/api/internal/stage` — the last because on a second run every
+successor still carries the first run's finished row, so without it the chain
+stops one stage in.
 
-**`queued` and `claimed` rows are never retired.** A claimed row is an
-invocation in flight, and deleting it would strand that invocation: its
-`completeStage` would find nothing to complete, and the sweep would see no
-stale claim to release because there would be no row at all.
+**A stage already going to run is left alone, and its row is what comes back.**
+`queued` or `claimed`, at any attempt. Not only because deleting a claimed row
+would strand the invocation holding it — its `completeStage` would find nothing
+to complete, and the sweep would see no stale claim to release because there
+would be no row — but because of what sits beside a *pending retry*.
+
+`failStage` leaves `error` at attempt 0 and `queued` at attempt 1, and that
+attempt-1 row waits up to `QUEUED_AFTER_SECONDS` for the sweep. Clearing the
+attempt-0 row inside that window frees its key, and the insert that follows
+puts a second live row beside the first: two invocations of one stage, two
+model bills, two token streams interleaved on one connection, and both writing
+`artifacts (session_id, 'draft')`. A review caught this on the first version of
+this change, which retired finished rows unconditionally.
+
+**Otherwise every finished row for the stage goes**, and a fresh attempt-0 row
+takes its place — a full retry budget for the new run rather than whatever the
+last one had left.
 
 **`enqueueStage` answers with the row that will run**, rather than `undefined`
 on conflict. The caller's next act is to invoke a queue id, and a caller handed
@@ -80,3 +91,11 @@ has no retries left.
   already how it read — nothing displayed it — and is now what it is.
 - `enqueueStage` returns `QueueEntry` rather than `QueueEntry | undefined`, so
   no caller can drop the row.
+- Regenerating a stage that is mid-run answers with the run already in flight
+  rather than reporting an enqueue that did not happen.
+- The live check and the insert are two statements on a pooled handle, which
+  cannot hold a transaction (§3.1). A `failStage` landing between them would
+  still produce two live rows. It is microseconds against a same-connection
+  round trip, and closing it needs either a transaction on a direct handle or
+  one row per stage rather than one per attempt — both larger changes than the
+  window justifies.

@@ -7,7 +7,7 @@ import { AuteurError } from "@auteur/errors/auteur-error";
 import { newId } from "@auteur/ids/new-id";
 import { findArtifact } from "@auteur/session-store/artifacts";
 import { requireSession } from "@auteur/session-store/sessions";
-import { enqueueStage, retireFinished } from "@auteur/stage-queue/queue";
+import { enqueueForRun } from "@auteur/stage-queue/queue";
 import { snapToSentence } from "@auteur/text/snap";
 import { countWords } from "@auteur/text/tokenize";
 import { Hono } from "hono";
@@ -97,12 +97,11 @@ export const regenerateRoutes = (deps: RegenerateDeps): Hono => {
       await deps.recordSpan?.({ from: span.from, sessionId: id, to: span.to });
     }
 
-    // Regenerating is asking a stage that has already run to run again, so its
-    // finished row goes before the enqueue that would otherwise collide with
-    // it. The id invoked is the row's, which on a stage already in flight is
-    // the one that exists rather than the one just minted.
-    await retireFinished(db, id, [stageId]);
-    const row = await enqueueStage(db, {
+    // Regenerating is asking a stage that has already run to run again, which
+    // a plain enqueue could not do: its finished row holds the attempt-0 key.
+    // The id invoked is the returned row's, which on a stage already in flight
+    // is the one that exists rather than the one just minted.
+    const row = await enqueueForRun(db, {
       id: newId(),
       sessionId: id,
       stageId,

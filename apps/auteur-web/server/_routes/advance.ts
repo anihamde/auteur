@@ -11,7 +11,7 @@ import { readPins } from "@auteur/session-store/pins";
 import { answerSetFor } from "@auteur/session-store/questions";
 import { requireSession, updateSession } from "@auteur/session-store/sessions";
 import { readStageKeys } from "@auteur/session-store/stage-keys";
-import { enqueueStage, retireFinished } from "@auteur/stage-queue/queue";
+import { enqueueForRun } from "@auteur/stage-queue/queue";
 import { Hono } from "hono";
 import { type StalenessInput, staleUpTo } from "../_staleness.ts";
 import { idOf } from "./_id.ts";
@@ -141,16 +141,14 @@ export const enqueueStaleUpTo = async (
     return [];
   }
 
-  // A stage that has run leaves a finished row on its attempt-0 key, and that
-  // row is what a re-enqueue used to collide with — silently, so the session
-  // was told the stage would run again and it did not. Restaling is what makes
-  // these eligible to run, so their finished rows go first.
-  await retireFinished(deps.db, sessionId, stale);
-
+  // `enqueueForRun`, not `enqueueStage`: a stage that has run leaves a finished
+  // row on its attempt-0 key, and that row is what a plain enqueue collides
+  // with — silently, so the session was told the stage would run again and it
+  // did not.
   const queued = [];
   for (const stageId of stale) {
     queued.push(
-      await enqueueStage(deps.db, { id: newId(), sessionId, stageId }),
+      await enqueueForRun(deps.db, { id: newId(), sessionId, stageId }),
     );
   }
 

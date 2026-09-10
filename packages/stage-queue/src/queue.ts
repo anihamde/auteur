@@ -109,7 +109,33 @@ export const enqueueStage = async (
 };
 
 /**
- * Clear the finished rows for stages that are about to run again.
+ * The row for a stage that is already going to run, if there is one.
+ *
+ * `queued` or `claimed` at any attempt. A `claimed` row is an invocation in
+ * flight; a `queued` one is waiting for its invocation or for the sweep. Either
+ * way the stage runs without anything further being enqueued, and enqueuing
+ * anyway is how it would run twice.
+ */
+export const findLiveStage = async (
+  db: Db,
+  sessionId: string,
+  stageId: string,
+): Promise<QueueEntry | undefined> => {
+  const result = await db.query<Row>(
+    `SELECT ${columns(COLUMNS)} FROM stage_queue
+      WHERE session_id = $1 AND stage_id = $2
+        AND status IN ('queued', 'claimed')
+      ORDER BY attempt DESC
+      LIMIT 1`,
+    [sessionId, stageId],
+  );
+  const row = maybeRow(result.rows);
+  return row === undefined ? undefined : toEntry(row);
+};
+
+/**
+ * Ask a stage to run, whether or not it has run before, and answer with the row
+ * that will run it.
  *
  * A re-run had no way to happen. `(session_id, stage_id, attempt)` is unique
  * and a stage that has run leaves an attempt-0 row behind, so restaling a stage
@@ -117,25 +143,40 @@ export const enqueueStage = async (
  * told would re-run never ran, and the run continued against whatever the
  * previous one left. Changing the author did exactly this.
  *
- * Only `done` and `error` rows go. A `queued` or `claimed` row is a run already
- * in flight, and deleting it would strand the invocation holding it: its
- * `completeStage` would find nothing to complete.
+ * **A stage already going to run is left alone**, and its row is what comes
+ * back. Not only because deleting a `claimed` row would strand the invocation
+ * holding it — its `completeStage` would find nothing to complete — but because
+ * a live row at attempt 1 sits beside the `error` row at attempt 0 that the
+ * retry came from. Clearing that `error` row would free the attempt-0 key, and
+ * the insert that follows would put a second live row beside the first: two
+ * invocations of one stage, two model bills, two token streams interleaved on
+ * one connection, and both writing the same artifact.
+ *
+ * Otherwise every finished row for the stage goes and a fresh attempt-0 row
+ * takes its place — a full budget for the new run, rather than what the last
+ * one had left.
  *
  * The queue is a work list, not a history. `stage_runs` records what ran, with
  * its attempt, its tokens and its cost, and is untouched by this.
  */
-export const retireFinished = async (
+export const enqueueForRun = async (
   db: Db,
-  sessionId: string,
-  stageIds: readonly string[],
-): Promise<number> => {
-  const result = await db.query(
+  entry: {
+    readonly id: string;
+    readonly sessionId: string;
+    readonly stageId: string;
+  },
+): Promise<QueueEntry> => {
+  const live = await findLiveStage(db, entry.sessionId, entry.stageId);
+  if (live !== undefined) return live;
+
+  await db.query(
     `DELETE FROM stage_queue
-      WHERE session_id = $1 AND stage_id = ANY($2::text[])
+      WHERE session_id = $1 AND stage_id = $2
         AND status IN ('done', 'error')`,
-    [sessionId, stageIds],
+    [entry.sessionId, entry.stageId],
   );
-  return result.rowCount ?? 0;
+  return enqueueStage(db, entry);
 };
 
 /**
