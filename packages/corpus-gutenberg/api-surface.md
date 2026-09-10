@@ -33,6 +33,7 @@ export const USER_AGENT = "auteur/0.1 (+https://github.com/anihamde/auteur)"
 export const refusalDetail = async (
 export const searchBooks = async (
 export const searchPage = async (
+export const searchUrl = (base: string, query: string, page?: string): string =>
 ```
 
 ## `@auteur/corpus-gutenberg/passages`

@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import fixture from "../tests/fixtures/gutendex-search.synthetic.json" with {
   type: "json",
 };
-import { refusalDetail, searchBooks, searchPage } from "./gutendex.ts";
+import {
+  refusalDetail,
+  searchBooks,
+  searchPage,
+  searchUrl,
+} from "./gutendex.ts";
 
 const page = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
@@ -182,5 +187,31 @@ describe("a refusal says what refused", () => {
       "https://corpus.auteur.test/books",
     );
     expect(Object.keys(detail).sort()).toEqual(["body", "status", "url"]);
+  });
+});
+
+describe("the url asked for is the one the service serves", () => {
+  test("the search path carries its trailing slash", () => {
+    // `/books` answers 301 to `/books/`. Asking for the redirect pays a hop on
+    // every keystroke, and following one is where a client can lose the
+    // headers it set — a difference that shows on one network and not another.
+    expect(searchUrl("https://corpus.auteur.test", "chekhov")).toBe(
+      "https://corpus.auteur.test/books/?search=chekhov&languages=en",
+    );
+  });
+
+  test("a page url from the service is used as given", () => {
+    // It is the service's own `next`, so it is already canonical; rebuilding it
+    // would be this code second-guessing a url it was handed.
+    const next = "https://corpus.auteur.test/books/?page=2&search=chekhov";
+    expect(searchUrl("https://corpus.auteur.test", "chekhov", next)).toBe(next);
+  });
+
+  test("the query is encoded, not concatenated", () => {
+    // An unencoded `&` would end the search term and start a parameter the
+    // service does not have, and the author list would be for "o" alone.
+    expect(searchUrl("https://corpus.auteur.test", "o'brien & sons")).toContain(
+      `search=${encodeURIComponent("o'brien & sons")}`,
+    );
   });
 });

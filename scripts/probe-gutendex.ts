@@ -19,7 +19,7 @@
  */
 import { parseSearch } from "../packages/corpus-gutenberg/src/schema.ts";
 
-const ENDPOINT = "https://gutendex.com/books";
+const ENDPOINT = "https://gutendex.com/books/";
 
 export type ProbeResult =
   | { readonly ok: true; readonly books: number }
