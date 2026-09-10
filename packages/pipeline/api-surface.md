@@ -34,8 +34,10 @@ export const runStage = async (input: RunStageInput): Promise<StageOutcome> =>
 
 ```ts
 export const cardFromExtraction = (input: ExtractInput): StyleCard =>
+export const exemplarsSchema = z.object(
 export const extractedFieldSchema = z.object(
 export const extractionSchema = z.object(
+export const fieldsSchema = z.object(
 export const parseExtraction = (payload: unknown): Extraction =>
 export const toEvidence = (
 export const toExemplars = (

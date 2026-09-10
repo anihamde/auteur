@@ -49,10 +49,29 @@ export const DEFAULT_PIPELINE: Pipeline = {
       streams: false,
       typed: false,
     },
+    // The card is read in two passes, and the reason is the platform: one call
+    // returning twenty-two readings *and* fifteen exemplars needed more than
+    // the sixty seconds an invocation gets, and timed out on the deployment
+    // every time. `build-vercel.ts` states the rule this follows — a stage that
+    // needs longer than a minute is a stage to split rather than a limit to
+    // raise. Decision 0031 has the measurements.
+    {
+      id: "style-fields",
+      promptId: "style-fields",
+      reads: ["work-fetch", "prosody-compute"],
+      role: "research",
+      streams: false,
+      tier: "balanced",
+      typed: true,
+    },
     {
       id: "style-extract",
       promptId: "style-extract",
-      reads: ["work-fetch", "prosody-compute"],
+      // `style-fields` and not only the two it read: an exemplar says what a
+      // passage demonstrates, and what it demonstrates is one of the readings.
+      // Naming it here is also what makes §7.5 restale the exemplars when the
+      // readings change, which is the correct answer and not one anything codes.
+      reads: ["work-fetch", "prosody-compute", "style-fields"],
       role: "research",
       streams: false,
       tier: "balanced",

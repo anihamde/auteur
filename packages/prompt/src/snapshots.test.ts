@@ -7,6 +7,7 @@ import { draft } from "./draft.ts";
 import { outline } from "./outline.ts";
 import { revise } from "./revise.ts";
 import { styleExtract } from "./style-extract.ts";
+import { styleFields } from "./style-fields.ts";
 import { summarizeBeat } from "./summarize-beat.ts";
 
 /**
@@ -71,6 +72,22 @@ describe("rendered prompts", () => {
     ).toMatchSnapshot();
   });
 
+  test("style-fields", () => {
+    expect(
+      styleFields.build({
+        authorName: "Jorge Luis Borges",
+        passages: [
+          {
+            id: "b1c9f2e0-0000-7000-8000-abcdefabcdef",
+            text: "The lamp turned. The sea did not.",
+            workTitle: "Ficciones",
+          },
+        ],
+        prosody: PROSODY,
+      }),
+    ).toMatchSnapshot();
+  });
+
   test("style-extract", () => {
     expect(
       styleExtract.build({
@@ -82,7 +99,10 @@ describe("rendered prompts", () => {
             workTitle: "Ficciones",
           },
         ],
-        prosody: PROSODY,
+        readings: [
+          { path: "voice.pov", value: "first, retrospective" },
+          { path: "antiPatterns", value: "no epigraphs" },
+        ],
       }),
     ).toMatchSnapshot();
   });

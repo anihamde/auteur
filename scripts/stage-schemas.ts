@@ -7,11 +7,17 @@
  * asks the gateway whether it accepts them needs all five, and enumerating them
  * at the call site is how the sixth gets forgotten.
  *
- * `extractionJsonSchema` is built per request — `path` and `passageId` are
- * enumerations of that request's own data — so it is called here with sample
+ * The extraction schemas are built per request — `path` and `passageId` are
+ * enumerations of that request's own data — so they are called here with sample
  * ids. The gateway validates the shape, not the values.
+ *
+ * Six, not five: the card is read in two passes, and a schema nobody checks is
+ * the one that takes the pipeline down.
  */
-import { extractionJsonSchema } from "../apps/auteur-web/server/_stages/card.ts";
+import {
+  exemplarsJsonSchema,
+  fieldsJsonSchema,
+} from "../apps/auteur-web/server/_stages/card.ts";
 import { CORPUS_JSON_SCHEMA } from "../apps/auteur-web/server/_stages/research.ts";
 import {
   CLARIFY_JSON_SCHEMA,
@@ -31,5 +37,6 @@ export const STAGE_SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   "corpus-select": CORPUS_JSON_SCHEMA,
   critique: FINDINGS_JSON_SCHEMA,
   outline: OUTLINE_JSON_SCHEMA,
-  "style-extract": extractionJsonSchema(SAMPLE_PASSAGE_IDS),
+  "style-extract": exemplarsJsonSchema(SAMPLE_PASSAGE_IDS),
+  "style-fields": fieldsJsonSchema(SAMPLE_PASSAGE_IDS),
 };

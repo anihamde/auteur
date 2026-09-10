@@ -2,8 +2,10 @@ import { findCard } from "@auteur/card-store/cards";
 import { prosodyBlockSchema } from "@auteur/core/prosody";
 import { outlineSchema, storySchema } from "@auteur/core/session";
 import type { StyleCard } from "@auteur/core/style-card";
+import type { Db } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import type { ModelProvider } from "@auteur/model-provider/provider";
+import { fieldsSchema } from "@auteur/pipeline/extract";
 import { findArtifact } from "@auteur/session-store/artifacts";
 import { requireSession } from "@auteur/session-store/sessions";
 import { readStageOutput } from "@auteur/session-store/stage-keys";
@@ -11,7 +13,7 @@ import { z } from "zod";
 import type { StageBody } from "../_internal/stage.ts";
 import { stalenessInputFor } from "../_routes/advance.ts";
 import { inputKeys } from "../_staleness.ts";
-import { runStyleExtract } from "./card.ts";
+import { runStyleExtract, runStyleFields } from "./card.ts";
 import { contextFor } from "./context.ts";
 import { runStyleFit } from "./report.ts";
 import {
@@ -84,6 +86,29 @@ const storyFor = async (
   return storySchema.parse(stored.body);
 };
 
+/**
+ * The measured prosody, or the failure that says why there is none.
+ *
+ * Both research passes read it — `style-fields` gives it to the model as
+ * evidence and `style-extract` writes it onto the card — so it is read here
+ * rather than twice with two different messages for the same missing row.
+ */
+const prosodyFor = async (db: Db, sessionId: string) => {
+  const prosody = await readStageOutput(
+    db,
+    sessionId,
+    "prosody-compute",
+    (value) => prosodyBlockSchema.parse(value),
+  );
+  if (prosody === undefined) {
+    throw new AuteurError(
+      "invalid_input",
+      "The corpus has not been measured yet.",
+    );
+  }
+  return prosody;
+};
+
 export const createStageBody =
   (deps: StageBodyDeps): StageBody =>
   async ({ db, emit, sessionId, stageId }) => {
@@ -126,20 +151,23 @@ export const createStageBody =
       case "prosody-compute": {
         return runProsodyCompute(context);
       }
+      case "style-fields": {
+        return runStyleFields(context, await prosodyFor(db, sessionId));
+      }
       case "style-extract": {
-        const prosody = await readStageOutput(
+        const fields = await readStageOutput(
           db,
           sessionId,
-          "prosody-compute",
-          (value) => prosodyBlockSchema.parse(value),
+          "style-fields",
+          (value) => fieldsSchema.parse(value),
         );
-        if (prosody === undefined) {
+        if (fields === undefined) {
           throw new AuteurError(
             "invalid_input",
-            "The corpus has not been measured yet.",
+            "The style readings have not been taken yet.",
           );
         }
-        await runStyleExtract(context, prosody);
+        await runStyleExtract(context, await prosodyFor(db, sessionId), fields);
         return undefined;
       }
       case "clarify": {

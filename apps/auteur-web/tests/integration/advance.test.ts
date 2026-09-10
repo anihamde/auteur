@@ -354,9 +354,9 @@ describe("choosing an author is the other moment work begins", () => {
   });
 
   test("it records the author and enqueues the research stages", async () => {
-    // Nothing on the research screen calls `advance`: it renders four stages
+    // Nothing on the research screen calls `advance`: it renders five stages
     // already running, because choosing the author started them. Without this
-    // the screen shows four rows that never move.
+    // the screen shows five rows that never move.
     const app = createApp({ apiToken: TOKEN, db: harness.db });
 
     const { enqueued } = await chooseAuthor(app, "gutenberg:chekhov");
@@ -365,6 +365,7 @@ describe("choosing an author is the other moment work begins", () => {
       "corpus-select",
       "work-fetch",
       "prosody-compute",
+      "style-fields",
       "style-extract",
     ]);
     expect((await requireSession(harness.db, sessionId)).authorId).toBe(
@@ -387,6 +388,7 @@ describe("choosing an author is the other moment work begins", () => {
       "corpus-select",
       "work-fetch",
       "prosody-compute",
+      "style-fields",
       "style-extract",
     ]) {
       const input = await stalenessInputFor(harness.db, sessionId);
@@ -410,6 +412,7 @@ describe("choosing an author is the other moment work begins", () => {
       "corpus-select",
       "work-fetch",
       "prosody-compute",
+      "style-fields",
       "style-extract",
     ]);
   });

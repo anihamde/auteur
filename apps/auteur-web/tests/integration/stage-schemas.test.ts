@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { CLAIM_PATHS } from "@auteur/core/style-card";
-import { extractionJsonSchema } from "../../server/_stages/card.ts";
+import {
+  exemplarsJsonSchema,
+  fieldsJsonSchema,
+} from "../../server/_stages/card.ts";
 import { CORPUS_JSON_SCHEMA } from "../../server/_stages/research.ts";
 import {
   CLARIFY_JSON_SCHEMA,
@@ -30,7 +33,8 @@ const PASSAGE_IDS = [
 const SCHEMAS = {
   CLARIFY_JSON_SCHEMA,
   CORPUS_JSON_SCHEMA,
-  EXTRACTION_JSON_SCHEMA: extractionJsonSchema(PASSAGE_IDS),
+  EXEMPLARS_JSON_SCHEMA: exemplarsJsonSchema(PASSAGE_IDS),
+  FIELDS_JSON_SCHEMA: fieldsJsonSchema(PASSAGE_IDS),
   FINDINGS_JSON_SCHEMA,
   OUTLINE_JSON_SCHEMA,
 } as const;
@@ -172,7 +176,7 @@ describe("the check itself refuses what the gateway refuses", () => {
 });
 
 describe("the extraction schema refuses what the assembler would discard", () => {
-  const schema = extractionJsonSchema(PASSAGE_IDS) as Record<string, Node>;
+  const schema = fieldsJsonSchema(PASSAGE_IDS) as Record<string, Node>;
   const fields = (schema["properties"] as Record<string, Node>)[
     "fields"
   ] as Node;
@@ -226,13 +230,16 @@ describe("the extraction schema refuses what the assembler would discard", () =>
       }
       return found;
     };
-    expect(nullInEnum(extractionJsonSchema(PASSAGE_IDS), "$")).toEqual([]);
+    expect(nullInEnum(fieldsJsonSchema(PASSAGE_IDS), "$")).toEqual([]);
+    expect(nullInEnum(exemplarsJsonSchema(PASSAGE_IDS), "$")).toEqual([]);
   });
 
   test("an exemplar's passage id is one that was offered", () => {
-    const exemplars = (schema["properties"] as Record<string, Node>)[
-      "exemplars"
-    ] as Node;
+    const exemplars = (
+      (exemplarsJsonSchema(PASSAGE_IDS) as Record<string, Node>)[
+        "properties"
+      ] as Record<string, Node>
+    )["exemplars"] as Node;
     const item = exemplars["items"] as Record<string, Node>;
     const props = item["properties"] as Record<string, Node>;
     expect(props["passageId"]?.["enum"]).toEqual(PASSAGE_IDS);

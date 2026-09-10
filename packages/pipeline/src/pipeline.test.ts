@@ -28,11 +28,16 @@ describe("the default pipeline is runnable", () => {
     expect(() => validatePipeline(DEFAULT_PIPELINE)).not.toThrow();
   });
 
-  test("it has the ten stages §6.2 names", () => {
+  test("it has the eleven stages §6.2 names", () => {
+    // §6.2 names ten. The eleventh is `style-fields`, and it is a platform
+    // consequence rather than a design change: one call taking the twenty-two
+    // readings *and* the exemplars needed more than the sixty seconds an
+    // invocation gets, and timed out on the deployment every time.
     expect(STAGE_IDS).toEqual([
       "corpus-select",
       "work-fetch",
       "prosody-compute",
+      "style-fields",
       "style-extract",
       "clarify",
       "outline",

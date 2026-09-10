@@ -39,6 +39,9 @@ export type BuildKeyInput = {
   readonly cleanerVersion: string;
   readonly segmenterVersion: string;
   readonly prosodyVersion: string;
+  /** The prompt that reads the twenty-two claims. */
+  readonly fieldsPromptVersion: string;
+  /** The prompt that chooses the exemplars. */
   readonly extractionPromptVersion: string;
   readonly extractionModelId: string;
 };
@@ -58,6 +61,10 @@ export const buildKeyComponents = (input: BuildKeyInput): string[] => [
   input.cleanerVersion,
   input.segmenterVersion,
   input.prosodyVersion,
+  // Both prompts. The card is read by two passes and a bump to either produces
+  // a different card, so one version in the key would serve a card whose
+  // readings came from a prompt nobody is using any more.
+  input.fieldsPromptVersion,
   input.extractionPromptVersion,
   input.extractionModelId,
 ];

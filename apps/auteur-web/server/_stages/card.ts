@@ -2,13 +2,22 @@ import { putCard } from "@auteur/card-store/cards";
 import type { ProsodyBlock } from "@auteur/core/prosody";
 import { CLAIM_PATHS, type StyleCard } from "@auteur/core/style-card";
 import { findAuthor } from "@auteur/corpus-store/authors";
-import { listPassagesForWork } from "@auteur/corpus-store/passages";
+import {
+  listPassagesForWork,
+  type StoredPassage,
+} from "@auteur/corpus-store/passages";
 import { listWorksByAuthor } from "@auteur/corpus-store/works";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { newId } from "@auteur/ids/new-id";
 import type { JsonSchema } from "@auteur/model-provider/request";
-import { cardFromExtraction, extractionSchema } from "@auteur/pipeline/extract";
+import {
+  cardFromExtraction,
+  type ExtractedFields,
+  exemplarsSchema,
+  fieldsSchema,
+} from "@auteur/pipeline/extract";
 import { styleExtract } from "@auteur/prompt/style-extract";
+import { styleFields } from "@auteur/prompt/style-fields";
 import { PROMPT_VERSIONS } from "@auteur/prompt/versions";
 import { prosodyVersion } from "@auteur/prosody/version";
 import { updateSession } from "@auteur/session-store/sessions";
@@ -107,33 +116,18 @@ export const spreadAcross = <Item>(
  *
  * `stage-schemas.test.ts` holds strict mode's rules against every stage.
  */
-export const extractionJsonSchema = (
+export const fieldsJsonSchema = (
   passageIds: readonly string[],
 ): JsonSchema => ({
   additionalProperties: false,
   properties: {
-    exemplars: {
-      items: {
-        additionalProperties: false,
-        properties: {
-          demonstrates: { type: "string" },
-          passageId: { enum: [...passageIds], type: "string" },
-        },
-        required: ["demonstrates", "passageId"],
-        type: "object",
-      },
-      type: "array",
-    },
     fields: {
       items: {
         additionalProperties: false,
         properties: {
-          // Two branches rather than one nullable enum. The gateway checks each
-          // enum member against the *first* declared type, so
-          // `enum: [...ids, null]` beside `type: ["string", "null"]` was
-          // refused whole: "Enum value None does not match declared type
-          // 'string'". A union of an enumerated string and a null says the
-          // same thing in a shape it accepts.
+          // Two branches rather than one nullable enum: the gateway checks each
+          // enum member against the *first* declared type and refused
+          // `enum: [...ids, null]` beside `type: ["string", "null"]`.
           citationPassageId: {
             anyOf: [
               { enum: [...passageIds], type: "string" },
@@ -158,38 +152,60 @@ export const extractionJsonSchema = (
       type: "array",
     },
   },
-  required: ["exemplars", "fields"],
+  required: ["fields"],
   type: "object",
 });
 
-export const runStyleExtract = async (
-  context: StageContext,
-  prosody: ProsodyBlock,
-): Promise<StyleCard> => {
-  const authorId = context.session.authorId;
-  if (authorId === null) {
-    throw new AuteurError("invalid_input", "This session has no author.");
-  }
-  const author = await findAuthor(context.db, authorId);
-  if (author === undefined) {
-    throw new AuteurError("not_found", `${authorId} is not a known author.`);
-  }
+export const exemplarsJsonSchema = (
+  passageIds: readonly string[],
+): JsonSchema => ({
+  additionalProperties: false,
+  properties: {
+    exemplars: {
+      items: {
+        additionalProperties: false,
+        properties: {
+          demonstrates: { type: "string" },
+          passageId: { enum: [...passageIds], type: "string" },
+        },
+        required: ["demonstrates", "passageId"],
+        type: "object",
+      },
+      type: "array",
+    },
+  },
+  required: ["exemplars"],
+  type: "object",
+});
 
-  const works = await listWorksByAuthor(context.db, authorId, cleanerVersion());
-  const key = buildKey({
-    authorId,
-    cleanerVersion: cleanerVersion(),
-    extractionModelId: context.model.id,
-    extractionPromptVersion: PROMPT_VERSIONS["style-extract"],
-    prosodyVersion: prosodyVersion(),
-    segmenterVersion: segmenterVersion(),
-    workIds: works.map((work) => work.id),
-  });
-
-  const passages = spreadAcross(
+/**
+ * The passages both passes read, and they must be the same twenty.
+ *
+ * `style-extract` resolves an exemplar's id against this list and
+ * `cardFromExtraction` resolves a field's citation against it, so two passes
+ * seeing different sets would drop citations that were never wrong. It is
+ * deterministic by construction — `listWorksByAuthor` orders by id,
+ * `listPassagesForWork` by `char_start`, and `spreadAcross` is a pure function
+ * of both — and shared here so it cannot become two implementations that agree
+ * by accident.
+ */
+export const passagesFor = async (
+  db: StageContext["db"],
+  works: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly year: number | null;
+  }[],
+): Promise<
+  (StoredPassage & {
+    readonly workTitle: string;
+    readonly year: number | null;
+  })[]
+> =>
+  spreadAcross(
     await Promise.all(
       works.map(async (work) =>
-        (await listPassagesForWork(context.db, work.id)).map((passage) => ({
+        (await listPassagesForWork(db, work.id)).map((passage) => ({
           ...passage,
           workTitle: work.title,
           year: work.year,
@@ -199,16 +215,50 @@ export const runStyleExtract = async (
     EXTRACT_PASSAGES,
   );
 
+/**
+ * Everything both passes need: the author, the works, and the twenty passages.
+ *
+ * Gathered once per pass rather than handed between them, because a stage
+ * receives its predecessor's *output* and not its locals — and the selection is
+ * deterministic, so gathering it twice yields the same twenty.
+ */
+const corpusFor = async (context: StageContext) => {
+  const authorId = context.session.authorId;
+  if (authorId === null) {
+    throw new AuteurError("invalid_input", "This session has no author.");
+  }
+  const author = await findAuthor(context.db, authorId);
+  if (author === undefined) {
+    throw new AuteurError("not_found", `${authorId} is not a known author.`);
+  }
+  const works = await listWorksByAuthor(context.db, authorId, cleanerVersion());
+  const passages = await passagesFor(context.db, works);
   if (passages.length === 0) {
     throw new AuteurError(
       "corpus_unusable",
       "No passages were segmented from this corpus, so there is nothing to read a style from.",
     );
   }
+  return { author, authorId, passages, works };
+};
 
-  const extraction = await callModel(context, {
-    jsonSchema: extractionJsonSchema(passages.map((passage) => passage.id)),
-    prompt: styleExtract.build({
+/**
+ * `style-fields` — the twenty-two readings.
+ *
+ * The first of two passes. Its output is the `fields` array, which
+ * `style-extract` reads back through `readStageOutput` — the same mechanism
+ * every other stage boundary uses, so the two are joined by the queue rather
+ * than by a function call that would put them back in one invocation.
+ */
+export const runStyleFields = async (
+  context: StageContext,
+  prosody: ProsodyBlock,
+): Promise<ExtractedFields> => {
+  const { author, passages } = await corpusFor(context);
+
+  const result = await callModel(context, {
+    jsonSchema: fieldsJsonSchema(passages.map((passage) => passage.id)),
+    prompt: styleFields.build({
       authorName: author.displayName,
       passages: passages.map((passage) => ({
         id: passage.id,
@@ -219,7 +269,69 @@ export const runStyleExtract = async (
       // work-shaped measurement the prompt reads — no projection needed.
       prosody,
     }),
-    schema: extractionSchema,
+    schema: fieldsSchema,
+    system: "Return only JSON matching the declared schema.",
+  });
+
+  const cited = result.fields.filter(
+    (field) =>
+      field.citationPassageId !== undefined && field.citationPassageId !== null,
+  ).length;
+  await context.emit({
+    line: `${result.fields.length.toString()} readings, ${cited.toString()} cited to a passage`,
+    stageId: context.stage.id,
+    type: "stage_detail",
+  });
+  return result;
+};
+
+/**
+ * `style-extract` — the exemplars, and the card.
+ *
+ * The second pass. It asks only for exemplars, then assembles the card from
+ * those and the readings `style-fields` stored.
+ *
+ * §4.4: the same author, works, toolchain, prompts and model produce the same
+ * card, and `build_key` is what says so. The key is computed **before** the
+ * model call, so a cache hit costs nothing.
+ */
+export const runStyleExtract = async (
+  context: StageContext,
+  prosody: ProsodyBlock,
+  fields: ExtractedFields,
+): Promise<StyleCard> => {
+  const { author, authorId, passages, works } = await corpusFor(context);
+  const key = buildKey({
+    authorId,
+    cleanerVersion: cleanerVersion(),
+    extractionModelId: context.model.id,
+    extractionPromptVersion: PROMPT_VERSIONS["style-extract"],
+    // Both prompts, because the card is read by both and a bump to either
+    // produces a different card. One version in the key would serve a card
+    // built by an older set of readings.
+    fieldsPromptVersion: PROMPT_VERSIONS["style-fields"],
+    prosodyVersion: prosodyVersion(),
+    segmenterVersion: segmenterVersion(),
+    workIds: works.map((work) => work.id),
+  });
+
+  const { exemplars } = await callModel(context, {
+    jsonSchema: exemplarsJsonSchema(passages.map((passage) => passage.id)),
+    prompt: styleExtract.build({
+      authorName: author.displayName,
+      passages: passages.map((passage) => ({
+        id: passage.id,
+        text: passage.text,
+        workTitle: passage.workTitle,
+      })),
+      readings: fields.fields.map((field) => ({
+        path: field.path,
+        value: Array.isArray(field.value)
+          ? field.value.join("; ")
+          : field.value,
+      })),
+    }),
+    schema: exemplarsSchema,
     system: "Return only JSON matching the declared schema.",
   });
 
@@ -231,7 +343,7 @@ export const runStyleExtract = async (
       ...(author.birthYear !== null && { birthYear: author.birthYear }),
       ...(author.deathYear !== null && { deathYear: author.deathYear }),
     },
-    extraction,
+    extraction: { exemplars, fields: fields.fields },
     passages: passages.map((passage) => ({
       id: passage.id,
       workId: passage.workId,
@@ -272,7 +384,7 @@ export const runStyleExtract = async (
   await context.emit({
     line: written.inserted
       ? `card@${written.card.version.toString()} built from ${passages.length.toString()} passages`
-      : `card@${written.card.version.toString()} reused — same corpus, toolchain, prompt and model`,
+      : `card@${written.card.version.toString()} reused — same corpus, toolchain, prompts and model`,
     stageId: context.stage.id,
     type: "stage_detail",
   });

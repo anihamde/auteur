@@ -146,7 +146,7 @@ describe("a tier with no eligible candidate fails at startup", () => {
       const failures = (thrown as { detail?: { failures?: string[] } }).detail
         ?.failures;
       // Seven stages carry a tier.
-      expect(failures).toHaveLength(7);
+      expect(failures).toHaveLength(8);
     }
   });
 });
@@ -158,7 +158,7 @@ describe("the real config resolves against the real catalogue", () => {
       TIER_CANDIDATES,
       CATALOG,
     );
-    expect(resolved.size).toBe(7);
+    expect(resolved.size).toBe(8);
   });
 
   test("a deterministic stage is not in the map", () => {

@@ -515,6 +515,7 @@ export const PACKAGES: readonly PackageSpec[] = [
       outline: src("outline.ts"),
       revise: src("revise.ts"),
       "style-extract": src("style-extract.ts"),
+      "style-fields": src("style-fields.ts"),
       "summarize-beat": src("summarize-beat.ts"),
       versions: src("versions.ts"),
     },
