@@ -157,10 +157,31 @@ production:
 
 4. `bun run verify:live` — the checks that need real credentials, with
    `DATABASE_URL` and `DATABASE_URL_DIRECT` pointed at the deployment's
-   database. Two of them run: whether the catalogue import has landed in this
-   database, and whether `LISTEN`/`NOTIFY` works on Neon's direct endpoint. Two
-   do not, and say so rather than passing: the gateway probe's measurement half
-   is unwritten, and the latinate classifier's labelled set does not exist.
+   database. **Run it before every deploy that changes a prompt or a schema.**
+
+   Five of the six run: whether the committed catalogue still matches what the
+   gateway serves, whether the catalogue import has landed in this database,
+   whether the gateway accepts each of the five structured-output schemas the
+   stages send, whether a real model can satisfy the extraction contract, and
+   whether `LISTEN`/`NOTIFY` works on Neon's direct endpoint. One does not, and
+   says so rather than passing: the latinate classifier's labelled set does not
+   exist.
+
+   The two model checks are the ones no test in the repository can replace,
+   and they ask different questions.
+
+   **Does the gateway accept the schema.** Every test here hands its schema to
+   a stub, so the dialect `strict: true` actually enforces is asserted nowhere
+   else — and a schema outside it is refused whole, before a token is
+   generated, which presents as a stage that fails every time and says only
+   that the gateway failed. Five requests, output capped at sixteen tokens.
+
+   **Can a model satisfy it.** A different claim, and the one that failed last:
+   the schema was accepted, the model answered valid JSON, and the answer had
+   no fields in it at all, because the prompt named none of the paths a card
+   needs. One call against nine short public-domain passages, parsed and then
+   assembled — a card that does not build is the failure, not merely an
+   extraction that does not parse. It judges the contract and not the reading.
 
    A failing run naming an unwritten check is the honest state. A run that
    reported four passes would mean nothing ran — which is what it did until

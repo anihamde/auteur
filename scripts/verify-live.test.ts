@@ -3,6 +3,8 @@ import { CATALOGUE } from "../packages/provider-router/src/models.ts";
 import {
   checkCatalogue,
   checkCatalogueDrift,
+  checkExtraction,
+  checkStageSchemas,
   exitCodeFor,
   missing,
   render,
@@ -105,5 +107,74 @@ describe("the catalogue check asks the gateway", () => {
       CATALOGUE.map((row) => row.id),
     );
     expect(report.ok).toBe(true);
+  });
+});
+
+describe("the gateway's word on the stage schemas", () => {
+  test("every schema accepted is a pass that names the model", async () => {
+    const report = await checkStageSchemas(
+      "key",
+      "claude-sonnet-5",
+      async () => [
+        { accepted: true, stageId: "outline" },
+        { accepted: true, stageId: "clarify" },
+      ],
+    );
+    expect(report.ok).toBe(true);
+    expect(report.lines[0]).toContain("claude-sonnet-5");
+  });
+
+  test("one refusal fails the check and carries the gateway's sentence", async () => {
+    // The sentence is the whole finding. A report that said "a schema was
+    // refused" would send the reader to the same log this exists to replace.
+    const report = await checkStageSchemas(
+      "key",
+      "claude-sonnet-5",
+      async () => [
+        { accepted: true, stageId: "outline" },
+        {
+          accepted: false,
+          reason: "Enum value None does not match declared type 'string'",
+          stageId: "style-extract",
+        },
+      ],
+    );
+    expect(report.ok).toBe(false);
+    expect(report.lines[0]).toBe(
+      "style-extract: Enum value None does not match declared type 'string'",
+    );
+  });
+});
+
+describe("one real extraction, end to end", () => {
+  test("a card built is the pass, and it says how much of one", async () => {
+    const report = await checkExtraction(
+      "key",
+      "claude-sonnet-5",
+      async () => ({
+        exemplars: 9,
+        fields: 22,
+        ok: true,
+      }),
+    );
+    expect(report.ok).toBe(true);
+    expect(report.lines[0]).toContain("22 fields");
+  });
+
+  test("the finding is the probe's own lines, not a summary of them", async () => {
+    // "The extraction failed" would send the reader back to the log this
+    // exists to replace. The zod paths are the diagnosis.
+    const report = await checkExtraction(
+      "key",
+      "claude-sonnet-5",
+      async () => ({
+        lines: ["fields: Too small: expected array to have >=1 items"],
+        ok: false,
+      }),
+    );
+    expect(report.ok).toBe(false);
+    expect(report.lines).toEqual([
+      "fields: Too small: expected array to have >=1 items",
+    ]);
   });
 });
