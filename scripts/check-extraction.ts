@@ -28,7 +28,10 @@ import { extractionJsonSchema } from "../apps/auteur-web/server/_stages/card.ts"
  * expect. It judges the contract, which is the part that has broken.
  */
 import type { ProsodyBlock } from "../packages/core/src/prosody.ts";
-import { styleCardSchema } from "../packages/core/src/style-card.ts";
+import {
+  CLAIM_PATHS,
+  styleCardSchema,
+} from "../packages/core/src/style-card.ts";
 import type { JsonSchema } from "../packages/model-provider/src/request.ts";
 import {
   cardFromExtraction,
@@ -143,15 +146,52 @@ export const judge = (text: string, probe: Probe): ExtractionOutcome => {
     return built(parsed.data, probe);
   } catch (thrown) {
     return {
-      lines: [
-        ...issuesOf(thrown),
-        "The extraction parsed and the card did not build: a path the model",
-        "did not return, or one it could not cite — an uncited claim is",
-        "counted and not written (decision 0004).",
-      ],
+      lines: [...issuesOf(thrown), ...census(parsed.data)],
       ok: false,
     };
   }
+};
+
+/**
+ * What the model actually returned, when the card did not build.
+ *
+ * The zod issues say which claims are missing from the card. They do not say
+ * **why**, and the two whys want opposite fixes: a path the model never
+ * returned is a prompt that did not ask clearly enough, and a path it returned
+ * without a citation is the assembler refusing to write it (decision 0004) —
+ * which is the product's rule working, against a card schema that requires
+ * every claim.
+ *
+ * Telling those apart from the issue list alone is guessing, and guessing is
+ * what costs a round.
+ */
+const census = (
+  extraction: ReturnType<typeof extractionSchema.parse>,
+): string[] => {
+  const returned = new Set(extraction.fields.map((field) => field.path));
+  const cited = new Set(
+    extraction.fields
+      .filter(
+        (field) =>
+          field.citationPassageId !== undefined &&
+          field.citationPassageId !== null,
+      )
+      .map((field) => field.path),
+  );
+  const wanted = CLAIM_PATHS.map((claim) => claim.path);
+  const absent = wanted.filter((path) => !returned.has(path));
+  const uncited = wanted.filter(
+    (path) => returned.has(path) && !cited.has(path),
+  );
+  const unknown = [...returned].filter((path) => !wanted.includes(path));
+  return [
+    `returned ${returned.size.toString()} of ${wanted.length.toString()} paths, ${cited.size.toString()} of them cited`,
+    ...(absent.length > 0 ? [`never returned: ${absent.join(", ")}`] : []),
+    ...(uncited.length > 0
+      ? [`returned uncited, so not written to the card: ${uncited.join(", ")}`]
+      : []),
+    ...(unknown.length > 0 ? [`not a claim path: ${unknown.join(", ")}`] : []),
+  ];
 };
 
 /** Zod issues out of whatever `buildCard` threw. */

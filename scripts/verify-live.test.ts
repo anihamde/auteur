@@ -8,6 +8,7 @@ import {
   exitCodeFor,
   missing,
   render,
+  renderOne,
   type SubReport,
   unchecked,
 } from "./verify-live.ts";
@@ -176,5 +177,21 @@ describe("one real extraction, end to end", () => {
     expect(report.lines).toEqual([
       "fields: Too small: expected array to have >=1 items",
     ]);
+  });
+});
+
+describe("a check reads the same alone as it does in the summary", () => {
+  test("one report renders as its verdict and its lines, indented", () => {
+    // The streaming output and the final list are the same text: two
+    // renderers would drift, and the one nobody reads while waiting is the
+    // one that would drift silently.
+    expect(renderOne({ lines: ["a", "b"], name: "something", ok: false })).toBe(
+      ["FAIL something", "       a", "       b"].join("\n"),
+    );
+  });
+
+  test("the summary is those same lines", () => {
+    const report = { lines: ["one"], name: "a check", ok: true };
+    expect(render([report])).toContain(renderOne(report));
   });
 });
