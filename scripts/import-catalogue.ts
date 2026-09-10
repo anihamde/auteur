@@ -225,24 +225,30 @@ export type Folded = {
  */
 export const fold = (rows: readonly CatalogueRow[]): Folded => {
   const authors = new Map<string, CataloguePerson & { works: number }>();
-  const works: Folded["works"] = [];
+  // Keyed, not pushed. A batch carrying the same (author, work) twice is one
+  // Postgres refuses outright — "ON CONFLICT DO UPDATE command cannot affect
+  // row a second time" — and the catalogue credits a person twice on a book
+  // often enough that this is not hypothetical.
+  const works = new Map<string, Folded["works"][number]>();
+
   for (const row of rows) {
+    const workId = `${PROVIDER}:${row.id.toString()}`;
     for (const person of parsePeople(row.authors)) {
-      const id = authorIdFor(person);
-      const existing = authors.get(id);
-      authors.set(id, {
-        ...person,
-        works: (existing?.works ?? 0) + 1,
-      });
-      works.push({
-        authorId: id,
-        id: `${PROVIDER}:${row.id.toString()}`,
+      const authorId = authorIdFor(person);
+      const key = `${authorId}\u0000${workId}`;
+      if (works.has(key)) continue;
+
+      const existing = authors.get(authorId);
+      authors.set(authorId, { ...person, works: (existing?.works ?? 0) + 1 });
+      works.set(key, {
+        authorId,
+        id: workId,
         sourceUrl: sourceUrlFor(row.id),
         title: row.title,
       });
     }
   }
-  return { authors, works };
+  return { authors, works: [...works.values()] };
 };
 
 /** How many rows go in one statement. Large enough to be fast, small enough to read. */
@@ -285,9 +291,11 @@ export const writeCatalogue = async (
   for (let start = 0; start < folded.works.length; start += BATCH) {
     const batch = folded.works.slice(start, start + BATCH);
     await db.query(
+      // Keyed by the pair: a book credited to two people belongs to both, and
+      // the id alone would make one of them lose the credit.
       `INSERT INTO catalogue_works (id, author_id, title, language, source_url)
        SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
-       ON CONFLICT (id) DO UPDATE SET
+       ON CONFLICT (author_id, id) DO UPDATE SET
          title      = EXCLUDED.title,
          source_url = EXCLUDED.source_url`,
       [

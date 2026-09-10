@@ -212,3 +212,42 @@ describe("ids agree with the provider that minted them first", () => {
     ).toBe(mintAuthorId({ birth_year: null, death_year: null, name: "Homer" }));
   });
 });
+
+describe("a book credited twice to the same person is one row", () => {
+  test("the same author twice on one book does not duplicate the work", () => {
+    // Postgres refuses a batch that touches a key twice, and the catalogue
+    // credits a person twice on a book often enough that this is not
+    // hypothetical: "ON CONFLICT DO UPDATE command cannot affect row a second
+    // time" is what the first real import answered.
+    const folded = fold([
+      {
+        authors: "Chekhov, Anton, 1860-1904; Chekhov, Anton, 1860-1904",
+        id: 13415,
+        language: "en",
+        title: "The Party and Other Stories",
+      },
+    ]);
+
+    expect(folded.works).toHaveLength(1);
+    expect([...folded.authors.values()][0]?.works).toBe(1);
+  });
+
+  test("no batch carries the same author and work twice", () => {
+    // The property the write depends on, asserted over the whole fold rather
+    // than over one case.
+    const folded = fold([
+      {
+        authors: "A, One, 1800-1850; B, Two, 1801-1851; A, One, 1800-1850",
+        id: 1,
+        language: "en",
+        title: "Shared",
+      },
+      { authors: "A, One, 1800-1850", id: 2, language: "en", title: "Solo" },
+    ]);
+
+    const keys = folded.works.map((work) => `${work.authorId}/${work.id}`);
+    expect(new Set(keys).size).toBe(keys.length);
+    // Two authors on book 1, one of them also on book 2.
+    expect(keys).toHaveLength(3);
+  });
+});
