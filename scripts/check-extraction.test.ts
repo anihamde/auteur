@@ -291,3 +291,25 @@ describe("both passes run, and both are measured", () => {
     });
   });
 });
+
+describe("a failure reports its cost as well", () => {
+  test("a card that did not build still says what each pass took", () => {
+    // A pass that fails *and* sits at the invocation ceiling has two problems.
+    // A report naming one sends the reader to fix the wrong one.
+    const short = goodFields();
+    const outcome = judge(
+      { fields: short.fields.slice(1) },
+      goodExemplars(),
+      PROBE,
+      [
+        { outputTokens: 2100, seconds: 58.4, stageId: "style-fields" },
+        { outputTokens: 400, seconds: 11.2, stageId: "style-extract" },
+      ],
+    );
+    expect(outcome.ok).toBe(false);
+    expect(outcome.cost.map(costLine)).toEqual([
+      "style-fields: 58.4s, 2,100 out",
+      "style-extract: 11.2s, 400 out",
+    ]);
+  });
+});

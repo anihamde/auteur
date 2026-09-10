@@ -174,6 +174,12 @@ export const costOf = (
   };
 };
 
+/**
+ * One pass's cost as one line, named by the pass.
+ *
+ * Per pass and not summed: each stage has its own invocation to fit inside, and
+ * a total would hide a first pass at fifty-five seconds behind a second at five.
+ */
 export const costLine = (cost: PassCost): string =>
   [
     `${cost.stageId}: ${cost.seconds.toFixed(1)}s`,
