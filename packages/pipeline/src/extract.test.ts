@@ -164,6 +164,21 @@ describe("a citation naming a passage nobody offered is dropped", () => {
     expect(evidence[0]?.value).toBe("first");
   });
 
+  test("an explicit null is an uncited field, not a parse failure", () => {
+    // Strict `json_schema` has no optional property: every key is required, so
+    // a field with no citation to give can only send `null`. A schema that
+    // accepted `undefined` alone failed the parse of the *whole* extraction
+    // over one uncited field, which is a stage that fails for a card it had
+    // already built correctly.
+    const payload = extraction({
+      fields: [{ citationPassageId: null, path: "voice.pov", value: "first" }],
+    });
+    expect(() => parseExtraction(payload)).not.toThrow();
+    const evidence = toEvidence(parseExtraction(payload), PASSAGES);
+    expect(evidence[0]?.citation).toBeUndefined();
+    expect(evidence[0]?.value).toBe("first");
+  });
+
   test("an offered id resolves to the work it belongs to", () => {
     // The stage returns a passage id only. It is not given work titles in a
     // form it could reliably echo, and asking it to is how a citation ends up

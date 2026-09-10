@@ -80,7 +80,7 @@ const priorAnswers = async (context: StageContext) => {
   }));
 };
 
-const CLARIFY_JSON_SCHEMA = {
+export const CLARIFY_JSON_SCHEMA = {
   additionalProperties: false,
   properties: {
     done: { type: "boolean" },
@@ -170,7 +170,7 @@ export const runClarify = async (
   return { asked: budgeted.questions.length, done: budgeted.done };
 };
 
-const OUTLINE_JSON_SCHEMA = {
+export const OUTLINE_JSON_SCHEMA = {
   additionalProperties: false,
   properties: {
     beats: {
@@ -279,7 +279,7 @@ export const runDraft = async (
   return story;
 };
 
-const FINDINGS_JSON_SCHEMA = {
+export const FINDINGS_JSON_SCHEMA = {
   additionalProperties: false,
   properties: {
     findings: {

@@ -27,7 +27,27 @@ import { callModel, type StageContext } from "./context.ts";
 /** How many passages the extraction reads. §4.3. */
 export const EXTRACT_PASSAGES = 40;
 
-const EXTRACTION_JSON_SCHEMA = {
+/**
+ * The extraction's shape, as the gateway's strict `json_schema` mode requires
+ * it — which is not the same thing as valid JSON Schema.
+ *
+ * Strict mode refuses a property with no `type`, and `value` had none: it is a
+ * zod union of a string and a string array, and an empty `{}` is what that
+ * looks like when nobody writes the union out. The whole request was rejected,
+ * so `style-extract` failed for every session ever run and said only "The model
+ * gateway failed."
+ *
+ * `citationPassageId` is `["string", "null"]` for the neighbouring reason.
+ * Strict mode requires **every** property in `required`, so there is no way to
+ * express "may be absent" but there is a way to express "may be null" — and
+ * before this the model had to send the key with no citation to give, which
+ * meant an empty string, which is not a uuid, which failed the zod parse of the
+ * whole extraction.
+ *
+ * `stage-schemas.test.ts` holds every one of these rules against every stage
+ * rather than against this one.
+ */
+export const EXTRACTION_JSON_SCHEMA = {
   additionalProperties: false,
   properties: {
     exemplars: {
@@ -46,9 +66,15 @@ const EXTRACTION_JSON_SCHEMA = {
       items: {
         additionalProperties: false,
         properties: {
-          citationPassageId: { type: "string" },
+          citationPassageId: { type: ["string", "null"] },
           path: { type: "string" },
-          value: {},
+          // The union written out. `{}` is a schema strict mode refuses.
+          value: {
+            anyOf: [
+              { type: "string" },
+              { items: { type: "string" }, type: "array" },
+            ],
+          },
         },
         required: ["citationPassageId", "path", "value"],
         type: "object",
