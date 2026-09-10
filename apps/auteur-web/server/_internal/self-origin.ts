@@ -29,15 +29,26 @@ const value = (env: EnvRecord, name: string): string | undefined => {
 };
 
 export const selfOriginFrom = (env: EnvRecord): string => {
+  const environment = value(env, "VERCEL_ENV");
   // The override exists for a deployment whose production domain is not the
   // one the platform reports — a custom domain in front of it, say. Whole
   // origin rather than a host, because someone setting this has a URL.
+  //
+  // **A preview ignores it**, for the same reason a preview does not take the
+  // alias. The variable form on the platform selects all three environments by
+  // default, so the ordinary way to add this is the way that would point every
+  // preview at production — and the failure is silent in both directions:
+  // against a shared database production claims the preview's row and runs its
+  // own build of the stage, so the change under review never executes and the
+  // preview looks like it works; against a separate one `claimStage` finds no
+  // row and answers `200 {claimed: false}`, which is a 2xx, so not even the
+  // refusal logging fires.
   const configured = value(env, "AUTEUR_SELF_ORIGIN");
-  if (configured !== undefined) {
+  if (configured !== undefined && environment !== "preview") {
     return configured;
   }
   const production = value(env, "VERCEL_PROJECT_PRODUCTION_URL");
-  if (value(env, "VERCEL_ENV") === "production" && production !== undefined) {
+  if (environment === "production" && production !== undefined) {
     return `https://${production}`;
   }
   const host = value(env, "VERCEL_URL");

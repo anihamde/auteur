@@ -74,3 +74,19 @@ describe("an explicit origin overrides the platform", () => {
     ).toBe("https://auteur.example.com");
   });
 });
+
+describe("a preview is isolated from production whatever else is set", () => {
+  test("a preview ignores an override that names production", () => {
+    // The platform's add-variable form selects Production, Preview and
+    // Development by default, so the ordinary way to set this is the way that
+    // points every preview's invocations at the production deployment.
+    expect(
+      selfOriginFrom({
+        AUTEUR_SELF_ORIGIN: "https://auteur.example.com",
+        VERCEL_ENV: "preview",
+        VERCEL_PROJECT_PRODUCTION_URL: ALIAS,
+        VERCEL_URL: DEPLOYMENT,
+      }),
+    ).toBe(`https://${DEPLOYMENT}`);
+  });
+});
