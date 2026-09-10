@@ -67,6 +67,8 @@ describe("every public route requires the bearer token", () => {
     );
     expect(UNGUARDED_PATHS).toEqual(["/api/health"]);
     expect([...SIGNED_PATHS].sort()).toEqual([
+      // Temporary; see `_routes/corpus-probe.ts`.
+      "/api/internal/corpus-probe",
       "/api/internal/cron/sweep",
       "/api/internal/stage",
     ]);
