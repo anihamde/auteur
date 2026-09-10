@@ -44,7 +44,25 @@ export const CORPUS_HEADERS: Readonly<Record<string, string>> = {
 export type GutendexConfig = {
   readonly fetch?: FetchLike;
   readonly baseUrl?: string;
+  /** A caller's own cancellation, which supersedes the timeout below. */
+  readonly signal?: AbortSignal;
+  /** Overridden by a test that would rather not wait. */
+  readonly timeoutMs?: number;
 };
+
+/**
+ * How long a search may take before it counts as unavailable.
+ *
+ * There was no timeout at all, and an upstream that hangs then holds the
+ * function open until the platform kills it: the reader gets a 504 error page
+ * instead of "gutenberg unavailable — this list is short", and the screen that
+ * was designed to degrade never gets the chance to.
+ *
+ * Eight seconds is far past a healthy search — the same query answers in well
+ * under a second — and far short of the function's own ceiling. A corpus index
+ * must not be able to decide how long this application runs for.
+ */
+export const SEARCH_TIMEOUT_MS = 8000;
 
 /**
  * The canonical search url — note the trailing slash on `/books/`.
@@ -114,14 +132,30 @@ export const searchPage = async (
   const call = config.fetch ?? fetch;
   const url = searchUrl(config.baseUrl ?? GUTENDEX_BASE, query, page);
 
+  const timeoutMs = config.timeoutMs ?? SEARCH_TIMEOUT_MS;
   let response: Response;
   try {
-    response = await call(url, { headers: CORPUS_HEADERS });
+    response = await call(url, {
+      headers: CORPUS_HEADERS,
+      signal: config.signal ?? AbortSignal.timeout(timeoutMs),
+    });
   } catch (cause) {
+    // An abort is a timeout here, and saying so is the difference between
+    // "the service refused us" and "the service never answered" — which have
+    // nothing in common except that no author list arrives.
+    const timedOut =
+      cause instanceof Error &&
+      (cause.name === "TimeoutError" || cause.name === "AbortError");
     throw new AuteurError(
       "corpus_unavailable",
       "The corpus index could not be reached.",
-      { cause, detail: { url } },
+      {
+        cause,
+        detail: {
+          url,
+          ...(timedOut ? { timedOutAfterMs: timeoutMs } : {}),
+        },
+      },
     );
   }
   if (!response.ok) {

@@ -17,6 +17,7 @@ export const slugifyName = (name: string): string =>
 ## `@auteur/corpus-gutenberg/fetch`
 
 ```ts
+export const ATTEMPT_TIMEOUT_MS = 15_000
 export const MAX_CONCURRENCY = 4
 export const RETRY_DELAYS_MS = [2000, 4000] as const
 export const fetchWork = async (
@@ -29,6 +30,7 @@ export const plainTextUrl = (book: GutendexBook): string | undefined =>
 ```ts
 export const CORPUS_HEADERS: Readonly<Record<string, string>> =
 export const GUTENDEX_BASE = "https://gutendex.com"
+export const SEARCH_TIMEOUT_MS = 8000
 export const USER_AGENT = "auteur/0.1 (+https://github.com/anihamde/auteur)"
 export const refusalDetail = async (
 export const searchBooks = async (

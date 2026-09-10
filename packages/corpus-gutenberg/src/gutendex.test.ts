@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { isAuteurError } from "@auteur/errors/is-auteur-error";
 import fixture from "../tests/fixtures/gutendex-search.synthetic.json" with {
   type: "json",
 };
 import {
+  type FetchLike,
   refusalDetail,
   searchBooks,
   searchPage,
@@ -213,5 +215,48 @@ describe("the url asked for is the one the service serves", () => {
     expect(searchUrl("https://corpus.auteur.test", "o'brien & sons")).toContain(
       `search=${encodeURIComponent("o'brien & sons")}`,
     );
+  });
+});
+
+describe("a corpus index cannot decide how long this application runs", () => {
+  test("a hanging service becomes unavailable, not a hung function", async () => {
+    // Without a timeout the request holds the function open until the platform
+    // kills it, and the reader gets a 504 error page instead of the degraded
+    // author screen the design already has.
+    const hang: FetchLike = (_url, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation timed out.", "TimeoutError"));
+        });
+      });
+
+    const failure = await searchPage("chekhov", {
+      baseUrl: "https://corpus.auteur.test",
+      fetch: hang,
+      timeoutMs: 20,
+    }).catch((thrown: unknown) => thrown);
+
+    expect(isAuteurError(failure)).toBe(true);
+    if (!isAuteurError(failure)) return;
+    expect(failure.code).toBe("corpus_unavailable");
+    // Named, because "never answered" and "refused us" have nothing in common
+    // except that no author list arrives.
+    expect(failure.detail).toMatchObject({ timedOutAfterMs: 20 });
+  });
+
+  test("a caller's own cancellation supersedes the timeout", async () => {
+    // The SSE route and the stage runner both carry a signal; a second one
+    // racing it would abort work the caller had not asked to stop.
+    const controller = new AbortController();
+    let seen: AbortSignal | undefined;
+    await searchPage("chekhov", {
+      baseUrl: "https://corpus.auteur.test",
+      fetch: async (_url, init) => {
+        seen = init?.signal;
+        return Response.json({ next: null, results: [] });
+      },
+      signal: controller.signal,
+    });
+    expect(seen).toBe(controller.signal);
   });
 });

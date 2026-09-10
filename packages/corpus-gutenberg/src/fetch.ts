@@ -19,6 +19,17 @@ export const MAX_CONCURRENCY = 4;
 export const RETRY_DELAYS_MS = [2000, 4000] as const;
 
 /**
+ * How long one download attempt may take.
+ *
+ * Three attempts and six seconds of backoff have to fit inside a stage, and a
+ * request with no bound does not fit inside anything: an upstream that accepts
+ * the connection and then says nothing holds the invocation until the platform
+ * kills it. A book that has not started arriving in fifteen seconds is one to
+ * ask for again.
+ */
+export const ATTEMPT_TIMEOUT_MS = 15_000;
+
+/**
  * The plain-text format, UTF-8 preferred.
  *
  * A book offering no plain-text format is **dropped from selection, not fetched
@@ -52,6 +63,8 @@ export type FetchTextConfig = {
   readonly fetch?: FetchLike;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly signal?: AbortSignal;
+  /** Overridden by a test that would rather not wait. */
+  readonly timeoutMs?: number;
 };
 
 /**
@@ -94,7 +107,12 @@ export const fetchWork = async (
         // says who it is for the same reason the search does: an unidentified
         // client is one gutendex answers 403 to.
         headers: { accept: "text/plain", "user-agent": USER_AGENT },
-        ...(config.signal !== undefined && { signal: config.signal }),
+        // The caller's own cancellation wins; absent one, each attempt is
+        // bounded so the retries stay a politeness budget rather than a way to
+        // spend a stage waiting on silence.
+        signal:
+          config.signal ??
+          AbortSignal.timeout(config.timeoutMs ?? ATTEMPT_TIMEOUT_MS),
       });
       if (response.ok) {
         const raw = await response.text();
