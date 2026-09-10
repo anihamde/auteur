@@ -192,10 +192,41 @@ describe("the extraction schema refuses what the assembler would discard", () =>
     // The model returned an invented uuid when the schema allowed any string.
     // An enum is the difference between the gateway refusing it and this code
     // dropping it after a 49-second call.
-    expect(properties["citationPassageId"]?.["enum"]).toEqual([
-      ...PASSAGE_IDS,
-      null,
+    //
+    // Two branches, not one nullable enum: the gateway checks each enum member
+    // against the first declared type, and answered
+    // "Enum value None does not match declared type 'string'" to the whole
+    // request.
+    expect(properties["citationPassageId"]?.["anyOf"]).toEqual([
+      { enum: PASSAGE_IDS, type: "string" },
+      { type: "null" },
     ]);
+  });
+
+  test("no enumeration anywhere mixes null in among strings", () => {
+    // The rule the gateway taught, held over the whole schema rather than the
+    // one property that broke: a nullable enumeration is two branches.
+    const nullInEnum = (node: unknown, path: string): string[] => {
+      if (!isNode(node)) return [];
+      const found: string[] = [];
+      const values = node["enum"];
+      if (Array.isArray(values) && values.includes(null)) {
+        found.push(`${path} puts null in an enum`);
+      }
+      for (const [key, child] of Object.entries(node)) {
+        if (Array.isArray(child)) {
+          found.push(
+            ...child.flatMap((entry, index) =>
+              nullInEnum(entry, `${path}.${key}[${index.toString()}]`),
+            ),
+          );
+        } else {
+          found.push(...nullInEnum(child, `${path}.${key}`));
+        }
+      }
+      return found;
+    };
+    expect(nullInEnum(extractionJsonSchema(PASSAGE_IDS), "$")).toEqual([]);
   });
 
   test("an exemplar's passage id is one that was offered", () => {
