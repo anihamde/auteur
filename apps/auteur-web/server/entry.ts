@@ -138,11 +138,21 @@ const protectionBypass = (): Record<string, string> => {
  */
 const app = boot(() => {
   const db = createDb({ endpoint: "pooled", url: env().DATABASE_URL });
-  // The one connection that can hold a transaction and a `LISTEN`. Every route
-  // reads and writes on the pooled handle; this is for the writes that must be
-  // atomic — appending an event with its NOTIFY, replacing a session's pins —
-  // and for the SSE subscription.
+  // Two direct handles, not one, and the difference is what each does with a
+  // connection. The SSE route **holds** one for the life of a stream, because
+  // `LISTEN` is session-level; a transactional write **borrows** one for a few
+  // milliseconds. Sharing a pool means the streams starve the writes: four open
+  // streams take every connection, and the next `append` waits — until this
+  // instance's `maxDuration` kills the stage, with its row still `claimed`.
+  //
+  // Separate pools bound each by what it is for. A stream that cannot get a
+  // connection is one screen that reconnects; a write that cannot is a stage
+  // that fails and is retried. Neither is the other's problem now.
   const directDb = createDb({
+    endpoint: "direct",
+    url: env().DATABASE_URL_DIRECT,
+  });
+  const streamDb = createDb({
     endpoint: "direct",
     url: env().DATABASE_URL_DIRECT,
   });
@@ -156,7 +166,7 @@ const app = boot(() => {
     db,
     directDb,
     // The one place `LISTEN` gets the connection it needs. §7.
-    events: { directDb },
+    events: { directDb: streamDb },
     internalStage: {
       runStageBody: createStageBody({
         provider: createRouterProvider({ apiKey: env().RAMP_ROUTER_API_KEY }),
