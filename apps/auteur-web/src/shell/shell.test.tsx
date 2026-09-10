@@ -109,16 +109,18 @@ describe("events are read, never composed", () => {
     // event the screen already held, and no screen read it.
     const log = [
       {
+        createdAt: new Date(0),
         event: {
           code: "provider_error",
           detail: "context_length_exceeded HTTP 400: too long.",
-          message: "The model gateway failed.",
+          message: "The model gateway failed." as const,
           stageId: "style-extract",
-          type: "stage_error",
+          type: "stage_error" as const,
         },
         seq: 1,
+        sessionId: "01a08c1f-0000-7000-8000-000000000001",
       },
-    ] as const;
+    ];
     expect(detailFor(log, "style-extract")).toEqual([
       "The model gateway failed. context_length_exceeded HTTP 400: too long.",
     ]);
@@ -129,15 +131,17 @@ describe("events are read, never composed", () => {
     // producing no line at all would be the red dot again.
     const log = [
       {
+        createdAt: new Date(0),
         event: {
           code: "schema_violation",
           message: "The outline did not parse.",
           stageId: "outline",
-          type: "stage_error",
+          type: "stage_error" as const,
         },
         seq: 1,
+        sessionId: "01a08c1f-0000-7000-8000-000000000001",
       },
-    ] as const;
+    ];
     expect(detailFor(log, "outline")).toEqual(["The outline did not parse."]);
   });
 

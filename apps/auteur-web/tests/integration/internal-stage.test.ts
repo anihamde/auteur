@@ -258,7 +258,7 @@ describe("a stage that throws", () => {
     // `app.onError` never sees it. Before this the failure was in no log at
     // all — the platform's viewer showed a clean 200.
     const queueId = await queueOne();
-    const lines: { message: string; fields?: LogFields }[] = [];
+    const lines: { message: string; fields: LogFields | undefined }[] = [];
     const throwing: StageBody = () => {
       throw new Error("connect ECONNREFUSED 10.0.0.1:5432");
     };
