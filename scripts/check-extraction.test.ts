@@ -67,6 +67,30 @@ describe("the failures it exists to catch", () => {
     expect(outcome).toHaveProperty("lines");
   });
 
+  test("the census tells a path never returned from one returned uncited", () => {
+    // The two want opposite fixes — a prompt that did not ask clearly enough,
+    // versus the assembler refusing an uncited claim (decision 0004) — and
+    // telling them apart from the zod issues alone is guessing.
+    const answer = JSON.parse(good()) as {
+      fields: { path: string; citationPassageId: string | null }[];
+    };
+    const dropped = answer.fields.shift();
+    const [uncited] = answer.fields;
+    if (uncited !== undefined) uncited.citationPassageId = null;
+
+    const outcome = judge(JSON.stringify(answer), PROBE);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    const lines = outcome.lines.join("\n");
+    expect(lines).toContain(`never returned: ${dropped?.path ?? ""}`);
+    expect(lines).toContain(
+      `returned uncited, so not written to the card: ${uncited?.path ?? ""}`,
+    );
+    expect(lines).toContain(
+      `returned ${(CLAIM_PATHS.length - 1).toString()} of ${CLAIM_PATHS.length.toString()} paths`,
+    );
+  });
+
   test("a parsing extraction that is one claim short of a card", () => {
     // The subtler half: the schema is satisfied and the card is not. Only the
     // second is the product's promise.

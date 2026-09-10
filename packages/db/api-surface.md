@@ -10,6 +10,7 @@ change and needs a contract review, per the implementation plan's gate 4.
 ```ts
 export const CONNECTION_TIMEOUT_MS = 15_000
 export const createDb = (config: DbConfig): Db =>
+export const withCurrentSslSemantics = (url: string): string =>
 ```
 
 ## `@auteur/db/sql`

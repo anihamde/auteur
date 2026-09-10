@@ -76,9 +76,45 @@ const refusePooled = (what: string): never => {
   );
 };
 
+/**
+ * The deprecated SSL aliases, spelled as what they currently mean.
+ *
+ * `pg` treats `prefer`, `require` and `verify-ca` as `verify-full` today and
+ * warns — with a stack trace, on every connection — that in `pg` 9 they will
+ * adopt libpq semantics instead, which do **not** verify the certificate chain.
+ * So the alias is a downgrade scheduled for a version bump nobody will
+ * connect to this behaviour.
+ *
+ * Writing `verify-full` keeps exactly what happens now, survives that bump
+ * unchanged, and silences a warning that prints a stack trace and reads, to
+ * anyone running a script, as a crash. Nothing here weakens: `verify-full` is
+ * the strongest of the modes and the one already in force.
+ *
+ * A url that names any other mode — `disable`, `no-verify`, or none at all —
+ * is left exactly as written. This function replaces a deprecated spelling of
+ * the current behaviour; it does not decide anybody's TLS policy.
+ */
+const DEPRECATED_SSL_MODES = new Set(["prefer", "require", "verify-ca"]);
+
+export const withCurrentSslSemantics = (url: string): string => {
+  try {
+    const parsed = new URL(url);
+    const mode = parsed.searchParams.get("sslmode");
+    if (mode === null || !DEPRECATED_SSL_MODES.has(mode)) {
+      return url;
+    }
+    parsed.searchParams.set("sslmode", "verify-full");
+    return parsed.toString();
+  } catch {
+    // Not a url this can parse is a url to hand on untouched: `pg` accepts
+    // shapes `URL` does not, and rewriting is a convenience, never a gate.
+    return url;
+  }
+};
+
 export const createDb = (config: DbConfig): Db => {
   const pool = new pg.Pool({
-    connectionString: config.url,
+    connectionString: withCurrentSslSemantics(config.url),
     connectionTimeoutMillis:
       config.connectionTimeoutMs ?? CONNECTION_TIMEOUT_MS,
     max: config.max ?? (config.endpoint === "direct" ? 4 : 1),

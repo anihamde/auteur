@@ -51,12 +51,15 @@ export type SubReport = {
   readonly lines: readonly string[];
 };
 
+export const renderOne = (report: SubReport): string =>
+  [
+    `${report.ok ? "ok  " : "FAIL"} ${report.name}`,
+    ...report.lines.map((line) => `       ${line}`),
+  ].join("\n");
+
 export const render = (reports: readonly SubReport[]): string =>
   [
-    ...reports.flatMap((report) => [
-      `${report.ok ? "ok  " : "FAIL"} ${report.name}`,
-      ...report.lines.map((line) => `       ${line}`),
-    ]),
+    ...reports.map(renderOne),
     "",
     reports.every((report) => report.ok)
       ? `All ${reports.length.toString()} checks passed. Every declared value was right.`
@@ -326,7 +329,32 @@ if (import.meta.main) {
   const directUrl = Bun.env["DATABASE_URL_DIRECT"];
   const databaseUrl = Bun.env["DATABASE_URL"];
 
-  reports.push(
+  /**
+   * Run one check, saying so before and after.
+   *
+   * This pass is minutes long — the extraction probe alone is a model call
+   * generating a whole card — and it used to print nothing until every check
+   * had finished. Silence for two minutes is indistinguishable from a hang,
+   * and the first person to run it reported one. A check that has not printed
+   * its name yet is the check currently running, which is also the only
+   * information anyone wants while waiting.
+   */
+  const run = async (
+    label: string,
+    check: () => Promise<SubReport>,
+  ): Promise<void> => {
+    process.stdout.write(`  …  ${label}\n`);
+    const report = await check();
+    // Over the "…" line, so the finished run reads as a list of verdicts
+    // rather than of each verdict twice. A terminal that does not take the
+    // escape simply shows both, which is not a failure.
+    process.stdout.write(`\u001B[1A\u001B[2K${renderOne(report)}\n`);
+    reports.push(report);
+  };
+
+  const since = Date.now();
+
+  await run("the model catalogue matches the gateway", async () =>
     routerKey === undefined
       ? missing(
           "the model catalogue matches the gateway",
@@ -335,12 +363,13 @@ if (import.meta.main) {
       : await checkCatalogueDrift(routerKey),
   );
 
-  if (databaseUrl === undefined) {
-    reports.push(missing("the catalogue is imported", "DATABASE_URL"));
-  } else {
+  await run("the catalogue is imported", async () => {
+    if (databaseUrl === undefined) {
+      return missing("the catalogue is imported", "DATABASE_URL");
+    }
     const db = createDb({ endpoint: "pooled", url: databaseUrl });
-    reports.push(
-      await checkCatalogue(async (table) => {
+    try {
+      return await checkCatalogue(async (table) => {
         // The table names come from this file, never from input, which is the
         // only way an identifier may vary at all.
         const sql =
@@ -349,27 +378,32 @@ if (import.meta.main) {
             : "SELECT count(*)::int AS n FROM catalogue_works";
         const result = await db.query<{ n: number }>(sql);
         return result.rows[0]?.n ?? 0;
-      }),
-    );
-    await db.close();
-  }
+      });
+    } finally {
+      await db.close();
+    }
+  });
 
-  reports.push(
+  await run("the gateway accepts every stage schema", async () =>
     routerKey === undefined
       ? missing("the gateway accepts every stage schema", "RAMP_ROUTER_API_KEY")
       : await checkStageSchemas(routerKey),
   );
 
-  reports.push(
-    routerKey === undefined
-      ? missing(
-          "a real model satisfies the extraction contract",
-          "RAMP_ROUTER_API_KEY",
-        )
-      : await checkExtraction(routerKey),
+  // Named as the slow one, because it is: a model call that generates a whole
+  // card, and the only check here measured in tens of seconds.
+  await run(
+    "a real model satisfies the extraction contract (one model call, ~1 min)",
+    async () =>
+      routerKey === undefined
+        ? missing(
+            "a real model satisfies the extraction contract",
+            "RAMP_ROUTER_API_KEY",
+          )
+        : await checkExtraction(routerKey),
   );
 
-  reports.push(
+  await run("the latinate classifier's precision", async () =>
     unchecked(
       "the latinate classifier's precision",
       "The hand-labelled set it scores against does not exist yet.",
@@ -377,12 +411,19 @@ if (import.meta.main) {
     ),
   );
 
-  reports.push(
+  await run("LISTEN/NOTIFY on the direct endpoint", async () =>
     directUrl === undefined
       ? missing("LISTEN/NOTIFY on the direct endpoint", "DATABASE_URL_DIRECT")
       : await checkListenNotify(directUrl),
   );
 
-  process.stdout.write(`${render(reports)}\n`);
+  const seconds = ((Date.now() - since) / 1000).toFixed(1);
+  process.stdout.write(
+    `\n${
+      reports.every((report) => report.ok)
+        ? `All ${reports.length.toString()} checks passed. Every declared value was right.`
+        : `${reports.filter((report) => !report.ok).length.toString()} of ${reports.length.toString()} checks found something. Each lands as its own follow-up PR.`
+    }\nin ${seconds}s\n`,
+  );
   process.exit(exitCodeFor(reports));
 }
