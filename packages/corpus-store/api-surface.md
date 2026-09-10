@@ -8,8 +8,11 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/corpus-store/authors`
 
 ```ts
+export const SEARCH_LIMIT = 20
 export const findAuthor = async (
+export const literalPattern = (query: string): string =>
 export const recordMeasuredWords = async (
+export const searchAuthors = async (
 export const upsertAuthor = async (
 ```
 

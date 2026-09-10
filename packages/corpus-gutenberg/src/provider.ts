@@ -52,8 +52,14 @@ export type CorpusProvider = {
  * about the data, and a component deciding which sentence to render would be a
  * component deciding what is known. Degradation names which part is missing —
  * "not yet measured" rather than a blank, and "no card yet" rather than a zero.
+ *
+ * It takes the three fields it reads rather than a whole `AuthorResult`: the
+ * catalogue this now searches has no translator list per author, and a caller
+ * passing an empty one to satisfy a type would be inventing a fact.
  */
-export const detailLine = (author: AuthorResult): string => {
+export const detailLine = (
+  author: Pick<AuthorResult, "card" | "measuredWords" | "workCount">,
+): string => {
   const works = `${author.workCount.toString()} works`;
   if (author.measuredWords === undefined) {
     return `${works} · not yet measured`;
