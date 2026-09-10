@@ -41,6 +41,7 @@
   "scripts": {
     "build:install-modules": "[ $CI$CLAUDE_CODE_REMOTE$VERCEL ] && true || bun install",
     "build:vercel": "bun run turbo build --filter=@auteur/app-auteur-web && bun scripts/build-vercel.ts",
+    "catalogue:import": "bun scripts/import-catalogue.ts",
     "decisions:index": "bun scripts/decisions-index.ts",
     "discrimination": "bun scripts/discrimination.ts",
     "fix:api-surface": "bun scripts/api-surface.ts",

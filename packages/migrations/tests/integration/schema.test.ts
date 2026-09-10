@@ -19,6 +19,9 @@ const TABLES = [
   "artifacts",
   "authors",
   "card_overlays",
+  // Not in §3.2: added by decision 0023. The corpus index, held here, because
+  // the one this searched answers a bot challenge to a datacenter address.
+  "catalogue_works",
   "events",
   "passages",
   "questions",
