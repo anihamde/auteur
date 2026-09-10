@@ -253,6 +253,80 @@ describe("a stage that throws", () => {
     });
   });
 
+  test("a failure and a completion are different answers", async () => {
+    // Both were `{claimed: true, enqueued: []}` — a stage that finished with no
+    // successor and one that failed produced the same body, so the response
+    // said nothing about the only thing it was asked.
+    const failing = await post(
+      { queueId: await queueOne(), sessionId, stageId: "outline" },
+      {
+        body: () => {
+          throw new AuteurError("provider_error", "The gateway refused.");
+        },
+      },
+    );
+    expect(await failing.json()).toMatchObject({ outcome: "error" });
+
+    const succeeding = await post({
+      queueId: await queueOne("style-fit"),
+      sessionId,
+      stageId: "style-fit",
+    });
+    expect(await succeeding.json()).toMatchObject({
+      enqueued: [],
+      outcome: "done",
+    });
+  });
+
+  test("a schema violation names the field, not just the shape", async () => {
+    // "returned JSON that is not the shape it declared" is every schema
+    // failure. Which field is the diagnosis, and it was in the thrown detail
+    // and nowhere a reader could reach.
+    const queueId = await queueOne();
+    const throwing: StageBody = () => {
+      throw new AuteurError("schema_violation", "Not the declared shape.", {
+        detail: {
+          issues: [
+            {
+              code: "too_small",
+              message: "Array must contain at least 8 element(s)",
+              path: ["exemplars"],
+            },
+          ],
+        },
+      });
+    };
+    await post({ queueId, sessionId, stageId: "outline" }, { body: throwing });
+
+    const events = await readSince(harness.db, sessionId, 0);
+    expect(
+      events.find((event) => event.event.type === "stage_error")?.event,
+    ).toMatchObject({
+      detail: "exemplars: Array must contain at least 8 element(s)",
+    });
+  });
+
+  test("a body that is not JSON is the caller's fault, not the server's", async () => {
+    // `JSON.parse` throws a `SyntaxError`, which is in no taxonomy, so it
+    // reached `app.onError` as an unexpected failure and a malformed request
+    // was answered `500 internal`.
+    const app = createApp({
+      apiToken: TOKEN,
+      db: harness.db,
+      internalStage: { runStageBody: noop, stageSecret: SECRET },
+    });
+    const raw = "{not json";
+    const response = await app.request(ROUTES.internalStage.path, {
+      body: raw,
+      headers: {
+        "content-type": "application/json",
+        [SIGNATURE_HEADER]: signPayload(SECRET, raw),
+      },
+      method: "POST",
+    });
+    expect(response.status).toBe(400);
+  });
+
   test("the route answers 200, so only this log ever records the failure", async () => {
     // A failed stage is an outcome rather than a failed request, so
     // `app.onError` never sees it. Before this the failure was in no log at
