@@ -8,6 +8,7 @@ import {
 } from "bun:test";
 import { findCard } from "@auteur/card-store/cards";
 import { prosodyBlockSchema } from "@auteur/core/prosody";
+import { CLAIM_PATHS, EXEMPLARS } from "@auteur/core/style-card";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { newId } from "@auteur/ids/new-id";
 import {
@@ -189,59 +190,35 @@ describe("prosody-compute", () => {
   });
 });
 
-describe("style-extract", () => {
+describe("the card is read in two passes", () => {
   /**
    * Every path the card schema requires, because it requires all of them.
    *
    * A partial extraction is not a smaller card — `buildCard` refuses it — and a
    * fixture with two fields would have been testing the refusal rather than
-   * the build. The list is spelled out rather than generated so that a card
-   * gaining a required field fails here, which is where it should.
+   * the build. Taken from `CLAIM_PATHS` so a card gaining a required field
+   * fails here, which is where it should.
    */
-  const SINGULAR = [
-    "dialogue.dialectRendering",
-    "dialogue.speechToNarrationBalance",
-    "dialogue.tagConventions",
-    "diction.concreteness",
-    "diction.register",
-    "rhythm.repetitionHabits",
-    "structure.sceneVsSummary",
-    "voice.freeIndirect",
-    "voice.narratorDistance",
-    "voice.pov",
-    "voice.reliability",
-    "voice.tense",
-  ];
-  const PLURAL = [
-    "antiPatterns",
-    "diction.avoidedRegisters",
-    "diction.signatureLexicon",
-    "imagery.motifs",
-    "imagery.preoccupations",
-    "imagery.recurringImages",
-    "rhythm.devices",
-    "structure.closingMoves",
-    "structure.openingMoves",
-    "structure.typicalShapes",
-  ];
+  const someFields = (passageId: string) => ({
+    fields: CLAIM_PATHS.map((claim) => ({
+      // A corpus claim carries no citation and is written anyway; a passage
+      // claim without one is dropped and the card is short of it (0030).
+      citationPassageId: claim.evidence === "corpus" ? null : passageId,
+      path: claim.path,
+      value:
+        claim.kind === "list"
+          ? ["as measured"]
+          : claim.path === "voice.pov"
+            ? "third person limited"
+            : "as measured",
+    })),
+  });
 
-  const anExtraction = (passageId: string) => ({
-    exemplars: Array.from({ length: 8 }, (_, index) => ({
+  const someExemplars = (passageId: string) => ({
+    exemplars: Array.from({ length: EXEMPLARS.min }, (_, index) => ({
       demonstrates: `a habit, number ${index.toString()}`,
       passageId,
     })),
-    fields: [
-      ...SINGULAR.map((path) => ({
-        citationPassageId: passageId,
-        path,
-        value: path === "voice.pov" ? "third person limited" : "as measured",
-      })),
-      ...PLURAL.map((path) => ({
-        citationPassageId: passageId,
-        path,
-        value: ["as measured"],
-      })),
-    ],
   });
 
   const seedPassage = async (): Promise<string> => {
@@ -254,13 +231,21 @@ describe("style-extract", () => {
     return id;
   };
 
+  /** Both passes, in order, with the first's output stored as the queue would. */
+  const bothPasses = async (passageId: string): Promise<void> => {
+    const block = prosodyBlockSchema.parse(await run("prosody-compute", []));
+    await recordStageKey(harness.db, sessionId, "prosody-compute", "k", block);
+    const fields = await run("style-fields", [
+      respondingWith(someFields(passageId)),
+    ]);
+    await recordStageKey(harness.db, sessionId, "style-fields", "k", fields);
+    await run("style-extract", [respondingWith(someExemplars(passageId))]);
+  };
+
   test("it builds a card, binds the session to it, and cites the passage", async () => {
     await seedCorpus();
     const passageId = await seedPassage();
-    const block = prosodyBlockSchema.parse(await run("prosody-compute", []));
-    await recordStageKey(harness.db, sessionId, "prosody-compute", "k", block);
-
-    await run("style-extract", [respondingWith(anExtraction(passageId))]);
+    await bothPasses(passageId);
 
     const session = await requireSession(harness.db, sessionId);
     expect(session.cardId).not.toBeNull();
@@ -268,15 +253,31 @@ describe("style-extract", () => {
     expect(stored?.card.voice.pov.value).toBe("third person limited");
     // Invariant 2: every derived claim carries the passage it was read from.
     expect(stored?.card.voice.pov.citation?.passageId).toBe(passageId);
+    // And a corpus claim carries none, which is the other half of 0030.
+    expect(stored?.card.antiPatterns.citation).toBeUndefined();
+    expect(stored?.card.antiPatterns.origin).toBe("measured");
   });
 
-  test("without a measured corpus it refuses rather than extracting from nothing", async () => {
+  test("the second pass refuses when the first has not run", async () => {
+    // The stages are joined by the queue, not by a call, so `style-extract`
+    // finding no readings is an ordinary state and must name it rather than
+    // extract from nothing.
+    await seedCorpus();
+    await seedPassage();
+    const block = prosodyBlockSchema.parse(await run("prosody-compute", []));
+    await recordStageKey(harness.db, sessionId, "prosody-compute", "k", block);
     await expect(
-      run("style-extract", [respondingWith({ exemplars: [], fields: [] })]),
+      run("style-extract", [respondingWith({ exemplars: [] })]),
+    ).rejects.toThrow(/readings have not been taken/i);
+  });
+
+  test("without a measured corpus the first pass refuses", async () => {
+    await expect(
+      run("style-fields", [respondingWith({ fields: [] })]),
     ).rejects.toThrow(/not been measured/i);
   });
 
-  test("an extraction that is not the declared shape is a schema_violation", async () => {
+  test("readings that are not the declared shape are a schema_violation", async () => {
     // Invariant 4: a model's output is parsed, never trusted.
     await seedCorpus();
     await seedPassage();
@@ -284,7 +285,7 @@ describe("style-extract", () => {
     await recordStageKey(harness.db, sessionId, "prosody-compute", "k", block);
 
     await expect(
-      run("style-extract", [respondingWith({ fields: "not an array" })]),
+      run("style-fields", [respondingWith({ fields: "not an array" })]),
     ).rejects.toMatchObject({ code: "schema_violation" });
   });
 
@@ -295,7 +296,7 @@ describe("style-extract", () => {
     await recordStageKey(harness.db, sessionId, "prosody-compute", "k", block);
 
     await expect(
-      run("style-extract", [{ deltas: ["I'm afraid I can't do that."] }]),
+      run("style-fields", [{ deltas: ["I'm afraid I can't do that."] }]),
     ).rejects.toMatchObject({ code: "schema_violation" });
   });
 });

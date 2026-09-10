@@ -7,6 +7,7 @@ import { draft } from "./draft.ts";
 import { outline } from "./outline.ts";
 import { revise } from "./revise.ts";
 import { styleExtract } from "./style-extract.ts";
+import { styleFields } from "./style-fields.ts";
 import { summarizeBeat } from "./summarize-beat.ts";
 
 /**
@@ -64,7 +65,7 @@ const CASES = [
   },
   {
     build: () =>
-      styleExtract.build({
+      styleFields.build({
         authorName: "Jorge Luis Borges",
         passages: [
           { id: "p1", text: "The lamp turned.", workTitle: "Ficciones" },
@@ -75,13 +76,32 @@ const CASES = [
       cite: "never composed",
       // The split the card's own rules require: fifteen paths that must cite a
       // passage and seven no passage can evidence. One list forced one rule on
-      // both, and a model that followed it produced no card.
+      // both, and a model that followed it produced no card (decision 0030).
       "corpus-null": "take `citationPassageId: null`",
       "no-prosody": "Do not return any of",
       // Naming the card's fields is the difference between a card and no card:
       // asked in prose for "the qualitative half of a style card", the model
       // returned no fields at all.
       paths: "- `voice.pov` (line)",
+    },
+    name: "style-fields",
+  },
+  {
+    build: () =>
+      styleExtract.build({
+        authorName: "Jorge Luis Borges",
+        passages: [
+          { id: "p1", text: "The lamp turned.", workTitle: "Ficciones" },
+        ],
+        readings: [{ path: "voice.pov", value: "first, retrospective" }],
+      }),
+    clauses: {
+      // An exemplar is nothing but its citation.
+      cite: "never composed",
+      // Without the readings it asks for passages that are merely interesting,
+      // rather than ones demonstrating something the card claims.
+      readings: "### The readings",
+      spread: "Spread them across the works",
     },
     name: "style-extract",
   },

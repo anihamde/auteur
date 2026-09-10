@@ -5,6 +5,7 @@ import type {
   StyleCard,
   WorkRef,
 } from "@auteur/core/style-card";
+import { EXEMPLARS } from "@auteur/core/style-card";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import type { Evidence } from "@auteur/style-card/build";
 import { buildCard } from "@auteur/style-card/build";
@@ -38,7 +39,24 @@ export const extractedFieldSchema = z.object({
   value: z.union([z.string().min(1), z.array(z.string().min(1))]),
 });
 
-export const extractionSchema = z.object({
+/**
+ * The two halves, separately, because two stages produce them.
+ *
+ * One model call returning both needed more than the sixty seconds an
+ * invocation gets. `style-fields` returns the readings and `style-extract`
+ * returns the exemplars that demonstrate them, so each call is a fraction of
+ * the output the single one had to generate.
+ *
+ * `extractionSchema` is still the shape the card is assembled from — the halves
+ * are composed rather than replaced, so `cardFromExtraction` takes one object
+ * and neither stage has an opinion about how the other's output is stored.
+ */
+export const fieldsSchema = z.object({
+  fields: z.array(extractedFieldSchema).min(1),
+});
+export type ExtractedFields = z.infer<typeof fieldsSchema>;
+
+export const exemplarsSchema = z.object({
   exemplars: z
     .array(
       z.object({
@@ -46,9 +64,14 @@ export const extractionSchema = z.object({
         passageId: z.uuid(),
       }),
     )
-    .min(8)
-    .max(15),
-  fields: z.array(extractedFieldSchema).min(1),
+    .min(EXEMPLARS.min)
+    .max(EXEMPLARS.max),
+});
+export type ExtractedExemplars = z.infer<typeof exemplarsSchema>;
+
+export const extractionSchema = z.object({
+  ...exemplarsSchema.shape,
+  ...fieldsSchema.shape,
 });
 export type Extraction = z.infer<typeof extractionSchema>;
 

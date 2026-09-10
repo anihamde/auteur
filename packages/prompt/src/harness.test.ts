@@ -8,6 +8,7 @@ import { draft } from "./draft.ts";
 import { outline } from "./outline.ts";
 import { revise } from "./revise.ts";
 import { styleExtract } from "./style-extract.ts";
+import { styleFields } from "./style-fields.ts";
 import { summarizeBeat } from "./summarize-beat.ts";
 import { PROMPT_VERSIONS, type Prompt } from "./versions.ts";
 
@@ -26,6 +27,7 @@ const PROMPTS = [
   outline,
   revise,
   styleExtract,
+  styleFields,
   summarizeBeat,
 ] as const;
 

@@ -153,6 +153,7 @@ describe("one real extraction, end to end", () => {
       "key",
       "claude-sonnet-5",
       async () => ({
+        cost: [],
         exemplars: 9,
         fields: 22,
         ok: true,
@@ -169,6 +170,7 @@ describe("one real extraction, end to end", () => {
       "key",
       "claude-sonnet-5",
       async () => ({
+        cost: [],
         lines: ["fields: Too small: expected array to have >=1 items"],
         ok: false,
       }),
@@ -201,15 +203,20 @@ describe("a passing extraction still reports what it cost", () => {
     // The check that says "ok" while sitting at the invocation ceiling is the
     // one that lets a stage ship unable to run on a real corpus.
     return checkExtraction("key", "claude-sonnet-5", async () => ({
-      cost: { inputTokens: 4321, outputTokens: 2100, seconds: 58.4 },
+      cost: [
+        { outputTokens: 2100, seconds: 28.4, stageId: "style-fields" },
+        { outputTokens: 400, seconds: 11.2, stageId: "style-extract" },
+      ],
       exemplars: 9,
       fields: 22,
       ok: true,
     })).then((report) => {
       expect(report.ok).toBe(true);
-      expect(report.lines[1]).toContain("58.4s");
-      expect(report.lines[1]).toContain("2,100 out");
-      expect(report.lines[1]).toContain("60s invocation ceiling");
+      // Per pass, because each has its own invocation to fit inside. A total
+      // would hide a first pass at fifty-five seconds behind a second at five.
+      expect(report.lines[1]).toBe("style-fields: 28.4s, 2,100 out");
+      expect(report.lines[2]).toBe("style-extract: 11.2s, 400 out");
+      expect(report.lines[3]).toContain("60s invocation ceiling");
     });
   });
 });

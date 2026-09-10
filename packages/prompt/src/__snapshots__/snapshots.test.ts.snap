@@ -52,7 +52,7 @@ can check against the list above.
   opens: The man arrived from the south one night."
 `;
 
-exports[`rendered prompts style-extract 1`] = `
+exports[`rendered prompts style-fields 1`] = `
 "You are describing the prose style of Jorge Luis Borges from evidence.
 
 ## What you are given
@@ -71,11 +71,10 @@ from the selected works. Each passage carries an id.
 
 ## What to return
 
-Two things: \`fields\`, one entry for **every** path listed below, and
-\`exemplars\`, between 8 and 15 passages worth quoting.
+\`fields\`: one entry for **every** path listed below, and nothing else.
 
-A card does not build unless every path below arrives. Returning fewer
-is not a shorter card, it is no card at all.
+A card does not build unless every path arrives. Returning fewer is not
+a shorter card, it is no card at all.
 
 ### The paths, and the shape of each value
 
@@ -121,13 +120,6 @@ A good value is specific enough to be wrong. "Formal register" is not a
 reading; "a register that reaches for the Latinate abstraction where a
 concrete noun would do" is one, and a passage can be pointed at.
 
-### Exemplars
-
-Between 8 and 15 of them, each naming a passage id from the list
-below and saying in one line what that passage demonstrates. The id is
-copied from a heading, never composed: an exemplar is nothing but its
-citation, so one naming a passage nobody offered is dropped entirely.
-
 ## Cite what you can point at, and nothing else
 
 A citation is a passage id copied from a heading below, never composed.
@@ -143,6 +135,47 @@ The measured block above is given as evidence for your reading. It is
 already on the card, computed from the full texts. Do not return any of
 its numbers as a claim, and do not describe the author as writing "long
 sentences" when the number is there — say what the length is doing.
+
+## Passages
+
+### b1c9f2e0-0000-7000-8000-abcdefabcdef — Ficciones
+
+The lamp turned. The sea did not."
+`;
+
+exports[`rendered prompts style-extract 1`] = `
+"You are choosing the passages that best demonstrate Jorge Luis Borges's style.
+
+## What you are given
+
+The readings already taken from this corpus, and the passages they were
+taken from. Each passage carries an id.
+
+### The readings
+
+- \`voice.pov\`: first, retrospective
+- \`antiPatterns\`: no epigraphs
+
+## What to return
+
+\`exemplars\`: between 8 and 15 of them, each naming a passage
+id from the list below and saying in one line what that passage
+demonstrates.
+
+**Say what it demonstrates, not what it is about.** A passage summarised
+is a passage nobody needs the card to find; a passage whose sentence says
+"the semicolon holds two clauses that would otherwise be a comma splice"
+is one a reader can check against the reading it supports.
+
+Spread them across the works rather than taking several from one: the
+card is a claim about a career, and eight exemplars from one novel is a
+claim about that novel.
+
+## The id is copied, never composed
+
+An exemplar is nothing but its citation, so one naming a passage nobody
+offered is dropped entirely — the reader follows it to nothing, and a
+reader who follows one dead citation stops trusting the ones that work.
 
 ## Passages
 

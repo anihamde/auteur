@@ -1069,7 +1069,8 @@ re-dispatches, bounded by the loop rather than by the stage.
 corpus-select    research  cheap      Which works, and why each
 work-fetch       fetch     —          Fetch and clean the selected works
 prosody-compute  measure   —          The deterministic block, on full text
-style-extract    research  balanced   The qualitative half, cited to passages
+style-fields     research  balanced   The twenty-two readings, cited to passages
+style-extract    research  balanced   The exemplars, and the card
 clarify          question  balanced   Questions with suggestions; re-enters (§6.5)
 outline          outline   balanced   Beat sheet
 draft            draft     strong     The prose (§6.6)
@@ -1077,6 +1078,13 @@ critique         critique  cheap      Style-fit findings vs card and prosody
 revise           revise    strong     Targeted revision
 style-fit        measure   —          The deterministic report (§9)
 ```
+
+**Eleven, where this section names ten.** `style-fields` and `style-extract`
+were one stage returning both halves, and that call needed more than the sixty
+seconds one invocation gets — it timed out on the deployment every time.
+Splitting it is what `build-vercel.ts` prescribes for a stage that outgrows an
+invocation, and decision 0031 has the measurements. It is a platform
+consequence, not a change to what the pipeline does.
 
 Three stages more than `PRD.md` §7's table, all of them deterministic, all of
 them things the PRD describes without giving a stage: fetching and cleaning,

@@ -39,3 +39,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0028 | [The catalogue comes from the gateway](decisions/0028-the-catalogue-comes-from-the-gateway.md) | accepted | 2026-09-10 |
 | 0029 | [A stage invocation outlives the response that asked for it](decisions/0029-a-stage-invocation-outlives-the-response.md) | accepted | 2026-09-10 |
 | 0030 | [A claim about absence cannot cite a passage](decisions/0030-a-claim-about-absence-cannot-cite-a-passage.md) | accepted | 2026-09-10 |
+| 0031 | [The card is read in two passes](decisions/0031-the-card-is-read-in-two-passes.md) | accepted | 2026-09-10 |

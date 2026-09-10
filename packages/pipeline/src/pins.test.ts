@@ -82,19 +82,19 @@ describe("what cannot be pinned", () => {
 });
 
 describe("use one model for every stage", () => {
-  test("a strict model pins all seven", () => {
+  test("a strict model pins all eight", () => {
     // The control the design does not have, and the commoner case: someone
     // with one model they trust who wants the whole pipeline on it.
     const result = pinAll(TYPED, stages, CATALOG);
-    expect(result.accepted).toHaveLength(7);
+    expect(result.accepted).toHaveLength(8);
     expect(result.refused).toEqual([]);
   });
 
-  test("a non-strict model is refused for the six typed stages, with reasons", () => {
+  test("a non-strict model is refused for the seven typed stages, with reasons", () => {
     // Rather than silently applied to draft alone.
     const result = pinAll(UNTYPED, stages, CATALOG);
     expect(result.accepted.map((pin) => pin.stageId)).toEqual(["draft"]);
-    expect(result.refused).toHaveLength(6);
+    expect(result.refused).toHaveLength(7);
     for (const refusal of result.refused) {
       expect(refusal.reason).toContain("strict json_schema");
     }

@@ -47,6 +47,13 @@ export const revise: Prompt<ReviseInput> =
 export const styleExtract: Prompt<StyleExtractInput> =
 ```
 
+## `@auteur/prompt/style-fields`
+
+```ts
+export const passageBlock = (passage: CandidatePassage): string =>
+export const styleFields: Prompt<StyleFieldsInput> =
+```
+
 ## `@auteur/prompt/summarize-beat`
 
 ```ts

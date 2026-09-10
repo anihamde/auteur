@@ -124,7 +124,9 @@ describe("every stage is asked, and none is asked twice", () => {
       "corpus-select",
       "critique",
       "outline",
+      // Two, because the card is read in two passes.
       "style-extract",
+      "style-fields",
     ]);
   });
 });

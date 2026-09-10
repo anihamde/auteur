@@ -3,9 +3,12 @@ import { DEFAULT_PIPELINE, STAGE_IDS } from "./stages.ts";
 import { TIER_CANDIDATES } from "./tiers.ts";
 
 describe("the pipeline is data, so an alternative is a config file", () => {
-  test("ten stages, and the ids are unique", () => {
-    expect(STAGE_IDS).toHaveLength(10);
-    expect(new Set(STAGE_IDS).size).toBe(10);
+  test("eleven stages, and the ids are unique", () => {
+    // Ten until the card was read in two passes: one call taking the
+    // twenty-two readings *and* the exemplars needed more than the sixty
+    // seconds an invocation gets (decision 0031).
+    expect(STAGE_IDS).toHaveLength(11);
+    expect(new Set(STAGE_IDS).size).toBe(11);
   });
 
   test("every stage reads only stages that come before it in the list", () => {

@@ -7,6 +7,7 @@ const base: BuildKeyInput = {
   cleanerVersion: "clean-a1",
   extractionModelId: "claude-haiku-4-5",
   extractionPromptVersion: "style-extract@1",
+  fieldsPromptVersion: "style-fields@1",
   prosodyVersion: "pros-b2",
   segmenterVersion: "seg-c3",
   workIds: ["gutenberg:2", "gutenberg:1"],
@@ -19,6 +20,10 @@ const CHANGES: readonly [string, Partial<BuildKeyInput>][] = [
   ["the segmenter", { segmenterVersion: "seg-c4" }],
   ["the prosody version", { prosodyVersion: "pros-b3" }],
   ["the extraction prompt", { extractionPromptVersion: "style-extract@2" }],
+  // The card is read by two prompts and a bump to either produces a different
+  // card. One version in the key would serve a card whose readings came from a
+  // prompt nobody is using any more.
+  ["the fields prompt", { fieldsPromptVersion: "style-fields@2" }],
   ["the extraction model", { extractionModelId: "gpt-5" }],
 ];
 
@@ -37,16 +42,17 @@ describe("identical inputs produce an identical key", () => {
   });
 });
 
-describe("changing any one of the seven components changes the key", () => {
+describe("changing any one of the eight components changes the key", () => {
   test.each(CHANGES)("%s", (_name, change) => {
     expect(buildKey({ ...base, ...change })).not.toBe(buildKey(base));
   });
 
-  test("all seven are in the key, and nothing else is", () => {
+  test("all eight are in the key, and nothing else is", () => {
     // A component nobody could change is a component that is not in the key,
     // and one nobody can name is a component whose absence is undetectable.
-    expect(buildKeyComponents(base)).toHaveLength(7);
-    expect(CHANGES).toHaveLength(7);
+    // Eight since the card is read by two prompts rather than one.
+    expect(buildKeyComponents(base)).toHaveLength(8);
+    expect(CHANGES).toHaveLength(8);
   });
 });
 

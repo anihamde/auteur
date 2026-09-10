@@ -11,6 +11,12 @@ export const RESEARCH_STAGES = [
   { id: "corpus-select", tier: "balanced" as const },
   { id: "work-fetch", tier: undefined },
   { id: "prosody-compute", tier: undefined },
+  // Two rows for what a reader thinks of as one step, and the reason is the
+  // platform rather than the design: one call taking the readings *and* the
+  // exemplars needed more than the sixty seconds an invocation gets. The rail
+  // shows what actually runs, because a row that stood for two stages would
+  // sit at "running" through a stage that had already failed.
+  { id: "style-fields", tier: "balanced" as const },
   { id: "style-extract", tier: "balanced" as const },
 ];
 
