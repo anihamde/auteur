@@ -33,13 +33,37 @@ type Row = {
 };
 
 /**
+ * The platform's own ceiling on one invocation, in seconds.
+ *
+ * Stated here because the threshold below is derived from it and the two
+ * drifting apart is the defect this constant exists to prevent. The generated
+ * function configuration carries the same number, and `build-vercel.test.ts`
+ * holds them together — this package cannot import from `scripts/`, and a
+ * second literal nobody checks is how 300 outlived a 60-second limit.
+ */
+export const INVOCATION_CEILING_SECONDS = 60;
+
+/**
  * How long a claim may sit before the sweep treats it as lost.
  *
- * Above the longest a stage is allowed to take, so a slow `draft` is never
- * swept out from under itself; the claim's own conditional update is what makes
- * the mistake survivable if it were.
+ * **Nothing can hold a claim longer than the platform lets an invocation run.**
+ * A stage that needs more than `INVOCATION_CEILING_SECONDS` is not slow, it is
+ * dead: the instance was killed mid-stage and there is nobody left to finish or
+ * to fail the row. So a claim older than that is lost by definition, and the
+ * margin exists only for the seconds between the claim's write and the
+ * invocation's clock starting.
+ *
+ * It was 300, on the reasoning that the threshold should sit "above the longest
+ * a stage is allowed to take". That is the right rule and the wrong number: the
+ * longest a stage is allowed to take is 60 seconds, not 300, and the gap was
+ * four minutes in which a killed stage was neither running nor recoverable and
+ * the screen showed a spinner with nothing behind it.
+ *
+ * The claim's own conditional update is what makes the threshold safe to lower:
+ * a stage that does come back finds its row re-queued and its `completeStage`
+ * matches nothing, rather than overwriting a newer attempt.
  */
-export const STALE_AFTER_SECONDS = 300;
+export const STALE_AFTER_SECONDS = INVOCATION_CEILING_SECONDS + 30;
 
 /** Claims older than the threshold, and rows still queued and never claimed. */
 export const findStaleClaims = async (
