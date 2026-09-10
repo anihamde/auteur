@@ -22,7 +22,6 @@ export const MAX_CONCURRENCY = 4
 export const RETRY_DELAYS_MS = [2000, 4000] as const
 export const fetchWork = async (
 export const fetchWorks = async (
-export const plainTextUrl = (book: GutendexBook): string | undefined =>
 ```
 
 ## `@auteur/corpus-gutenberg/gutendex`

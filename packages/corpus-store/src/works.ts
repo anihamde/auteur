@@ -1,4 +1,19 @@
 import type { Db } from "@auteur/db/db";
+
+/**
+ * A book the catalogue knows about, before anything has been downloaded.
+ *
+ * The shape `corpus-select` offers a model and `work-fetch` downloads. It
+ * carries its own `sourceUrl` because the catalogue derives one per book and
+ * the fetcher no longer has a formats map to choose from.
+ */
+export type CorpusCandidate = {
+  readonly id: string;
+  readonly title: string;
+  readonly sourceUrl: string;
+  readonly translator: string | null;
+};
+
 import { columns, maybeRow } from "@auteur/db/sql";
 
 /**
@@ -138,4 +153,42 @@ export const putWork = async (
     throw new Error("putWork returned no row");
   }
   return toWork(row);
+};
+
+/**
+ * The works the catalogue credits to an author.
+ *
+ * This is the candidate list `corpus-select` chooses from. It used to come
+ * from a search against `gutendex.com`, which answers a bot challenge to a
+ * datacenter address (decision 0023) — so it comes from here, where
+ * `bun run catalogue:import` put it.
+ *
+ * Ordered by title so the list a model is shown is stable across runs: the
+ * same author on the same catalogue produces the same prompt, which is what
+ * makes a re-run comparable to the run before it.
+ */
+export const catalogueWorksFor = async (
+  db: Db,
+  authorId: string,
+): Promise<CorpusCandidate[]> => {
+  const result = await db.query<{
+    id: string;
+    title: string;
+    source_url: string;
+  }>(
+    `SELECT id, title, source_url
+       FROM catalogue_works
+      WHERE author_id = $1
+      ORDER BY title`,
+    [authorId],
+  );
+  return result.rows.map((row) => ({
+    id: row["id"],
+    sourceUrl: row["source_url"],
+    title: row["title"],
+    // The catalogue credits people to a book without saying which is the
+    // translator, so this is unknown here rather than guessed. `work-fetch`
+    // stores what it is given.
+    translator: null,
+  }));
 };

@@ -12,6 +12,7 @@ import {
   putPassages,
 } from "../../src/passages.ts";
 import {
+  catalogueWorksFor,
   findWorkBySource,
   listWorksByAuthor,
   putWork,
@@ -144,6 +145,38 @@ describe("an author's measurement is this system's, not the provider's", () => {
     expect((await findAuthor(harness.db, "gutenberg:moved"))?.deathYear).toBe(
       1985,
     );
+  });
+});
+
+describe("the catalogue is the candidate list corpus-select reads", () => {
+  test("only the asked-for author's rows come back, in title order", async () => {
+    // The catalogue holds every author at once, so an unscoped or unordered
+    // read would offer `corpus-select` another writer's books and make the
+    // twelve it chooses depend on insertion order.
+    const borges = `gutenberg:borges-${newId()}`;
+    const other = `gutenberg:other-${newId()}`;
+    await upsertAuthor(harness.db, anAuthor(borges));
+    await upsertAuthor(harness.db, anAuthor(other));
+    await harness.db.query(
+      `INSERT INTO catalogue_works (id, author_id, title, language, source_url)
+       VALUES ($1, $2, 'The Steppe', 'en', 'https://example.invalid/b2.txt'),
+              ($3, $2, 'A Personal Anthology', 'en', 'https://example.invalid/b1.txt'),
+              ($4, $5, 'Somebody Else', 'en', 'https://example.invalid/o1.txt')`,
+      [`${borges}:2`, borges, `${borges}:1`, `${other}:1`, other],
+    );
+
+    const candidates = await catalogueWorksFor(harness.db, borges);
+    expect(candidates.map((candidate) => candidate.title)).toEqual([
+      "A Personal Anthology",
+      "The Steppe",
+    ]);
+    expect(candidates[0]?.sourceUrl).toBe("https://example.invalid/b1.txt");
+  });
+
+  test("an author the import never saw is an empty list, not an error", async () => {
+    const unknown = `gutenberg:unknown-${newId()}`;
+    await upsertAuthor(harness.db, anAuthor(unknown));
+    expect(await catalogueWorksFor(harness.db, unknown)).toEqual([]);
   });
 });
 
