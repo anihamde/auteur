@@ -64,6 +64,29 @@ describe("a direct handle holds a transaction across statements", () => {
   });
 });
 
+describe("a pool with nothing free says so, rather than waiting for ever", () => {
+  test("a borrower past the pool's size is refused, not hung", async () => {
+    // `pg` waits for ever by default, and for ever inside a serverless function
+    // means until the platform kills the invocation: the caller learns nothing
+    // and the log says only that the function timed out. It is reachable —
+    // the SSE route holds a connection for the life of a stream, so a shared
+    // pool of four is four streams away from starving every write behind it.
+    const db = createDb({
+      connectionTimeoutMs: 50,
+      endpoint: "direct",
+      max: 1,
+      url: harness.url,
+    });
+    const held = await db.connect();
+    try {
+      await expect(db.query(`SELECT 1`)).rejects.toThrow(/timeout|timed out/i);
+    } finally {
+      held.release();
+      await db.close();
+    }
+  });
+});
+
 describe("a pooled handle refuses what it cannot honour", () => {
   test("transaction() throws instead of running BEGIN on a borrowed backend", async () => {
     // A pooled connection in transaction mode hands each statement to whichever

@@ -77,7 +77,7 @@ export type AppDeps = {
    * it against the pooled handle, where `LISTEN` is accepted and never
    * delivers.
    */
-  readonly events?: EventRoutesDeps;
+  readonly events?: Omit<EventRoutesDeps, "db">;
   /**
    * The handle for writes that must hold a transaction.
    *
@@ -219,7 +219,9 @@ export const createApp = (deps: AppDeps): Hono => {
   app.route("/", answerRoutes({ db: deps.db }));
   app.route("/", cancelRoutes({ db: deps.db }));
   if (deps.events !== undefined) {
-    app.route("/", eventRoutes(deps.events));
+    // The pooled handle for the reads; `events.directDb` is held, never
+    // borrowed from. See `EventRoutesDeps`.
+    app.route("/", eventRoutes({ ...deps.events, db: deps.db }));
   }
   app.route("/", exportRoutes({ db: deps.db }));
   app.route("/", healthRoutes());

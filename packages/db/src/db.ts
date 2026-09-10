@@ -18,7 +18,20 @@ export type DbConfig = {
   readonly endpoint: Endpoint;
   /** Overridden only by `@auteur/test-db`. */
   readonly max?: number;
+  /**
+   * How long a caller waits for a free connection before the pool refuses.
+   *
+   * `pg` waits for ever by default, and for ever inside a serverless function
+   * means until the platform kills the invocation: the caller learns nothing,
+   * the row it was writing stays whatever it was, and the log says only that
+   * the function timed out. A pool with no free connection is a fact worth
+   * saying out loud.
+   */
+  readonly connectionTimeoutMs?: number;
 };
+
+/** Long enough to outlast a burst, short enough to be a message and not a hang. */
+export const CONNECTION_TIMEOUT_MS = 5_000;
 
 export type Db = {
   readonly endpoint: Endpoint;
@@ -52,6 +65,8 @@ const refusePooled = (what: string): never => {
 export const createDb = (config: DbConfig): Db => {
   const pool = new pg.Pool({
     connectionString: config.url,
+    connectionTimeoutMillis:
+      config.connectionTimeoutMs ?? CONNECTION_TIMEOUT_MS,
     max: config.max ?? (config.endpoint === "direct" ? 4 : 1),
   });
 

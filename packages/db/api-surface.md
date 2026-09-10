@@ -8,6 +8,7 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/db/db`
 
 ```ts
+export const CONNECTION_TIMEOUT_MS = 5_000
 export const createDb = (config: DbConfig): Db =>
 ```
 
