@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import { CLAIM_PATHS } from "@auteur/core/style-card";
 import type { Evidence } from "./build.ts";
 import { buildCard, targetFromProsody } from "./build.ts";
 import { buildInput, EVIDENCE, PROSODY } from "./fixtures.ts";
+
+/** How many of the fixture's fields are claims coverage counts. */
+const CITABLE = EVIDENCE.filter(
+  (field) =>
+    CLAIM_PATHS.find((claim) => claim.path === field.path)?.evidence !==
+    "corpus",
+).length;
 
 const without = (path: string): Evidence[] =>
   EVIDENCE.filter((field) => field.path !== path);
@@ -41,22 +49,55 @@ describe("the builder takes evidence, not a provider", () => {
   });
 });
 
+describe("a claim about the corpus carries no citation and is written anyway", () => {
+  test("an absence is on the card, as measured, uncited", () => {
+    // No passage exhibits what an author avoids. Requiring a citation there
+    // asks for a fabrication, which is the one thing invariant 2 exists to
+    // prevent — and a model that answered honestly built no card at all.
+    const card = buildCard(
+      buildInput({
+        evidence: [
+          ...without("antiPatterns"),
+          { path: "antiPatterns", value: ["no epigraphs"] },
+        ],
+      }),
+    );
+    expect(card.antiPatterns.value).toEqual(["no epigraphs"]);
+    expect(card.antiPatterns.origin).toBe("measured");
+    expect(card.antiPatterns.citation).toBeUndefined();
+  });
+
+  test("it is in neither half of the coverage ratio", () => {
+    // In the denominator it would cap every card below 1.00 for doing nothing
+    // wrong; in the numerator it would count evidence that does not exist.
+    const card = buildCard(buildInput());
+    expect(card.cardStrength.derivedFields).toBe(CITABLE);
+    expect(card.confidence).toBe(1);
+  });
+
+  test("a passage claim still needs its passage", () => {
+    // The rule narrowed, it did not go away: `voice.pov` is visible in any
+    // passage and an uncited one is still dropped.
+    expect(() =>
+      buildCard(buildInput({ evidence: uncited("voice.pov") })),
+    ).toThrow("not a valid card");
+  });
+});
+
 describe("an uncited field is counted, not stored and not hidden", () => {
   test("an optional-in-practice field the model could not cite is left off", () => {
-    // Invariant 2 is absolute: claimSchema refuses a derived claim with no
-    // citation, so there is no shape the assembler could produce that carries
-    // one. Decision 0004 works through why counting it beats storing it.
+    // Decision 0004 works through why counting it beats storing it.
     const card = buildCard(
       buildInput({
         evidence: [
           ...EVIDENCE,
-          { path: "imagery.motifs", value: ["an uncited reading"] },
+          { path: "voice.narratorDistance", value: "an uncited reading" },
         ],
       }),
     );
     // The cited version of the same path is what landed.
-    expect(card.imagery.motifs.value).toEqual(["mirrors"]);
-    expect(card.imagery.motifs.citation).toBeDefined();
+    expect(card.voice.narratorDistance.citation).toBeDefined();
+    expect(card.voice.narratorDistance.value).not.toBe("an uncited reading");
   });
 
   test("confidence counts what was attempted, not what landed", () => {
@@ -74,12 +115,9 @@ describe("an uncited field is counted, not stored and not hidden", () => {
         ],
       }),
     );
-    expect(card.cardStrength.derivedFields).toBe(EVIDENCE.length + 2);
-    expect(card.cardStrength.citedDerivedFields).toBe(EVIDENCE.length);
-    expect(card.confidence).toBeCloseTo(
-      EVIDENCE.length / (EVIDENCE.length + 2),
-      10,
-    );
+    expect(card.cardStrength.derivedFields).toBe(CITABLE + 2);
+    expect(card.cardStrength.citedDerivedFields).toBe(CITABLE);
+    expect(card.confidence).toBeCloseTo(CITABLE / (CITABLE + 2), 10);
     expect(card.confidence).toBeLessThan(1);
   });
 
@@ -89,16 +127,8 @@ describe("an uncited field is counted, not stored and not hidden", () => {
         evidence: [...EVIDENCE, EVIDENCE[0] as Evidence],
       }),
     );
-    expect(card.cardStrength.derivedFields).toBe(EVIDENCE.length);
+    expect(card.cardStrength.derivedFields).toBe(CITABLE);
     expect(card.confidence).toBe(1);
-  });
-
-  test("a required field the model could not cite does not build a card", () => {
-    // The correct failure for a card that cannot keep its own promise. The
-    // pipeline reports it; it does not ship a card with a hole.
-    expect(() =>
-      buildCard(buildInput({ evidence: uncited("voice.pov") })),
-    ).toThrow("not a valid card");
   });
 });
 
@@ -143,5 +173,46 @@ describe("cardStrength is four facts, not a blend", () => {
     );
     expect(card.cardStrength.workCount).toBe(2);
     expect(card.cardStrength.measuredWords).toBe(214_000);
+  });
+});
+
+describe("the split is a judgement, and the card holds it", () => {
+  test("every corpus claim reaches the card uncited, every passage claim cited", () => {
+    // The classification is seven paths assigned by reading what each claim
+    // asserts. This is what stops one drifting out of `CLAIM_PATHS` without
+    // the assembler noticing — a path moved here and not there is either a
+    // citation demanded for an absence, or one silently no longer required.
+    const card = buildCard(buildInput()) as unknown as Record<string, unknown>;
+    for (const claim of CLAIM_PATHS) {
+      const value = claim.path
+        .split(".")
+        .reduce<unknown>(
+          (cursor, part) => (cursor as Record<string, unknown>)[part],
+          card,
+        ) as { origin: string; citation?: unknown };
+      expect(value).toBeDefined();
+      if (claim.evidence === "corpus") {
+        expect([claim.path, value.origin]).toEqual([claim.path, "measured"]);
+        expect([claim.path, value.citation]).toEqual([claim.path, undefined]);
+      } else {
+        expect([claim.path, value.origin]).toEqual([claim.path, "derived"]);
+        expect(value.citation).toBeDefined();
+      }
+    }
+  });
+
+  test("a citation offered for a corpus claim is not written", () => {
+    // `origin: measured` says the reading came from the corpus and a passage
+    // citation says it came from one passage. Both cannot be true, and the
+    // citation is the half that is wrong — one passage cannot establish an
+    // absence. The fixture offers one, which is how this stays honest.
+    const card = buildCard(buildInput());
+    expect(card.antiPatterns.citation).toBeUndefined();
+    expect(card.antiPatterns.origin).toBe("measured");
+  });
+
+  test("both kinds exist, so neither branch is dead", () => {
+    const kinds = new Set(CLAIM_PATHS.map((claim) => claim.evidence));
+    expect([...kinds].sort()).toEqual(["corpus", "passage"]);
   });
 });

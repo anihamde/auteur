@@ -81,31 +81,41 @@ is not a shorter card, it is no card at all.
 
 \`path\` is one of these strings exactly. A path not on this list is
 discarded, and a path spelled differently is a path not on this list.
+A \`line\` takes one string. A \`list\` takes an array of strings.
 
-- \`antiPatterns\` (list)
+**These are read from a passage, and each one must cite it.** Pick the
+passage the reading came from and give its id. Every one of them is
+visible in a passage, so there is always one to point at.
+
 - \`dialogue.dialectRendering\` (line)
 - \`dialogue.speechToNarrationBalance\` (line)
 - \`dialogue.tagConventions\` (line)
-- \`diction.avoidedRegisters\` (list)
 - \`diction.concreteness\` (line)
 - \`diction.register\` (line)
-- \`diction.signatureLexicon\` (list)
-- \`imagery.motifs\` (list)
-- \`imagery.preoccupations\` (list)
-- \`imagery.recurringImages\` (list)
 - \`rhythm.devices\` (list)
 - \`rhythm.repetitionHabits\` (line)
 - \`structure.closingMoves\` (list)
 - \`structure.openingMoves\` (list)
 - \`structure.sceneVsSummary\` (line)
-- \`structure.typicalShapes\` (list)
 - \`voice.freeIndirect\` (line)
 - \`voice.narratorDistance\` (line)
 - \`voice.pov\` (line)
 - \`voice.reliability\` (line)
 - \`voice.tense\` (line)
 
-A \`line\` takes one string. A \`list\` takes an array of strings.
+**These are read from the corpus, and take \`citationPassageId: null\`.**
+They are absences and recurrences: no single passage shows what an
+author avoids, and no single passage establishes that an image recurs.
+Citing one would point at a passage that does not contain the thing
+being claimed. Return the reading, and return it with null.
+
+- \`antiPatterns\` (list)
+- \`diction.avoidedRegisters\` (list)
+- \`diction.signatureLexicon\` (list)
+- \`imagery.motifs\` (list)
+- \`imagery.preoccupations\` (list)
+- \`imagery.recurringImages\` (list)
+- \`structure.typicalShapes\` (list)
 
 A good value is specific enough to be wrong. "Formal register" is not a
 reading; "a register that reaches for the Latinate abstraction where a
@@ -120,12 +130,12 @@ citation, so one naming a passage nobody offered is dropped entirely.
 
 ## Cite what you can point at, and nothing else
 
-Every field you return is either backed by a passage id from the list
-below, or returned with \`citationPassageId: null\`. A field you cannot
-point at a passage for is returned with null, never with an invented id.
-An uncited claim is honest and useful; a claim citing a passage that does
-not support it is worse than no claim, because a reader who follows the
-citation stops trusting the ones that are right.
+A citation is a passage id copied from a heading below, never composed.
+A claim citing a passage that does not support it is worse than no claim,
+because a reader who follows the citation stops trusting the ones that
+are right — so where the reading is genuinely of the corpus rather than
+of a passage, null is the honest answer and the list above says which
+those are.
 
 ## Do not restate the prosody
 

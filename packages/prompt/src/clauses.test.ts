@@ -72,7 +72,11 @@ const CASES = [
         prosody: PROSODY,
       }),
     clauses: {
-      cite: "never with an invented id",
+      cite: "never composed",
+      // The split the card's own rules require: fifteen paths that must cite a
+      // passage and seven no passage can evidence. One list forced one rule on
+      // both, and a model that followed it produced no card.
+      "corpus-null": "take `citationPassageId: null`",
       "no-prosody": "Do not return any of",
       // Naming the card's fields is the difference between a card and no card:
       // asked in prose for "the qualitative half of a style card", the model

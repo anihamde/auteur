@@ -29,7 +29,7 @@ export const PROMPT_VERSIONS = {
   draft: "draft@1",
   outline: "outline@1",
   revise: "revise@1",
-  "style-extract": "style-extract@2",
+  "style-extract": "style-extract@3",
   "summarize-beat": "summarize-beat@1",
 } as const;
 

@@ -6,7 +6,7 @@ import type {
   StyleCard,
   WorkRef,
 } from "@auteur/core/style-card";
-import { styleCardSchema } from "@auteur/core/style-card";
+import { CLAIM_PATHS, styleCardSchema } from "@auteur/core/style-card";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { newId } from "@auteur/ids/new-id";
 import { cardStrengthOf, confidenceOf } from "./strength.ts";
@@ -86,6 +86,13 @@ export const targetFromProsody = (prosody: ProsodyBlock): ProsodyTarget => ({
   sentenceLength: prosody.sentenceLength,
 });
 
+/** The paths no passage can evidence. See `CLAIM_PATHS`. */
+const CORPUS_CLAIMS = new Set(
+  CLAIM_PATHS.filter((claim) => claim.evidence === "corpus").map(
+    (claim) => claim.path,
+  ),
+);
+
 const setPath = (
   target: Record<string, unknown>,
   path: string,
@@ -131,11 +138,23 @@ export const buildCard = (input: BuildInput): StyleCard => {
     version: input.version,
   };
 
+  // A claim about the corpus — an absence, or a recurrence — carries no
+  // citation and is written anyway, as `measured`: it was read from the corpus
+  // as a whole and no passage could establish it. A claim about a passage that
+  // arrives without one is dropped, which is decision 0004 unchanged.
   for (const field of input.evidence) {
-    if (field.citation === undefined) continue;
+    const corpus = CORPUS_CLAIMS.has(field.path);
+    if (field.citation === undefined && !corpus) continue;
     setPath(draft, field.path, {
-      citation: field.citation,
-      origin: "derived",
+      // A corpus claim carries no citation even when one is offered. Its
+      // `origin` says it was read from the corpus, and a passage citation
+      // beside that says it was read from one passage — the two cannot both be
+      // true, and the citation is the half that is wrong: one passage cannot
+      // establish an absence or a recurrence. A model that sends one anyway is
+      // offering support the claim does not have.
+      ...(field.citation !== undefined &&
+        !corpus && { citation: field.citation }),
+      origin: corpus ? "measured" : "derived",
       value: Array.isArray(field.value) ? [...field.value] : field.value,
     });
   }
@@ -147,9 +166,18 @@ export const buildCard = (input: BuildInput): StyleCard => {
   //
   // Attempted paths are deduplicated, because a model returning the same field
   // twice attempted it once.
-  const attempted = new Set(input.evidence.map((field) => field.path));
+  //
+  // **Corpus claims are in neither.** Coverage answers "how much of what could
+  // be cited was", and a claim that cannot be cited by construction belongs in
+  // no part of that ratio: in the denominator it would cap every card below
+  // 1.00 for doing nothing wrong, and in the numerator it would count evidence
+  // that does not exist.
+  const claims = input.evidence.filter(
+    (field) => !CORPUS_CLAIMS.has(field.path),
+  );
+  const attempted = new Set(claims.map((field) => field.path));
   const cited = new Set(
-    input.evidence
+    claims
       .filter((field) => field.citation !== undefined)
       .map((field) => field.path),
   );

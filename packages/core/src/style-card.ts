@@ -37,6 +37,30 @@ export const claimSchema = <Value extends z.ZodType>(value: Value) =>
       }
     });
 
+/**
+ * A claim about the corpus rather than about a passage.
+ *
+ * Some readings cannot be pointed at a passage **by construction**, and asking
+ * for a citation is asking for a fabrication — which is the one thing invariant
+ * 2 exists to prevent. Two kinds:
+ *
+ * - **Absence.** `antiPatterns` and `diction.avoidedRegisters` say what this
+ *   author does *not* do. No passage exhibits an absence; a citation for one
+ *   would point at a passage that does not contain the thing being claimed.
+ * - **Recurrence.** `imagery.motifs`, `structure.typicalShapes` and their
+ *   neighbours are claims about frequency across the corpus. One passage can
+ *   illustrate a motif and cannot establish that it recurs, so a citation would
+ *   overstate what a single passage shows.
+ *
+ * So these carry `origin: "measured"` — read from the corpus as a whole, which
+ * is what they are — and no citation, and `claimSchema` already permits that:
+ * its refinement binds `derived` alone. Nothing here loosens invariant 2. It
+ * stops applying it to claims it was never about, which is the state that made
+ * a card unbuildable whenever a model answered honestly.
+ *
+ * `docs/decisions/0031` has the run that forced it: 22 of 22 paths returned, 15
+ * cited, and the seven uncited were these.
+ */
 const stringClaim = claimSchema(z.string().min(1));
 const stringsClaim = claimSchema(z.array(z.string().min(1)));
 
@@ -106,31 +130,43 @@ export type Exemplar = z.infer<typeof exemplarSchema>;
 export type ClaimPath = {
   readonly path: string;
   readonly kind: "line" | "list";
+  /**
+   * What evidences it.
+   *
+   * `passage` — a reading taken from one passage, which must cite it.
+   * `corpus` — an absence or a recurrence, which no single passage can
+   * establish and which therefore carries no citation at all.
+   */
+  readonly evidence: "passage" | "corpus";
 };
 
 export const CLAIM_PATHS: readonly ClaimPath[] = [
-  { kind: "list", path: "antiPatterns" },
-  { kind: "line", path: "dialogue.dialectRendering" },
-  { kind: "line", path: "dialogue.speechToNarrationBalance" },
-  { kind: "line", path: "dialogue.tagConventions" },
-  { kind: "list", path: "diction.avoidedRegisters" },
-  { kind: "line", path: "diction.concreteness" },
-  { kind: "line", path: "diction.register" },
-  { kind: "list", path: "diction.signatureLexicon" },
-  { kind: "list", path: "imagery.motifs" },
-  { kind: "list", path: "imagery.preoccupations" },
-  { kind: "list", path: "imagery.recurringImages" },
-  { kind: "list", path: "rhythm.devices" },
-  { kind: "line", path: "rhythm.repetitionHabits" },
-  { kind: "list", path: "structure.closingMoves" },
-  { kind: "list", path: "structure.openingMoves" },
-  { kind: "line", path: "structure.sceneVsSummary" },
-  { kind: "list", path: "structure.typicalShapes" },
-  { kind: "line", path: "voice.freeIndirect" },
-  { kind: "line", path: "voice.narratorDistance" },
-  { kind: "line", path: "voice.pov" },
-  { kind: "line", path: "voice.reliability" },
-  { kind: "line", path: "voice.tense" },
+  { evidence: "corpus", kind: "list", path: "antiPatterns" },
+  { evidence: "passage", kind: "line", path: "dialogue.dialectRendering" },
+  {
+    evidence: "passage",
+    kind: "line",
+    path: "dialogue.speechToNarrationBalance",
+  },
+  { evidence: "passage", kind: "line", path: "dialogue.tagConventions" },
+  { evidence: "corpus", kind: "list", path: "diction.avoidedRegisters" },
+  { evidence: "passage", kind: "line", path: "diction.concreteness" },
+  { evidence: "passage", kind: "line", path: "diction.register" },
+  { evidence: "corpus", kind: "list", path: "diction.signatureLexicon" },
+  { evidence: "corpus", kind: "list", path: "imagery.motifs" },
+  { evidence: "corpus", kind: "list", path: "imagery.preoccupations" },
+  { evidence: "corpus", kind: "list", path: "imagery.recurringImages" },
+  { evidence: "passage", kind: "list", path: "rhythm.devices" },
+  { evidence: "passage", kind: "line", path: "rhythm.repetitionHabits" },
+  { evidence: "passage", kind: "list", path: "structure.closingMoves" },
+  { evidence: "passage", kind: "list", path: "structure.openingMoves" },
+  { evidence: "passage", kind: "line", path: "structure.sceneVsSummary" },
+  { evidence: "corpus", kind: "list", path: "structure.typicalShapes" },
+  { evidence: "passage", kind: "line", path: "voice.freeIndirect" },
+  { evidence: "passage", kind: "line", path: "voice.narratorDistance" },
+  { evidence: "passage", kind: "line", path: "voice.pov" },
+  { evidence: "passage", kind: "line", path: "voice.reliability" },
+  { evidence: "passage", kind: "line", path: "voice.tense" },
 ];
 
 /** How many exemplars a card carries. Stated once; the prompt says it too. */
