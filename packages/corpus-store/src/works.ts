@@ -156,6 +156,15 @@ export const putWork = async (
 };
 
 /**
+ * How many works `corpus-select` is offered to choose twelve from.
+ *
+ * The list goes into a prompt, so it is bounded: a compilation credited to one
+ * editor runs to hundreds of entries, and an unbounded candidate list makes the
+ * prompt's size a property of whichever author was typed.
+ */
+export const CANDIDATE_LIMIT = 200;
+
+/**
  * The works the catalogue credits to an author.
  *
  * This is the candidate list `corpus-select` chooses from. It used to come
@@ -163,24 +172,34 @@ export const putWork = async (
  * datacenter address (decision 0023) — so it comes from here, where
  * `bun run catalogue:import` put it.
  *
- * Ordered by title so the list a model is shown is stable across runs: the
- * same author on the same catalogue produces the same prompt, which is what
- * makes a re-run comparable to the run before it.
+ * **The cut is a sample, not a truncation.** Taking the first two hundred
+ * titles alphabetically would hand a prolific author's selection everything up
+ * to "M" and nothing after it, and `corpus-select`'s whole instruction is to
+ * sample across a career. `md5(id)` orders the same author's works the same way
+ * every time — so a re-run is comparable to the run before it — while the
+ * ordering itself has nothing to do with the title, the date, or the order the
+ * import happened to write them in. The page that survives is then presented by
+ * title, which is the order a reader would expect to see it in.
  */
 export const catalogueWorksFor = async (
   db: Db,
   authorId: string,
+  limit: number = CANDIDATE_LIMIT,
 ): Promise<CorpusCandidate[]> => {
   const result = await db.query<{
     id: string;
     title: string;
     source_url: string;
   }>(
-    `SELECT id, title, source_url
-       FROM catalogue_works
-      WHERE author_id = $1
-      ORDER BY title`,
-    [authorId],
+    `SELECT id, title, source_url FROM (
+       SELECT id, title, source_url
+         FROM catalogue_works
+        WHERE author_id = $1
+        ORDER BY md5(id)
+        LIMIT $2
+     ) AS sampled
+     ORDER BY title`,
+    [authorId, limit],
   );
   return result.rows.map((row) => ({
     id: row["id"],
