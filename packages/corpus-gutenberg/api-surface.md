@@ -56,8 +56,8 @@ export const withLocalFacts = async (
 ## `@auteur/corpus-gutenberg/schema`
 
 ```ts
-export const gutendexBookSchema = z
-export const gutendexPersonSchema = z
-export const gutendexSearchSchema = z
+export const gutendexBookSchema = z.object(
+export const gutendexPersonSchema = z.object(
+export const gutendexSearchSchema = z.object(
 export const parseSearch = (payload: unknown): GutendexSearch =>
 ```

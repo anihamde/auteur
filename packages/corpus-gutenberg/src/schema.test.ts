@@ -37,24 +37,31 @@ describe("a wrong guess fails loudly rather than yielding undefined", () => {
     expect(() => parseSearch(payload)).toThrow(/title/);
   });
 
-  test("an unknown key is rejected rather than ignored", () => {
-    // Ignoring the extra is how a renamed field becomes undefined: the old
-    // name disappears, the new one is quietly dropped, and nothing is red.
+  test("an unknown key is ignored, because it is not this code's business", () => {
+    // Gutendex added `editors`, `.strict()` rejected it, and every search on
+    // the deployment failed on a response that was otherwise exactly right.
+    // An upstream addition is not a breaking change.
     const payload = clone();
     firstBook(payload)["subtitle"] = "and other stories";
-    expect(() => parseSearch(payload)).toThrow(/subtitle/);
-  });
-
-  test("an unknown key at the top level is rejected too", () => {
-    const payload = clone();
+    firstBook(payload)["editors"] = [];
     payload["total_pages"] = 4;
-    expect(() => parseSearch(payload)).toThrow(/total_pages/);
+    expect(parseSearch(payload).results[0]?.title).toBeDefined();
   });
 
-  test("a missing required field fails naming it", () => {
+  test("a field this code reads, gone, fails naming it", () => {
+    // A rename is an absence, so this is the case that catches one — and it
+    // does not need the schema to know what the new name is.
+    const payload = clone();
+    delete firstBook(payload)["title"];
+    expect(() => parseSearch(payload)).toThrow(/title/);
+  });
+
+  test("a field this code never reads, gone, is not a failure", () => {
+    // `download_count` was required and unused: an upstream tidy-up of it
+    // would have taken the product down for a number nothing asks for.
     const payload = clone();
     delete firstBook(payload)["download_count"];
-    expect(() => parseSearch(payload)).toThrow(/download_count/);
+    expect(parseSearch(payload).results[0]?.title).toBeDefined();
   });
 
   test("a field of the wrong type fails", () => {

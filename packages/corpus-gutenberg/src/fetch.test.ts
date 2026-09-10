@@ -22,19 +22,12 @@ const GUTENBERG = [
 
 const book = (overrides: Partial<GutendexBook> = {}): GutendexBook => ({
   authors: [{ birth_year: 1860, death_year: 1904, name: "Chekhov, Anton" }],
-  bookshelves: [],
-  copyright: false,
-  download_count: 1,
   formats: {
     "text/html": "https://x/1.html",
     "text/plain; charset=us-ascii": "https://x/1.ascii.txt",
     "text/plain; charset=utf-8": "https://x/1.utf8.txt",
   },
   id: 1,
-  languages: ["en"],
-  media_type: "Text",
-  subjects: [],
-  summaries: [],
   title: "A Work",
   translators: [{ birth_year: null, death_year: null, name: "Garnett, C" }],
   ...overrides,
