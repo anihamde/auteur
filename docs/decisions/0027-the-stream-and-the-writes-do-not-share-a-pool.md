@@ -27,6 +27,20 @@ handle never resolves.
 starves the other. A stream that cannot get a connection is one screen that
 reconnects; a write that cannot is a stage that fails and is retried.
 
+**A direct handle is held, never borrowed from.** Splitting the pools was not
+enough on its own, and a review measured why: the SSE route also *read* the
+table on the handle its own subscription holds — once before the stream opens
+and once per poll after. Every open stream was therefore competing with itself
+for the four connections a direct pool has. The fourth stream took the last
+one, every stream's next read had nowhere to borrow, and all four failed
+together five seconds later; worse, the read threw *after* `subscribe` had
+succeeded, so `close()` never ran and the connection stayed held for the life of
+the instance. Every later stream on it answered 500.
+
+So the route reads on the pooled handle and holds the direct one, and its
+`finally` closes the subscription whatever the body does. Holding and borrowing
+from one pool is what turns a limit into a deadlock.
+
 **A pool refuses rather than waits.** `connectionTimeoutMs` defaults to five
 seconds on every handle — long enough to outlast a burst, short enough to be a
 message rather than a hang. A pool with no free connection is a fact worth
@@ -47,5 +61,6 @@ which `verify:live` checks. It is not the answer to a pool-sizing problem.
 - An instance serving four streams still serves writes.
 - A caller that cannot get a connection gets an error naming the timeout, five
   seconds in, rather than a killed invocation sixty seconds in.
-- The per-instance stream limit is unchanged and still four. It is now the
-  stream's own limit rather than everything's.
+- The per-instance stream limit is four, and it is now genuinely four: the
+  streams no longer take a fifth connection between them. Exceeding it is one
+  stream refused, not four broken and an instance poisoned.

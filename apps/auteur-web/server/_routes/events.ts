@@ -40,7 +40,19 @@ export const STREAM_BUDGET_MS = 240_000;
 export const POLL_INTERVAL_MS = 1000;
 
 export type EventRoutesDeps = {
-  /** **Direct**, not pooled. See above. */
+  /**
+   * Where this route **reads**. Pooled, and deliberately not the handle below.
+   *
+   * The stream holds `directDb`'s connection for its whole life, and it polls
+   * the table once a second on top of that. Reading from the same pool means
+   * every open stream is competing with its own subscription for the four
+   * connections a direct pool has: the fourth stream takes the last one, every
+   * stream's next read has nowhere to borrow, and all four fail together five
+   * seconds later. Holding and borrowing from one pool is what makes a limit
+   * into a deadlock.
+   */
+  readonly db: Db;
+  /** **Direct**, not pooled, and only ever held. See above. */
   readonly directDb: Db;
   /** Overridden by a test that will not wait four minutes. */
   readonly budgetMs?: number;
@@ -62,7 +74,7 @@ export const eventRoutes = (deps: EventRoutesDeps): Hono => {
     });
     // 404 before the stream opens: a session that does not exist must not
     // produce a stream a client will reconnect to for ever.
-    await requireSession(deps.directDb, id);
+    await requireSession(deps.db, id);
 
     const stream = new ReadableStream<Uint8Array>({
       start: async (controller) => {
@@ -72,7 +84,7 @@ export const eventRoutes = (deps: EventRoutesDeps): Hono => {
         let wake: (() => void) | undefined;
 
         const drain = async (): Promise<void> => {
-          for (const event of await readSince(deps.directDb, id, sent)) {
+          for (const event of await readSince(deps.db, id, sent)) {
             if (closed) return;
             controller.enqueue(encoder.encode(frame(event)));
             sent = event.seq;
@@ -94,23 +106,30 @@ export const eventRoutes = (deps: EventRoutesDeps): Hono => {
           void finish();
         });
 
-        // Replay first, then wait. A client reconnecting at its cursor gets
-        // every missed event before anything new arrives, in order.
-        await drain();
-
-        const deadline = Date.now() + budget;
-        while (!closed && Date.now() < deadline) {
-          // Woken by a notification, or by the poll — whichever comes first.
-          // The poll is not a fallback for correctness, only for latency: the
-          // next drain reads the table either way.
-          await new Promise<void>((resolve) => {
-            wake = resolve;
-            setTimeout(resolve, poll);
-          });
-          wake = undefined;
+        // `finally`, because a read that throws after the subscription opened
+        // would otherwise leave its connection held for the life of the
+        // instance — and a direct pool has four. The failure would be
+        // permanent rather than one lost stream.
+        try {
+          // Replay first, then wait. A client reconnecting at its cursor gets
+          // every missed event before anything new arrives, in order.
           await drain();
+
+          const deadline = Date.now() + budget;
+          while (!closed && Date.now() < deadline) {
+            // Woken by a notification, or by the poll — whichever comes first.
+            // The poll is not a fallback for correctness, only for latency:
+            // the next drain reads the table either way.
+            await new Promise<void>((resolve) => {
+              wake = resolve;
+              setTimeout(resolve, poll);
+            });
+            wake = undefined;
+            await drain();
+          }
+        } finally {
+          await finish();
         }
-        await finish();
       },
     });
 

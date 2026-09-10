@@ -237,10 +237,12 @@ Three things this buys back, each of which was a cost in the SQLite draft:
 - **Two connection modes, and the seam between them is `env`.** Almost every
   function opens against Neon's **pooled** endpoint, because instances are
   plural and short-lived and a direct connection per invocation exhausts the
-  server. The one exception is the SSE route, which opens the **direct**
-  endpoint because `LISTEN` is a session-level feature that pooled-mode
-  PgBouncer does not support, and holds it for the life of the stream. `env`
-  exposes both; a test asserts no route but the SSE one reads the direct URL.
+  server. The **direct** endpoint is for the two things pooled mode cannot do:
+  the SSE route's `LISTEN`, a session-level feature PgBouncer does not support,
+  held for the life of the stream; and a write that must be one transaction —
+  appending an event with its `NOTIFY`, and replacing a session's pins
+  (decisions 0026 and 0027). They open separate pools, because a pool that is
+  held is not one to borrow from. `env` exposes both urls.
 - **One writer per session, not per database.** Postgres has real concurrency,
   so the SQLite draft's "one writer" simplification is gone. What replaces it is
   narrower and is the property that actually matters: a session's stages run in

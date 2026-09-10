@@ -53,7 +53,7 @@ export const ENV_SPEC = {
   },
   DATABASE_URL_DIRECT: {
     describe:
-      "Neon direct endpoint. Used only by the SSE route, which holds a LISTEN connection for the life of the stream.",
+      "Neon direct endpoint. Held by the SSE route for the life of each stream, and used by the writes that need a transaction — appending an event with its NOTIFY, and replacing a session's pins.",
     schema: z.string().url(),
   },
   RAMP_ROUTER_API_KEY: {

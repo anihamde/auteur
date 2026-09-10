@@ -8,6 +8,7 @@ import {
 } from "bun:test";
 import { ROUTE_NAMES, ROUTES, specOf } from "@auteur/api-contract/routes";
 import type { StoredEvent } from "@auteur/core/events";
+import { createDb } from "@auteur/db/db";
 import { append } from "@auteur/event-store/events";
 import { claimRun } from "@auteur/event-store/session-runs";
 import { newId } from "@auteur/ids/new-id";
@@ -181,4 +182,51 @@ describe("cancel sets the flag", () => {
     );
     expect(response.status).toBe(404);
   });
+});
+
+describe("a stream holds one connection and borrows none", () => {
+  test("as many concurrent streams as the direct pool holds, all delivering", async () => {
+    // The failure this closes: the route read the table on the same handle its
+    // subscription holds, once per poll. With the pool full of subscriptions,
+    // every stream's next read had nowhere to borrow — so the last stream to
+    // open broke all of them, five seconds later, and the read threw after
+    // `subscribe` succeeded so the connection was never released. The instance
+    // answered 500 to every stream after that.
+    const held = createDb({ endpoint: "direct", max: 2, url: harness.url });
+    try {
+      const streaming = createApp({
+        apiToken: TOKEN,
+        db: harness.db,
+        events: { budgetMs: 1200, directDb: held, pollMs: 25 },
+      });
+      const read = async (): Promise<number[]> => {
+        const delivered: StoredEvent[] = [];
+        let stream: Stream | undefined;
+        const done = new Promise<void>((resolve) => {
+          stream = connectStream({
+            fetch: async (url, init) =>
+              streaming.request(url, {
+                ...init,
+                headers: { authorization: `Bearer ${TOKEN}` },
+              }),
+            maxEmptyReconnects: 0,
+            onEvent: (event) => delivered.push(event),
+            onFatal: () => resolve(),
+            sleep: async () => resolve(),
+            startCursor: 0,
+            url: `http://auteur.test/api/sessions/${sessionId}/events`,
+          });
+        });
+        await done;
+        stream?.close();
+        return delivered.map((event) => event.seq);
+      };
+
+      await append(harness.db, sessionId, aDetail("shared"));
+      // Both subscriptions are held at once, which is the whole pool.
+      expect(await Promise.all([read(), read()])).toEqual([[1], [1]]);
+    } finally {
+      await held.close();
+    }
+  }, 20_000);
 });
