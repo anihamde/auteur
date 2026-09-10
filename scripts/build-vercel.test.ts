@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+  INVOCATION_CEILING_SECONDS,
+  STALE_AFTER_SECONDS,
+} from "../packages/stage-queue/src/sweep.ts";
+import {
   CRONS,
   FUNCTION_DIR,
   MAX_DURATION,
@@ -24,6 +28,23 @@ describe("the generated function configuration", () => {
     expect(MAX_DURATION).toBeLessThanOrEqual(60);
     expect(MAX_DURATION).toBeGreaterThan(0);
     expect(Number.isInteger(MAX_DURATION)).toBe(true);
+  });
+
+  test("the sweep's idea of the ceiling is the ceiling", () => {
+    // `packages/` may not import from `scripts/`, so the sweep carries its own
+    // copy of this number and nothing but this test holds the two together.
+    // They drifted once: the sweep waited 300 seconds for a claim the platform
+    // had already killed at 60, and a killed stage was unrecoverable for four
+    // minutes while the screen showed a spinner.
+    expect(INVOCATION_CEILING_SECONDS).toBe(MAX_DURATION);
+  });
+
+  test("a claim is released after the ceiling, not long after it", () => {
+    // Above the ceiling, because a stage that claimed a row a second before
+    // its clock started is not lost. Not far above it, because nothing can
+    // legitimately hold a claim past the ceiling at all.
+    expect(STALE_AFTER_SECONDS).toBeGreaterThan(MAX_DURATION);
+    expect(STALE_AFTER_SECONDS).toBeLessThanOrEqual(MAX_DURATION * 2);
   });
 
   test("the handler is the bundle, and the helpers are off", () => {
