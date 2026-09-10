@@ -18,15 +18,8 @@ const book = (
   authors: ReturnType<typeof person>[],
 ): GutendexBook => ({
   authors,
-  bookshelves: [],
-  copyright: false,
-  download_count: 1,
   formats: { "text/plain": `https://x/${id.toString()}.txt` },
   id,
-  languages: ["en"],
-  media_type: "Text",
-  subjects: [],
-  summaries: [],
   title: `Book ${id.toString()}`,
   translators: [],
 });
