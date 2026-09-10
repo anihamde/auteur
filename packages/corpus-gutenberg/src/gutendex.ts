@@ -46,8 +46,20 @@ export type GutendexConfig = {
   readonly baseUrl?: string;
 };
 
-const searchUrl = (base: string, query: string, page?: string): string =>
-  page ?? `${base}/books?search=${encodeURIComponent(query)}&languages=en`;
+/**
+ * The canonical search url — note the trailing slash on `/books/`.
+ *
+ * Without it the service answers **301** to `/books/?…` on every request, and
+ * this asked for the redirect every time: a hop paid on each keystroke of a
+ * search, and one more thing between this code and an answer. Following a
+ * redirect is also where a client can lose the headers it set, which is
+ * exactly the kind of difference that shows up on one network and not another.
+ *
+ * `page` is a url the service itself handed back, so it is already canonical
+ * and is used as given.
+ */
+export const searchUrl = (base: string, query: string, page?: string): string =>
+  page ?? `${base}/books/?search=${encodeURIComponent(query)}&languages=en`;
 
 /** How much of a refusal is worth keeping. Enough to read, not a whole page. */
 const REFUSAL_BODY_LIMIT = 400;
