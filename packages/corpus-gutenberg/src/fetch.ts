@@ -3,7 +3,6 @@ import { AuteurError } from "@auteur/errors/auteur-error";
 import { cleanGutenberg } from "@auteur/text/clean";
 import { countWords } from "@auteur/text/tokenize";
 import { cleanerVersion } from "@auteur/text/version";
-import { type FetchLike, USER_AGENT } from "./gutendex.ts";
 
 /**
  * Fetching and cleaning a work's text.
@@ -14,6 +13,29 @@ import { type FetchLike, USER_AGENT } from "./gutendex.ts";
  * 4xx (`ARCHITECTURE.md` §5.4). A 4xx will not become a 2xx by asking again,
  * and retrying one is how a client turns its own bug into someone else's load.
  */
+
+/** Injected so every test runs offline. */
+export type FetchLike = (
+  url: string,
+  init?: {
+    readonly headers?: Readonly<Record<string, string>>;
+    readonly signal?: AbortSignal;
+  },
+) => Promise<Response>;
+
+/**
+ * Who is asking.
+ *
+ * Node's `fetch` sends no `User-Agent` at all, and Project Gutenberg answers
+ * **403** to a request without one — which arrives here as `corpus_unavailable`
+ * and reaches a reader as an unavailable corpus. The same url from a laptop, by
+ * curl or a browser, returns the book: the difference was the header.
+ *
+ * It names the project and links to it, which is what a free public service is
+ * owed by something making automated requests to it. A rate limit or a block
+ * should be able to find a person.
+ */
+export const USER_AGENT = "auteur/0.1 (+https://github.com/anihamde/auteur)";
 
 export const MAX_CONCURRENCY = 4;
 export const RETRY_DELAYS_MS = [2000, 4000] as const;

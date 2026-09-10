@@ -5,21 +5,17 @@
     "@auteur/errors": "workspace:*",
     "@auteur/ids": "workspace:*",
     "@auteur/logger": "workspace:*",
-    "@auteur/text": "workspace:*",
-    "zod": "catalog:"
+    "@auteur/text": "workspace:*"
   },
   "devDependencies": {
-    "@auteur/test-db": "workspace:*",
     "@types/bun": "catalog:",
     "typescript": "catalog:"
   },
   "exports": {
+    "./author-row": "./src/author-row.ts",
     "./authors": "./src/authors.ts",
     "./fetch": "./src/fetch.ts",
-    "./gutendex": "./src/gutendex.ts",
-    "./passages": "./src/passages.ts",
-    "./provider": "./src/provider.ts",
-    "./schema": "./src/schema.ts"
+    "./passages": "./src/passages.ts"
   },
   "files": [
     "src/**/*"

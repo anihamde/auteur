@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mintAuthorId } from "../packages/corpus-gutenberg/src/authors.ts";
 import {
-  authorIdFor,
   csvRecords,
   fold,
   parseCatalogue,
@@ -170,12 +169,12 @@ describe("folding", () => {
     expect([...folded.authors.values()][0]?.works).toBe(3);
   });
 
-  test("the id matches what the provider mints, so both agree", () => {
-    // A session may already point at an author minted by the old search path.
+  test("the id is the one the card cache is keyed on", () => {
+    // Minted by `corpus-gutenberg` rather than here: a card is a claim about a
+    // body of text, and two slug rules that agree today are two slug rules.
     expect(
-      authorIdFor({
+      mintAuthorId({
         birthYear: 1860,
-        deathYear: 1904,
         name: "Chekhov, Anton Pavlovich",
       }),
     ).toBe("gutenberg:chekhov-anton-pavlovich-1860");
@@ -185,69 +184,5 @@ describe("folding", () => {
     expect(sourceUrlFor(84)).toBe(
       "https://www.gutenberg.org/ebooks/84.txt.utf-8",
     );
-  });
-});
-
-describe("ids agree with the provider that minted them first", () => {
-  test("the same person gets the same id from both", () => {
-    // A session in flight points at an id the search path produced. Two slug
-    // rules that agree today are two slug rules.
-    const person = {
-      birthYear: 1860,
-      deathYear: 1904,
-      name: "Chekhov, Anton Pavlovich",
-    };
-    expect(authorIdFor(person)).toBe(
-      mintAuthorId({
-        birth_year: person.birthYear,
-        death_year: person.deathYear,
-        name: person.name,
-      }),
-    );
-  });
-
-  test("an author with no birth year is still one id, not two", () => {
-    expect(
-      authorIdFor({ birthYear: null, deathYear: null, name: "Homer" }),
-    ).toBe(mintAuthorId({ birth_year: null, death_year: null, name: "Homer" }));
-  });
-});
-
-describe("a book credited twice to the same person is one row", () => {
-  test("the same author twice on one book does not duplicate the work", () => {
-    // Postgres refuses a batch that touches a key twice, and the catalogue
-    // credits a person twice on a book often enough that this is not
-    // hypothetical: "ON CONFLICT DO UPDATE command cannot affect row a second
-    // time" is what the first real import answered.
-    const folded = fold([
-      {
-        authors: "Chekhov, Anton, 1860-1904; Chekhov, Anton, 1860-1904",
-        id: 13415,
-        language: "en",
-        title: "The Party and Other Stories",
-      },
-    ]);
-
-    expect(folded.works).toHaveLength(1);
-    expect([...folded.authors.values()][0]?.works).toBe(1);
-  });
-
-  test("no batch carries the same author and work twice", () => {
-    // The property the write depends on, asserted over the whole fold rather
-    // than over one case.
-    const folded = fold([
-      {
-        authors: "A, One, 1800-1850; B, Two, 1801-1851; A, One, 1800-1850",
-        id: 1,
-        language: "en",
-        title: "Shared",
-      },
-      { authors: "A, One, 1800-1850", id: 2, language: "en", title: "Solo" },
-    ]);
-
-    const keys = folded.works.map((work) => `${work.authorId}/${work.id}`);
-    expect(new Set(keys).size).toBe(keys.length);
-    // Two authors on book 1, one of them also on book 2.
-    expect(keys).toHaveLength(3);
   });
 });

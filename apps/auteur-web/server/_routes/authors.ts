@@ -1,6 +1,6 @@
 import { parseQuery } from "@auteur/api-contract/contract";
 import { ROUTES } from "@auteur/api-contract/routes";
-import { detailLine } from "@auteur/corpus-gutenberg/provider";
+import { detailLine } from "@auteur/corpus-gutenberg/author-row";
 import { type AuthorMatch, searchAuthors } from "@auteur/corpus-store/authors";
 import type { Db } from "@auteur/db/db";
 import { Hono } from "hono";

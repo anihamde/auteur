@@ -1,20 +1,25 @@
-import type { GutendexBook, GutendexPerson } from "./schema.ts";
-
 /**
- * Folding books into authors, and minting an author id.
+ * Minting an author id.
  *
- * **gutendex has no author id.** It reports a name string per book and nothing
- * stable behind it, so the id is minted here — and the id is the identity of
- * the whole style-card cache, which makes this the most consequential twenty
- * lines in the package.
+ * **The catalogue has no author id.** It reports a name string per book and
+ * nothing stable behind it, so the id is minted here — and the id is the
+ * identity of the whole style-card cache, which makes this the most
+ * consequential twenty lines in the package.
  */
+
+/** A person the catalogue credits: an author, a translator, an editor. */
+export type CataloguePerson = {
+  readonly name: string;
+  /** Null when nobody recorded the date, which is common and not an error. */
+  readonly birthYear: number | null;
+};
 
 export const PROVIDER = "gutenberg";
 
 /**
  * Slugify a reported name.
  *
- * gutendex reports `"Chekhov, Anton Pavlovich"`, surname first. The comma is
+ * The catalogue reports `"Chekhov, Anton Pavlovich"`, surname first. The comma is
  * dropped rather than reordered: reordering guesses which part is the surname,
  * and it guesses wrong for a mononym, for a name with a particle, and for
  * every author whose culture does not put the family name last. Dropping it
@@ -40,79 +45,9 @@ export const slugifyName = (name: string): string =>
  * The birth year is what disambiguates two authors sharing a name, which is
  * also why the UI shows dates on every row.
  */
-export const mintAuthorId = (person: GutendexPerson): string => {
+export const mintAuthorId = (person: CataloguePerson): string => {
   const slug = slugifyName(person.name);
-  return person.birth_year === null
+  return person.birthYear === null
     ? `${PROVIDER}:${slug}`
-    : `${PROVIDER}:${slug}-${person.birth_year.toString()}`;
-};
-
-export type FoldedAuthor = {
-  readonly id: string;
-  readonly displayName: string;
-  readonly birthYear: number | null;
-  readonly deathYear: number | null;
-  /** Every book this author is credited on, in the order the search returned. */
-  readonly books: readonly GutendexBook[];
-  /** Distinct translators across those books, alphabetical. */
-  readonly translators: readonly string[];
-};
-
-/**
- * Fold a search result into authors.
- *
- * A book with several authors contributes to each of them. That is deliberate
- * and it is not double-counting: "how many works is this author credited on" is
- * the question the work count answers, and a collaboration is a work by both.
- *
- * Order is first-appearance, then by work count descending. The first is what
- * makes the list stable between keystrokes; the second is what puts the author
- * the searcher meant near the top without a relevance score this module has no
- * information to compute.
- */
-export const foldAuthors = (books: readonly GutendexBook[]): FoldedAuthor[] => {
-  const byId = new Map<
-    string,
-    {
-      person: GutendexPerson;
-      books: GutendexBook[];
-      translators: Set<string>;
-      first: number;
-    }
-  >();
-
-  books.forEach((book, index) => {
-    for (const person of book.authors) {
-      const id = mintAuthorId(person);
-      const existing = byId.get(id);
-      const entry = existing ?? {
-        books: [],
-        first: index,
-        person,
-        translators: new Set<string>(),
-      };
-      entry.books.push(book);
-      for (const translator of book.translators) {
-        entry.translators.add(translator.name);
-      }
-      if (existing === undefined) byId.set(id, entry);
-    }
-  });
-
-  return [...byId.entries()]
-    .sort(([, left], [, right]) =>
-      left.books.length === right.books.length
-        ? left.first - right.first
-        : right.books.length - left.books.length,
-    )
-    .map(([id, entry]) => ({
-      birthYear: entry.person.birth_year,
-      books: entry.books,
-      deathYear: entry.person.death_year,
-      displayName: entry.person.name,
-      id,
-      translators: [...entry.translators].sort((left, right) =>
-        left.localeCompare(right),
-      ),
-    }));
+    : `${PROVIDER}:${slug}-${person.birthYear.toString()}`;
 };

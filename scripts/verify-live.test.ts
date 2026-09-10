@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  checkGutendex,
+  checkCatalogue,
   exitCodeFor,
   missing,
   render,
@@ -51,18 +51,39 @@ describe("a check that did not run does not report ok", () => {
     expect(exitCodeFor([report])).toBe(1);
   });
 
-  test("the gutendex check reports the parse failure, not a command", async () => {
-    const report = await checkGutendex(async () => ({
-      ok: false,
-      problem: "results.0.authors: Required",
-    }));
+  test("an empty catalogue fails, and names the command that fills it", async () => {
+    // Search answers 200 with no rows either way, so this is the only place
+    // that distinguishes "nobody by that name" from "nothing was imported".
+    const report = await checkCatalogue(async () => 0);
     expect(report.ok).toBe(false);
-    expect(report.lines[0]).toBe("results.0.authors: Required");
+    expect(report.lines.join(" ")).toContain("bun run catalogue:import");
   });
 
-  test("a live response that parses is the only thing that passes it", async () => {
-    const report = await checkGutendex(async () => ({ books: 32, ok: true }));
+  test("authors without works is a failure, not a pass", async () => {
+    // `select-author` writes an `authors` row, so a database that has never
+    // been imported into still grows one the moment somebody picks an author.
+    // Counting authors alone would then report a catalogue that is not there.
+    const report = await checkCatalogue(async (table) =>
+      table === "authors" ? 1 : 0,
+    );
+    expect(report.ok).toBe(false);
+  });
+
+  test("a database with no schema is this check's finding, not a stack trace", async () => {
+    // The table not existing means the schema has never come up against this
+    // database. Letting the throw out would lose the other three sub-reports.
+    const report = await checkCatalogue(() =>
+      Promise.reject(new Error('relation "catalogue_works" does not exist')),
+    );
+    expect(report.ok).toBe(false);
+    expect(report.lines[0]).toContain("does not exist");
+  });
+
+  test("both populated is the only thing that passes it", async () => {
+    const report = await checkCatalogue(async (table) =>
+      table === "authors" ? 32_329 : 86_005,
+    );
     expect(report.ok).toBe(true);
-    expect(report.lines[0]).toContain("32 books");
+    expect(report.lines[0]).toContain("32,329 authors");
   });
 });

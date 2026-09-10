@@ -53,7 +53,7 @@ artifact. Some users will care about it more than the story.
 
 ### In
 
-- Public-domain authors (Project Gutenberg via gutendex).
+- Public-domain authors (Project Gutenberg's published catalogue).
 - Wizard: idea → author → research → clarifying questions → outline → draft →
   style revision → result.
 - Multi-pass generation with per-stage model routing.
@@ -366,7 +366,7 @@ machinery. Revisit only if the wizard grows bidirectional interruption.
 
 | Package | Responsibility |
 |---|---|
-| `corpus-gutenberg` | gutendex client, text fetch, Project Gutenberg header/footer stripping, work and passage selection |
+| `corpus-gutenberg` | Text fetch, Project Gutenberg header/footer stripping, work and passage selection |
 | `style-card` | Zod schema, deterministic prosody metrics, model extraction, cache and versioning |
 | `pipeline` | Stage graph, tier→model resolution, streaming, usage accounting |
 | `model-client-router` | Ramp Router provider |

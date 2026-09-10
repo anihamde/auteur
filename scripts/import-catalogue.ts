@@ -190,20 +190,6 @@ export const parsePeople = (authors: string): CataloguePerson[] =>
 
 const PROVIDER = "gutenberg";
 
-/**
- * The author id, minted by the provider package rather than here.
- *
- * A session already in flight points at an id that path produced, and two
- * slug rules that agree today are two slug rules. `mintAuthorId` takes the
- * catalogue's own shape closely enough that this is an adapter, not a copy.
- */
-export const authorIdFor = (person: CataloguePerson): string =>
-  mintAuthorId({
-    birth_year: person.birthYear,
-    death_year: person.deathYear,
-    name: person.name,
-  });
-
 export const sourceUrlFor = (id: number): string =>
   `https://www.gutenberg.org/ebooks/${id.toString()}.txt.utf-8`;
 
@@ -234,7 +220,9 @@ export const fold = (rows: readonly CatalogueRow[]): Folded => {
   for (const row of rows) {
     const workId = `${PROVIDER}:${row.id.toString()}`;
     for (const person of parsePeople(row.authors)) {
-      const authorId = authorIdFor(person);
+      // Minted by `corpus-gutenberg`, not here: two slug rules that agree
+      // today are two slug rules, and the id is the identity of the card cache.
+      const authorId = mintAuthorId(person);
       const key = `${authorId}\u0000${workId}`;
       if (works.has(key)) continue;
 
