@@ -209,6 +209,20 @@ export const costOf = (payload: unknown, seconds: number): Cost => {
   };
 };
 
+/** The cost as one line, for a report that has room for one. */
+export const costLine = (cost: Cost): string =>
+  [
+    `${cost.seconds.toFixed(1)}s`,
+    cost.inputTokens === undefined
+      ? undefined
+      : `${cost.inputTokens.toLocaleString("en-US")} in`,
+    cost.outputTokens === undefined
+      ? undefined
+      : `${cost.outputTokens.toLocaleString("en-US")} out`,
+  ]
+    .filter((part) => part !== undefined)
+    .join(", ");
+
 export const judge = (
   text: string,
   probe: Probe,
@@ -233,6 +247,7 @@ export const judge = (
             (issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`,
           ),
         ...context,
+        ...(cost === undefined ? [] : [costLine(cost)]),
         "A `status` of `incomplete` is a budget, not a prompt: the answer was",
         "cut off at `max_output_tokens` and a strict schema can make the",
         "fragment structurally valid with empty arrays in it. Anything else",
@@ -249,7 +264,14 @@ export const judge = (
     return outcome.ok && cost !== undefined ? { ...outcome, cost } : outcome;
   } catch (thrown) {
     return {
-      lines: [...issuesOf(thrown), ...census(parsed.data)],
+      lines: [
+        ...issuesOf(thrown),
+        ...census(parsed.data),
+        // On the failure too. A stage that fails *and* sits at the invocation
+        // ceiling has two problems, and a report naming one of them sends the
+        // reader to fix the wrong one.
+        ...(cost === undefined ? [] : [costLine(cost)]),
+      ],
       ok: false,
     };
   }
@@ -405,7 +427,7 @@ export const runExtractionProbe = async (
   if (!response.ok) {
     return {
       lines: [
-        `the gateway answered ${response.status.toString()}`,
+        `the gateway answered ${response.status.toString()} after ${((Date.now() - started) / 1000).toFixed(1)}s`,
         (await response.text()).slice(0, 300),
       ],
       ok: false,

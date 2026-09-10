@@ -288,3 +288,26 @@ describe("what the call cost, on a pass", () => {
     }
   });
 });
+
+describe("a failure reports its cost as well", () => {
+  test("a card that did not build still says how long the call took", () => {
+    // A stage that fails *and* sits at the invocation ceiling has two
+    // problems. A report naming one sends the reader to fix the wrong one.
+    const short = JSON.parse(good()) as { fields: unknown[] };
+    short.fields = short.fields.slice(1);
+    const outcome = judge(JSON.stringify(short), PROBE, [], {
+      outputTokens: 2100,
+      seconds: 58.4,
+    });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.lines).toContain("58.4s, 2,100 out");
+  });
+
+  test("an answer that is not an extraction says it too", () => {
+    const outcome = judge('{"exemplars":[],"fields":[]}', PROBE, [], {
+      seconds: 61,
+    });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.lines).toContain("61.0s");
+  });
+});
