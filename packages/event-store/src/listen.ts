@@ -21,6 +21,14 @@ import { channelFor } from "./events.ts";
 export type Subscription = {
   /** Stops listening and returns the connection to the pool. */
   readonly close: () => Promise<void>;
+  /**
+   * True once the connection was lost rather than closed.
+   *
+   * The stream does not have to do anything about it — the table is the source
+   * of truth and the reader's poll keeps working — but a caller that wants to
+   * end early rather than poll to its budget can ask.
+   */
+  readonly lost: () => boolean;
 };
 
 /**
@@ -38,6 +46,26 @@ export const subscribe = async (
   const channel = channelFor(sessionId);
   const client = await db.connect();
   let closed = false;
+  let lost = false;
+
+  // A checked-out client is the one thing `pg` does not carry an error listener
+  // for: the pool removes its own on checkout and hands the client to the
+  // caller. So a backend that dies mid-stream — Neon scaling to zero, a restart,
+  // an admin terminating it — emits `error` on an `EventEmitter` with nothing
+  // listening, which in Node is an unhandled `error` event and takes the
+  // process with it. One dropped connection would end every stream and every
+  // request on the instance, not the one stream that lost its connection.
+  //
+  // `release(error)` rather than `release()`: a connection that errored is
+  // destroyed rather than returned to the pool, so the next subscriber opens a
+  // new one instead of inheriting a broken one.
+  client.on("error", (cause: Error) => {
+    if (closed) return;
+    closed = true;
+    lost = true;
+    client.removeAllListeners("notification");
+    client.release(cause);
+  });
 
   client.on("notification", (message) => {
     if (message.channel !== channel || message.payload === undefined) return;
@@ -66,11 +94,16 @@ export const subscribe = async (
 
   return {
     close: async () => {
+      // Already released by the error listener above, and `UNLISTEN` on a dead
+      // connection throws. Closing twice is the ordinary case here — the route
+      // closes on abort and again in its `finally`.
       if (closed) return;
       closed = true;
       client.removeAllListeners("notification");
       await client.query(`UNLISTEN ${identifier(channel)}`);
       client.release();
     },
+    /** Whether the connection was lost rather than closed. */
+    lost: () => lost,
   };
 };
