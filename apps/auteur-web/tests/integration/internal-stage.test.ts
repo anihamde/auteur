@@ -10,6 +10,7 @@ import { ROUTES } from "@auteur/api-contract/routes";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { readSince } from "@auteur/event-store/events";
 import { newId } from "@auteur/ids/new-id";
+import { createLogger, type LogFields } from "@auteur/logger/logger";
 import { createSession } from "@auteur/session-store/sessions";
 import { readStageKeys } from "@auteur/session-store/stage-keys";
 import {
@@ -56,6 +57,7 @@ const post = async (
     readonly body?: StageBody;
     readonly signature?: string | null;
     readonly claimant?: string;
+    readonly onLog?: (message: string, fields?: LogFields) => void;
   } = {},
 ): Promise<Response> => {
   const app = createApp({
@@ -68,6 +70,9 @@ const post = async (
         claimant: () => options.claimant ?? "",
       }),
     },
+    ...(options.onLog !== undefined && {
+      logger: { ...createLogger({ bound: {} }), error: options.onLog },
+    }),
   });
   const raw = JSON.stringify(payload);
   const signature =
@@ -218,6 +223,63 @@ describe("a stage that throws", () => {
     const events = await readSince(harness.db, sessionId, 0);
     const failure = events.find((event) => event.event.type === "stage_error");
     expect(failure).toBeDefined();
+  });
+
+  test("the gateway's own reason reaches the event, not just the mapped sentence", async () => {
+    // Every provider failure maps to "The model gateway failed.", so a stage
+    // that failed on a context limit and one that failed on an expired key
+    // were the same line on the screen and in `events`. The reason was
+    // computed, redacted, and dropped one call before anyone could read it.
+    const queueId = await queueOne();
+    const throwing: StageBody = () => {
+      throw new AuteurError("provider_error", "The model gateway failed.", {
+        detail: {
+          code: "context_length_exceeded",
+          provider: "ramp-router",
+          reason: "This model's maximum context length is 200000 tokens.",
+          status: 400,
+        },
+      });
+    };
+    await post({ queueId, sessionId, stageId: "outline" }, { body: throwing });
+
+    const events = await readSince(harness.db, sessionId, 0);
+    const failure = events.find(
+      (event) => event.event.type === "stage_error",
+    )?.event;
+    expect(failure).toMatchObject({
+      detail:
+        "context_length_exceeded HTTP 400: This model's maximum context length is 200000 tokens.",
+    });
+  });
+
+  test("the route answers 200, so only this log ever records the failure", async () => {
+    // A failed stage is an outcome rather than a failed request, so
+    // `app.onError` never sees it. Before this the failure was in no log at
+    // all — the platform's viewer showed a clean 200.
+    const queueId = await queueOne();
+    const lines: { message: string; fields?: LogFields }[] = [];
+    const throwing: StageBody = () => {
+      throw new Error("connect ECONNREFUSED 10.0.0.1:5432");
+    };
+    const response = await post(
+      { queueId, sessionId, stageId: "outline" },
+      {
+        body: throwing,
+        onLog: (message, fields) => lines.push({ fields, message }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(lines[0]?.message).toBe("stage failed");
+    // The thrown message, not the mapped one. Everything that is not an
+    // `AuteurError` becomes "The stage failed.", and this is where the real
+    // sentence survives.
+    expect(lines[0]?.fields).toMatchObject({
+      code: "internal",
+      message: "connect ECONNREFUSED 10.0.0.1:5432",
+      stageId: "outline",
+    });
   });
 
   test("a failed stage records no key, so it is stale and will be retried", async () => {

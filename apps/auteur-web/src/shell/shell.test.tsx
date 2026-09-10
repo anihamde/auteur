@@ -104,6 +104,43 @@ describe("events are read, never composed", () => {
     );
   });
 
+  test("a failure's reason is one of the lines the stage shows", () => {
+    // A failed stage was a red dot and nothing else. The reason was in an
+    // event the screen already held, and no screen read it.
+    const log = [
+      {
+        event: {
+          code: "provider_error",
+          detail: "context_length_exceeded HTTP 400: too long.",
+          message: "The model gateway failed.",
+          stageId: "style-extract",
+          type: "stage_error",
+        },
+        seq: 1,
+      },
+    ] as const;
+    expect(detailFor(log, "style-extract")).toEqual([
+      "The model gateway failed. context_length_exceeded HTTP 400: too long.",
+    ]);
+  });
+
+  test("a failure with no upstream sentence still shows the mapped one", () => {
+    // A `schema_violation` carries a zod issue tree rather than a reason, and
+    // producing no line at all would be the red dot again.
+    const log = [
+      {
+        event: {
+          code: "schema_violation",
+          message: "The outline did not parse.",
+          stageId: "outline",
+          type: "stage_error",
+        },
+        seq: 1,
+      },
+    ] as const;
+    expect(detailFor(log, "outline")).toEqual(["The outline did not parse."]);
+  });
+
   test("a stage's state is the last thing that happened to it", () => {
     expect(stateFor(RECORDED_LOG, "corpus-select")).toBe("done");
     expect(stateFor(RECORDED_LOG, "style-extract")).toBe("pending");

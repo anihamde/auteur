@@ -30,16 +30,32 @@ export const EMPTY: SessionState = {
   view: undefined,
 };
 
-/** The detail lines a stage has streamed, oldest first. */
+/**
+ * The lines a stage has streamed, oldest first — its progress and, last, why it
+ * stopped.
+ *
+ * A failure was a red dot and nothing else: the reason existed, in an event the
+ * screen already had, and no screen read it. Reading it here rather than in a
+ * separate failure slot is what puts the reason where the reader is already
+ * looking.
+ */
 export const detailFor = (
   events: readonly StoredEvent[],
   stageId: string,
 ): string[] =>
-  events.flatMap((stored) =>
-    stored.event.type === "stage_detail" && stored.event.stageId === stageId
-      ? [stored.event.line]
-      : [],
-  );
+  events.flatMap((stored) => {
+    const event = stored.event;
+    if (!("stageId" in event) || event.stageId !== stageId) return [];
+    if (event.type === "stage_detail") return [event.line];
+    if (event.type === "stage_error") {
+      return [
+        event.detail === undefined
+          ? event.message
+          : `${event.message} ${event.detail}`,
+      ];
+    }
+    return [];
+  });
 
 /** What the pipeline is doing to a stage right now. */
 export const stateFor = (
