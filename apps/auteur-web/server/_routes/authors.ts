@@ -12,6 +12,8 @@ import {
 } from "@auteur/corpus-gutenberg/provider";
 import { findAuthor } from "@auteur/corpus-store/authors";
 import type { Db } from "@auteur/db/db";
+import { isAuteurError } from "@auteur/errors/is-auteur-error";
+import type { Logger } from "@auteur/logger/logger";
 import { Hono } from "hono";
 
 /**
@@ -29,6 +31,11 @@ import { Hono } from "hono";
 
 export type AuthorRoutesDeps = {
   readonly db: Db;
+  /**
+   * Where a provider's failure goes. Absent in a test that asserts on the
+   * union rather than on what was written about it.
+   */
+  readonly logger?: Logger;
   /**
    * Injected so a test runs offline against a fixture and the live route runs
    * against Gutendex. Defaults to the one provider that exists; PRD §8's
@@ -84,7 +91,24 @@ export const authorRoutes = (deps: AuthorRoutesDeps): Hono => {
     const { q } = parseQuery("authors", {
       q: context.req.query("q"),
     });
-    const { results, unavailable } = await searchAll(providers, q);
+    const { results, unavailable } = await searchAll(
+      providers,
+      q,
+      (providerId, reason) => {
+        // The screen is told which provider is missing; the log is told why.
+        // Without this, "gutenberg unavailable" is the whole of what anyone
+        // ever learns — the same shape as a stage invocation that swallowed
+        // its own 401.
+        deps.logger?.error("corpus provider unavailable", {
+          message:
+            reason instanceof Error ? reason.message : "non-error thrown",
+          provider: providerId,
+          ...(isAuteurError(reason) && reason.detail !== undefined
+            ? { detail: reason.detail }
+            : {}),
+        });
+      },
+    );
     // Reads the local tables; never writes them. Typing an author's name must
     // not fetch their corpus.
     const filled = await withLocalFacts(localFacts(deps.db), results);

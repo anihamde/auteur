@@ -201,6 +201,7 @@ export const createApp = (deps: AppDeps): Hono => {
     "/",
     authorRoutes({
       db: deps.db,
+      ...(deps.logger !== undefined && { logger: deps.logger }),
       ...(deps.providers !== undefined && { providers: deps.providers }),
     }),
   );
