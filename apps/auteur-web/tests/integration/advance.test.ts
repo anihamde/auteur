@@ -21,7 +21,11 @@ import {
   updateSession,
 } from "@auteur/session-store/sessions";
 import { recordStageKey } from "@auteur/session-store/stage-keys";
-import { listQueueForSession } from "@auteur/stage-queue/queue";
+import {
+  claimStage,
+  completeStage,
+  listQueueForSession,
+} from "@auteur/stage-queue/queue";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
 import { createApp } from "../../server/_app.ts";
 import { stalenessInputFor } from "../../server/_routes/advance.ts";
@@ -408,5 +412,25 @@ describe("choosing an author is the other moment work begins", () => {
       "prosody-compute",
       "style-extract",
     ]);
+  });
+
+  test("a stage that already ran is queued again, not reported and skipped", async () => {
+    // The failure this closes: `(session_id, stage_id, attempt)` is unique, so
+    // a stage that ran left a finished attempt-0 row and the re-enqueue hit
+    // it. `enqueued` named four stages, the queue got rows for none of them,
+    // and the run continued against the previous author's corpus. What is
+    // reported has to be what is claimable.
+    const app = createApp({ apiToken: TOKEN, db: harness.db });
+    await chooseAuthor(app, "gutenberg:chekhov");
+    for (const row of await listQueueForSession(harness.db, sessionId)) {
+      const claimant = newId();
+      await claimStage(harness.db, row.id, claimant);
+      await completeStage(harness.db, row.id, claimant);
+    }
+
+    const { enqueued } = await chooseAuthor(app, "gutenberg:borges");
+    const queued = await listQueueForSession(harness.db, sessionId);
+    expect(queued.map((row) => row.stageId)).toEqual(enqueued);
+    expect(queued.every((row) => row.status === "queued")).toBe(true);
   });
 });
