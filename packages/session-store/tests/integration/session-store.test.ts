@@ -278,7 +278,7 @@ describe("pins are replaced, never merged", () => {
       harness.db,
       session.id,
       new Map([
-        ["draft", "claude-sonnet-4.5"],
+        ["draft", "claude-sonnet-5"],
         ["outline", "gpt-5"],
       ]),
     );

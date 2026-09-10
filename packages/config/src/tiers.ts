@@ -31,13 +31,20 @@ import type { Tier } from "@auteur/core/pipeline";
  * so a list ordered any other way resolves to a model that cannot run them and
  * fails at startup.
  *
- * **Provisional until WP-X0.** The catalogue's capability columns are
- * `source: "declared"`, and this list is ordered against them. When the
- * verification pass measures the gateway, a corrected row changes what
- * resolution picks with no edit here.
+ * ## These are ids the gateway serves
+ *
+ * The previous list named none that it did, so every tier resolved to a model
+ * that 404s and the first real session died three screens in (decision 0028).
+ * The catalogue is generated from the gateway now, and
+ * `check-router-catalogue.ts` fails when a candidate here is not in it — which
+ * is the check that would have caught it on the day it was written.
+ *
+ * Every candidate accepts a strict schema, which is not a preference: six of
+ * the ten stages are typed, and a list whose leader cannot run them resolves to
+ * a model that fails at the first structured call.
  */
 export const TIER_CANDIDATES: Readonly<Record<Tier, readonly string[]>> = {
-  balanced: ["claude-haiku-4.5", "gpt-5", "kimi-k2-0905", "deepseek-v3.2"],
-  cheap: ["gpt-5-mini", "qwen3-30b-a3b", "deepseek-v3.2", "glm-4.6-air"],
-  strong: ["claude-sonnet-4.5", "gpt-5", "claude-opus-4.1", "grok-4"],
+  balanced: ["claude-sonnet-5", "gpt-5.6-terra", "grok-4.6", "kimi-k3"],
+  cheap: ["claude-haiku-4-5", "gpt-5.4-nano", "gpt-5-mini", "glm-5p3-flash"],
+  strong: ["claude-opus-5", "gpt-6-astra", "claude-fable-5-1", "gpt-5.5"],
 };

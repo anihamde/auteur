@@ -1,0 +1,115 @@
+import { describe, expect, test } from "bun:test";
+import reduced from "../tests/fixtures/gateway-models.reduced.json" with {
+  type: "json",
+};
+import {
+  DEFAULT_MODEL_ID,
+  microsFrom,
+  parseGatewayModels,
+  toCatalogueRows,
+} from "./gateway-models.ts";
+
+const models = parseGatewayModels(reduced);
+
+const entry = (overrides: Record<string, unknown> = {}) => ({
+  display_name: "A Model",
+  id: "a-model",
+  owned_by: "somebody",
+  router: {
+    capabilities: { structured_outputs: true },
+    limits: { context_window: 200_000, max_output_tokens: 64_000 },
+    pricing: { input: "1", output: "5" },
+    status: "active",
+    ...overrides,
+  },
+});
+
+describe("a price is converted without ever becoming a float", () => {
+  test("whole dollars, cents, and the awkward one", () => {
+    // `1.1 * 1e6` is 1100000.0000000002 in binary floating point, and
+    // `pricing.ts` uses integers precisely so a hundred stages do not drift in
+    // the last place for a reason nobody can explain to a reader.
+    expect(microsFrom("10")).toBe(10_000_000);
+    expect(microsFrom("0.15")).toBe(150_000);
+    expect(microsFrom("1.1")).toBe(1_100_000);
+    expect(microsFrom("4.05")).toBe(4_050_000);
+    expect(microsFrom("0.05")).toBe(50_000);
+  });
+
+  test("a price finer than a micro is refused, not rounded", () => {
+    // Rounding here would make every cost this product shows quietly wrong by
+    // an amount that grows with usage.
+    expect(() => microsFrom("0.0000001")).toThrow(/finer than a micro/);
+  });
+
+  test("something that is not a price throws rather than yielding NaN", () => {
+    expect(() => microsFrom("free")).toThrow(/not a decimal price/);
+  });
+});
+
+describe("the schema describes what is read and ignores the rest", () => {
+  test("the recorded answer parses", () => {
+    expect(models.length).toBeGreaterThan(0);
+  });
+
+  test("a field this code never reads does not fail the parse", () => {
+    // The rule decision 0022 arrived at after a field the product does not
+    // read took the product down. The `router` block carries a dozen of them.
+    const withExtra = {
+      data: [
+        {
+          ...entry(),
+          router: { ...entry().router, verbosity: { supported: true } },
+        },
+      ],
+    };
+    expect(parseGatewayModels(withExtra)).toHaveLength(1);
+  });
+
+  test("a field this code does read failing is named", () => {
+    const broken = { data: [{ ...entry(), id: 7 }] };
+    expect(() => parseGatewayModels(broken)).toThrow(/id/);
+  });
+});
+
+describe("the gateway's answer becomes catalogue rows", () => {
+  const rows = toCatalogueRows(models);
+
+  test("every row is measured, because the gateway measured it", () => {
+    expect(rows.every((row) => row.source === "measured")).toBe(true);
+  });
+
+  test("a deprecated model is not a row", () => {
+    // The gateway still answers for them and will not for ever. A row here is
+    // a model a session can be pinned to, so keeping one is a pin waiting to
+    // fail on a schedule nobody here controls.
+    const deprecated = models
+      .filter((model) => model.router.status === "deprecated")
+      .map((model) => model.id);
+    expect(deprecated.length).toBeGreaterThan(0);
+    expect(rows.filter((row) => deprecated.includes(row.id))).toEqual([]);
+  });
+
+  test("exactly one row is the default, and it is the one resolution falls back to", () => {
+    // The registry refuses a second default rather than taking the last, so
+    // this is the difference between a catalogue that registers and one that
+    // throws on boot.
+    expect(
+      rows.filter((row) => row.default === true).map((row) => row.id),
+    ).toEqual([DEFAULT_MODEL_ID]);
+  });
+
+  test("an output ceiling above the window is clamped to it", () => {
+    // Several rows report a max output equal to the whole window, and the
+    // registry refuses a ceiling above it. Passing one through unclamped is a
+    // catalogue that fails to register on the first boot after a refresh.
+    expect(rows.every((row) => row.maxOutputTokens <= row.contextWindow)).toBe(
+      true,
+    );
+  });
+
+  test("ordering is creator then id, so the panel never sorts at run time", () => {
+    const keys = rows.map((row) => `${row.creator} ${row.id}`);
+    expect(keys).toEqual([...keys].sort());
+  });
+});

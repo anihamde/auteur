@@ -7,15 +7,15 @@ import {
   toDescriptor,
 } from "./models.ts";
 
-describe("no row is measured yet", () => {
-  test("every row is tagged declared, and this test is deleted by WP-X0", () => {
-    // What stops a declared table from being quietly mistaken for a verified
-    // one. `structuredOutput` and `maxOutputTokens` came from published
-    // documentation, not from asking the gateway; the verification pass
-    // re-tags a row only after measuring it, and fails if the measurement
-    // differs from the declaration.
-    const measured = CATALOGUE.filter((row) => row.source === "measured");
-    expect(measured.map((row) => row.id)).toEqual([]);
+describe("every row is measured", () => {
+  test("the generator wrote them, so nothing is a claim from documentation", () => {
+    // The inverse of the assertion that used to be here. That one held the
+    // line that a declared table must not be mistaken for a verified one, and
+    // it passed for the whole life of a catalogue in which not one id was real
+    // — because "declared" was never the problem. Now the rows come from the
+    // gateway's own answer, and a row that does not is one somebody typed.
+    const declared = CATALOGUE.filter((row) => row.source !== "measured");
+    expect(declared.map((row) => row.id)).toEqual([]);
   });
 });
 

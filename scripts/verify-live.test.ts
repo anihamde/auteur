@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { CATALOGUE } from "../packages/provider-router/src/models.ts";
 import {
   checkCatalogue,
+  checkCatalogueDrift,
   exitCodeFor,
   missing,
   render,
@@ -85,5 +87,23 @@ describe("a check that did not run does not report ok", () => {
     );
     expect(report.ok).toBe(true);
     expect(report.lines[0]).toContain("32,329 authors");
+  });
+});
+
+describe("the catalogue check asks the gateway", () => {
+  test("a tier candidate nothing serves fails, and is named", async () => {
+    // The failure this slot exists for. It used to print that the measurement
+    // half of the probe was unwritten — true, and not the problem: the
+    // catalogue named models the gateway had never served and nothing asked.
+    const report = await checkCatalogueDrift("key", async () => []);
+    expect(report.ok).toBe(false);
+    expect(report.lines.join(" ")).toContain("tier candidate nothing serves");
+  });
+
+  test("agreement is the only thing that passes it", async () => {
+    const report = await checkCatalogueDrift("key", async () =>
+      CATALOGUE.map((row) => row.id),
+    );
+    expect(report.ok).toBe(true);
   });
 });

@@ -5,7 +5,7 @@ import { buildKey, buildKeyComponents } from "./build-key.ts";
 const base: BuildKeyInput = {
   authorId: "gutenberg:borges-jorge-luis-1899",
   cleanerVersion: "clean-a1",
-  extractionModelId: "claude-haiku-4.5",
+  extractionModelId: "claude-haiku-4-5",
   extractionPromptVersion: "style-extract@1",
   prosodyVersion: "pros-b2",
   segmenterVersion: "seg-c3",

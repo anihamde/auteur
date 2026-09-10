@@ -11,10 +11,21 @@ change and needs a contract review, per the implementation plan's gate 4.
 export const createRouterProvider = (config: RouterConfig): ModelProvider =>
 ```
 
+## `@auteur/provider-router/gateway-models`
+
+```ts
+export const DEFAULT_MODEL_ID = "claude-opus-5"
+export const gatewayModelsSchema = z.object(
+export const microsFrom = (price: string): number =>
+export const parseGatewayModels = (payload: unknown): GatewayModel[] =>
+export const served = (
+export const toCatalogueRows = (
+```
+
 ## `@auteur/provider-router/models`
 
 ```ts
-export const CATALOGUE: readonly CatalogueRow[] = [
+export const CATALOGUE: readonly CatalogueRow[] = GENERATED_CATALOGUE
 ROUTER_PROVIDER_ID
 export const findRow = (id: string): CatalogueRow | undefined =>
 export const toDescriptor = (row: CatalogueRow): ModelDescriptor => (
