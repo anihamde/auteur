@@ -31,9 +31,18 @@ export type StyleExtractInput = {
   readonly passages: readonly CandidatePassage[];
 };
 
-/** The paths as the prompt lists them, from the card's own declaration. */
-const fields = (): string =>
-  CLAIM_PATHS.map((claim) => `- \`${claim.path}\` (${claim.kind})`).join("\n");
+/**
+ * The paths as the prompt lists them, from the card's own declaration.
+ *
+ * Split by what can evidence them, because the citation rule differs and a
+ * single list forced one rule on both: told that an uncited claim was "honest
+ * and useful", a model returned all twenty-two and cited fifteen — leaving
+ * seven the assembler then refused to write, and no card at all.
+ */
+const fields = (evidence: "passage" | "corpus"): string =>
+  CLAIM_PATHS.filter((claim) => claim.evidence === evidence)
+    .map((claim) => `- \`${claim.path}\` (${claim.kind})`)
+    .join("\n");
 
 const passageBlock = (passage: CandidatePassage): string =>
   [`### ${passage.id} — ${passage.workTitle}`, "", passage.text].join("\n");
@@ -74,10 +83,21 @@ export const styleExtract: Prompt<StyleExtractInput> = {
       "",
       "`path` is one of these strings exactly. A path not on this list is",
       "discarded, and a path spelled differently is a path not on this list.",
-      "",
-      fields(),
-      "",
       "A `line` takes one string. A `list` takes an array of strings.",
+      "",
+      "**These are read from a passage, and each one must cite it.** Pick the",
+      "passage the reading came from and give its id. Every one of them is",
+      "visible in a passage, so there is always one to point at.",
+      "",
+      fields("passage"),
+      "",
+      "**These are read from the corpus, and take `citationPassageId: null`.**",
+      "They are absences and recurrences: no single passage shows what an",
+      "author avoids, and no single passage establishes that an image recurs.",
+      "Citing one would point at a passage that does not contain the thing",
+      "being claimed. Return the reading, and return it with null.",
+      "",
+      fields("corpus"),
       "",
       'A good value is specific enough to be wrong. "Formal register" is not a',
       'reading; "a register that reaches for the Latinate abstraction where a',
@@ -92,12 +112,12 @@ export const styleExtract: Prompt<StyleExtractInput> = {
       "",
       "## Cite what you can point at, and nothing else",
       "",
-      "Every field you return is either backed by a passage id from the list",
-      "below, or returned with `citationPassageId: null`. A field you cannot",
-      "point at a passage for is returned with null, never with an invented id.",
-      "An uncited claim is honest and useful; a claim citing a passage that does",
-      "not support it is worse than no claim, because a reader who follows the",
-      "citation stops trusting the ones that are right.",
+      "A citation is a passage id copied from a heading below, never composed.",
+      "A claim citing a passage that does not support it is worse than no claim,",
+      "because a reader who follows the citation stops trusting the ones that",
+      "are right — so where the reading is genuinely of the corpus rather than",
+      "of a passage, null is the honest answer and the list above says which",
+      "those are.",
       "",
       "## Do not restate the prosody",
       "",
@@ -111,5 +131,5 @@ export const styleExtract: Prompt<StyleExtractInput> = {
       input.passages.map(passageBlock).join("\n\n"),
     ].join("\n"),
   id: "style-extract",
-  version: "style-extract@2",
+  version: "style-extract@3",
 };

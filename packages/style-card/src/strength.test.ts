@@ -95,8 +95,17 @@ describe("flattenClaims finds the claim-bearing fields and no others", () => {
     }
   });
 
-  test("every claim it finds carries an origin", () => {
-    expect(claims.every((claim) => claim.origin === "derived")).toBe(true);
+  test("every claim it finds carries an origin, and both kinds appear", () => {
+    // `derived` is read from a passage and cites it; `measured` is read from
+    // the corpus — an absence or a recurrence — and cannot. A walk that found
+    // only one kind would be missing half the card.
+    expect(
+      claims.every(
+        (claim) => claim.origin === "derived" || claim.origin === "measured",
+      ),
+    ).toBe(true);
+    expect(claims.some((claim) => claim.origin === "measured")).toBe(true);
+    expect(claims.some((claim) => claim.origin === "derived")).toBe(true);
     expect(claims.length).toBeGreaterThanOrEqual(20);
   });
 });
