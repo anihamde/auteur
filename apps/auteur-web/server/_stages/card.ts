@@ -42,7 +42,9 @@ export const EXTRACT_PASSAGES = 40;
  * be absent" but there is a way to express "may be null" — and before this the
  * model had to send the key with no citation to give, which meant an empty
  * string, which is not a uuid, which failed the zod parse of the whole
- * extraction.
+ * extraction. It is written as two `anyOf` branches rather than a nullable
+ * enum, because the gateway checks each enum member against the first declared
+ * type and refuses a `null` among strings.
  *
  * **Built per request, because two of its fields are enumerations of this
  * request's own data.** `path` is one of the card's twenty-two claim paths and
@@ -80,9 +82,17 @@ export const extractionJsonSchema = (
       items: {
         additionalProperties: false,
         properties: {
+          // Two branches rather than one nullable enum. The gateway checks each
+          // enum member against the *first* declared type, so
+          // `enum: [...ids, null]` beside `type: ["string", "null"]` was
+          // refused whole: "Enum value None does not match declared type
+          // 'string'". A union of an enumerated string and a null says the
+          // same thing in a shape it accepts.
           citationPassageId: {
-            enum: [...passageIds, null],
-            type: ["string", "null"],
+            anyOf: [
+              { enum: [...passageIds], type: "string" },
+              { type: "null" },
+            ],
           },
           path: {
             enum: CLAIM_PATHS.map((claim) => claim.path),
