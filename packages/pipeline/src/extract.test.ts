@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ProsodyBlock, WorkProsody } from "@auteur/core/prosody";
 import type { AuthorRef, WorkRef } from "@auteur/core/style-card";
+import { CLAIM_PATHS } from "@auteur/core/style-card";
 import {
   cardFromExtraction,
   type Extraction,
@@ -45,44 +46,21 @@ const SOURCES: readonly WorkRef[] = [
   { id: "gutenberg:1", title: "Ficciones", wordCount: 214_000, year: 1944 },
 ];
 
-/** Every claim field styleCardSchema requires, each cited. */
-const ALL_PATHS = [
-  "antiPatterns",
-  "dialogue.dialectRendering",
-  "dialogue.speechToNarrationBalance",
-  "dialogue.tagConventions",
-  "diction.avoidedRegisters",
-  "diction.concreteness",
-  "diction.register",
-  "diction.signatureLexicon",
-  "imagery.motifs",
-  "imagery.preoccupations",
-  "imagery.recurringImages",
-  "rhythm.devices",
-  "rhythm.repetitionHabits",
-  "structure.closingMoves",
-  "structure.openingMoves",
-  "structure.sceneVsSummary",
-  "structure.typicalShapes",
-  "voice.freeIndirect",
-  "voice.narratorDistance",
-  "voice.pov",
-  "voice.reliability",
-  "voice.tense",
-] as const;
+/**
+ * Every claim field `styleCardSchema` requires, each cited.
+ *
+ * From `CLAIM_PATHS` rather than retyped: this list and the schema have to
+ * agree, and the card built below is what proves they do — a path added to the
+ * schema and not to `CLAIM_PATHS` fails this build, which is the only check
+ * either side has.
+ */
+const ALL_PATHS = CLAIM_PATHS.map((claim) => claim.path);
 
-const PLURAL = new Set([
-  "antiPatterns",
-  "diction.avoidedRegisters",
-  "diction.signatureLexicon",
-  "imagery.motifs",
-  "imagery.preoccupations",
-  "imagery.recurringImages",
-  "rhythm.devices",
-  "structure.closingMoves",
-  "structure.openingMoves",
-  "structure.typicalShapes",
-]);
+const PLURAL = new Set(
+  CLAIM_PATHS.filter((claim) => claim.kind === "list").map(
+    (claim) => claim.path,
+  ),
+);
 
 const passage = (n: number): string =>
   `b1c9f2e0-0000-7000-8000-abcdefabcde${n.toString(16)}`;

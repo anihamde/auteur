@@ -77,6 +77,8 @@ export const storySchema = z.object(
 ## `@auteur/core/style-card`
 
 ```ts
+export const CLAIM_PATHS: readonly ClaimPath[] = [
+export const EXEMPLARS = { max: 15, min: 8 } as const
 export const authorRefSchema = z.object(
 export const cardOverlaySchema = z.object(
 export const cardStrengthSchema = z.object(

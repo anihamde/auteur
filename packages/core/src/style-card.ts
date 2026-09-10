@@ -85,6 +85,57 @@ export const exemplarSchema = z.object({
 });
 export type Exemplar = z.infer<typeof exemplarSchema>;
 
+/**
+ * Every qualitative field the card requires, and what shape its value takes.
+ *
+ * The extraction stage returns `{path, value}` pairs and the assembler writes
+ * them into the card at those paths. `styleCardSchema` requires **all** of
+ * them, so a card does not build unless every one arrives — and the model was
+ * never told what any of them were. It returned no fields at all and one
+ * invented passage id, which is the honest response to a request that describes
+ * the card in prose and names none of it.
+ *
+ * The list is here, beside the schema it has to agree with, and
+ * `style-card`'s own test builds a card from exactly these paths: a path added
+ * to the schema and not to this list fails that build, which is the check that
+ * keeps the two together.
+ *
+ * `line` is one sentence and `list` is several — the difference between
+ * `stringClaim` and `stringsClaim` above, said in a word a prompt can use.
+ */
+export type ClaimPath = {
+  readonly path: string;
+  readonly kind: "line" | "list";
+};
+
+export const CLAIM_PATHS: readonly ClaimPath[] = [
+  { kind: "list", path: "antiPatterns" },
+  { kind: "line", path: "dialogue.dialectRendering" },
+  { kind: "line", path: "dialogue.speechToNarrationBalance" },
+  { kind: "line", path: "dialogue.tagConventions" },
+  { kind: "list", path: "diction.avoidedRegisters" },
+  { kind: "line", path: "diction.concreteness" },
+  { kind: "line", path: "diction.register" },
+  { kind: "list", path: "diction.signatureLexicon" },
+  { kind: "list", path: "imagery.motifs" },
+  { kind: "list", path: "imagery.preoccupations" },
+  { kind: "list", path: "imagery.recurringImages" },
+  { kind: "list", path: "rhythm.devices" },
+  { kind: "line", path: "rhythm.repetitionHabits" },
+  { kind: "list", path: "structure.closingMoves" },
+  { kind: "list", path: "structure.openingMoves" },
+  { kind: "line", path: "structure.sceneVsSummary" },
+  { kind: "list", path: "structure.typicalShapes" },
+  { kind: "line", path: "voice.freeIndirect" },
+  { kind: "line", path: "voice.narratorDistance" },
+  { kind: "line", path: "voice.pov" },
+  { kind: "line", path: "voice.reliability" },
+  { kind: "line", path: "voice.tense" },
+];
+
+/** How many exemplars a card carries. Stated once; the prompt says it too. */
+export const EXEMPLARS = { max: 15, min: 8 } as const;
+
 export const styleCardSchema = z.object({
   antiPatterns: stringsClaim,
   author: authorRefSchema,
@@ -102,7 +153,7 @@ export const styleCardSchema = z.object({
     register: stringClaim,
     signatureLexicon: stringsClaim,
   }),
-  exemplars: z.array(exemplarSchema).min(8).max(15),
+  exemplars: z.array(exemplarSchema).min(EXEMPLARS.min).max(EXEMPLARS.max),
   id: z.uuid(),
   imagery: z.object({
     motifs: stringsClaim,

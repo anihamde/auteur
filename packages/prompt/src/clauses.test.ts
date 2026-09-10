@@ -72,8 +72,12 @@ const CASES = [
         prosody: PROSODY,
       }),
     clauses: {
-      cite: "never with an invented one",
+      cite: "never with an invented id",
       "no-prosody": "Do not return any of",
+      // Naming the card's fields is the difference between a card and no card:
+      // asked in prose for "the qualitative half of a style card", the model
+      // returned no fields at all.
+      paths: "- `voice.pov` (line)",
     },
     name: "style-extract",
   },

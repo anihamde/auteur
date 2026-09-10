@@ -1,4 +1,5 @@
 import type { WorkProsody } from "@auteur/core/prosody";
+import { CLAIM_PATHS, EXEMPLARS } from "@auteur/core/style-card";
 import type { Prompt } from "./versions.ts";
 
 /**
@@ -7,6 +8,15 @@ import type { Prompt } from "./versions.ts";
  * The measured prosody is given as **evidence**, not as something to restate.
  * Invariant 1 says a measurement is never an opinion, and a model asked to
  * report a number it was handed will eventually report a different one.
+ *
+ * **It names the fields.** It used to describe the card in prose — "point of
+ * view and narrator distance, register and diction, opening and closing moves"
+ * — and never say that `path` takes one of twenty-two exact strings, that
+ * every one of them is required for a card to build, or how many exemplars to
+ * return. The model answered with no fields and one invented passage id, which
+ * is a fair reading of what it was asked. The list comes from `CLAIM_PATHS`
+ * rather than being retyped here, so a field added to the card reaches the
+ * prompt on the same commit.
  */
 
 export type CandidatePassage = {
@@ -20,6 +30,10 @@ export type StyleExtractInput = {
   readonly prosody: WorkProsody;
   readonly passages: readonly CandidatePassage[];
 };
+
+/** The paths as the prompt lists them, from the card's own declaration. */
+const fields = (): string =>
+  CLAIM_PATHS.map((claim) => `- \`${claim.path}\` (${claim.kind})`).join("\n");
 
 const passageBlock = (passage: CandidatePassage): string =>
   [`### ${passage.id} — ${passage.workTitle}`, "", passage.text].join("\n");
@@ -50,20 +64,37 @@ export const styleExtract: Prompt<StyleExtractInput> = {
       "",
       "## What to return",
       "",
-      "The qualitative half of a style card: point of view and narrator",
-      "distance, register and diction, opening and closing moves, recurring",
-      "images, and the patterns this author avoids. Each field is a claim, and",
-      "each claim carries the passage it was read from.",
+      "Two things: `fields`, one entry for **every** path listed below, and",
+      `\`exemplars\`, between ${EXEMPLARS.min.toString()} and ${EXEMPLARS.max.toString()} passages worth quoting.`,
+      "",
+      "A card does not build unless every path below arrives. Returning fewer",
+      "is not a shorter card, it is no card at all.",
+      "",
+      "### The paths, and the shape of each value",
+      "",
+      "`path` is one of these strings exactly. A path not on this list is",
+      "discarded, and a path spelled differently is a path not on this list.",
+      "",
+      fields(),
+      "",
+      "A `line` takes one string. A `list` takes an array of strings.",
       "",
       'A good value is specific enough to be wrong. "Formal register" is not a',
       'reading; "a register that reaches for the Latinate abstraction where a',
       'concrete noun would do" is one, and a passage can be pointed at.',
       "",
+      "### Exemplars",
+      "",
+      `Between ${EXEMPLARS.min.toString()} and ${EXEMPLARS.max.toString()} of them, each naming a passage id from the list`,
+      "below and saying in one line what that passage demonstrates. The id is",
+      "copied from a heading, never composed: an exemplar is nothing but its",
+      "citation, so one naming a passage nobody offered is dropped entirely.",
+      "",
       "## Cite what you can point at, and nothing else",
       "",
       "Every field you return is either backed by a passage id from the list",
-      "below, or returned with no citation at all. A field you cannot point at a",
-      "passage for is returned without a citation, never with an invented one.",
+      "below, or returned with `citationPassageId: null`. A field you cannot",
+      "point at a passage for is returned with null, never with an invented id.",
       "An uncited claim is honest and useful; a claim citing a passage that does",
       "not support it is worse than no claim, because a reader who follows the",
       "citation stops trusting the ones that are right.",
@@ -80,5 +111,5 @@ export const styleExtract: Prompt<StyleExtractInput> = {
       input.passages.map(passageBlock).join("\n\n"),
     ].join("\n"),
   id: "style-extract",
-  version: "style-extract@1",
+  version: "style-extract@2",
 };
