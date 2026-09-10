@@ -30,6 +30,7 @@ export const plainTextUrl = (book: GutendexBook): string | undefined =>
 export const CORPUS_HEADERS: Readonly<Record<string, string>> =
 export const GUTENDEX_BASE = "https://gutendex.com"
 export const USER_AGENT = "auteur/0.1 (+https://github.com/anihamde/auteur)"
+export const refusalDetail = async (
 export const searchBooks = async (
 export const searchPage = async (
 ```

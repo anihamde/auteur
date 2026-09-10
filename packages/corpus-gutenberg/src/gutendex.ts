@@ -49,6 +49,43 @@ export type GutendexConfig = {
 const searchUrl = (base: string, query: string, page?: string): string =>
   page ?? `${base}/books?search=${encodeURIComponent(query)}&languages=en`;
 
+/** How much of a refusal is worth keeping. Enough to read, not a whole page. */
+const REFUSAL_BODY_LIMIT = 400;
+
+/**
+ * What a refusal actually said.
+ *
+ * A status alone cannot tell a **client** rejection from a **network** one, and
+ * the two have different fixes: a 403 naming Cloudflare and carrying a ray id
+ * is an edge rule refusing where the request came from, and no header will
+ * change it; a 403 carrying the service's own JSON is something about this
+ * request that can be corrected.
+ *
+ * So the body is read — truncated, because a block page is a page — along with
+ * the two headers that identify the edge. Reading it consumes the response,
+ * which is free here: this branch throws.
+ */
+export const refusalDetail = async (
+  response: Response,
+  url: string,
+): Promise<Record<string, unknown>> => {
+  const body = await response.text().catch(() => "");
+  return {
+    body:
+      body.length > REFUSAL_BODY_LIMIT
+        ? `${body.slice(0, REFUSAL_BODY_LIMIT)}…`
+        : body,
+    ...(response.headers.get("cf-ray") === null
+      ? {}
+      : { cfRay: response.headers.get("cf-ray") }),
+    ...(response.headers.get("server") === null
+      ? {}
+      : { server: response.headers.get("server") }),
+    status: response.status,
+    url,
+  };
+};
+
 /**
  * One page of results.
  *
@@ -79,7 +116,7 @@ export const searchPage = async (
     throw new AuteurError(
       "corpus_unavailable",
       "The corpus index could not be reached.",
-      { detail: { status: response.status, url } },
+      { detail: await refusalDetail(response, url) },
     );
   }
 
