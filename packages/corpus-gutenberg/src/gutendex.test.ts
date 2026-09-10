@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import fixture from "../tests/fixtures/gutendex-search.synthetic.json" with {
   type: "json",
 };
-import { searchBooks, searchPage } from "./gutendex.ts";
+import { refusalDetail, searchBooks, searchPage } from "./gutendex.ts";
 
 const page = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
@@ -142,5 +142,45 @@ describe("the client says who it is", () => {
       },
     });
     expect(seen?.["accept"]).toBe("application/json");
+  });
+});
+
+describe("a refusal says what refused", () => {
+  test("an edge block is distinguishable from the service's own answer", async () => {
+    // A status alone cannot tell a client rejection from a network one, and the
+    // two have different fixes: an edge rule refusing where the request came
+    // from is not something a header changes.
+    const detail = await refusalDetail(
+      new Response(
+        "<!DOCTYPE html><title>Attention Required! | Cloudflare</title>",
+        {
+          headers: { "cf-ray": "9a1b2c3d4e5f6789-IAD", server: "cloudflare" },
+          status: 403,
+        },
+      ),
+      "https://corpus.auteur.test/books",
+    );
+
+    expect(detail["status"]).toBe(403);
+    expect(detail["server"]).toBe("cloudflare");
+    expect(detail["cfRay"]).toBe("9a1b2c3d4e5f6789-IAD");
+    expect(String(detail["body"])).toContain("Cloudflare");
+  });
+
+  test("a long body is truncated, because a block page is a page", async () => {
+    const detail = await refusalDetail(
+      new Response("x".repeat(5000), { status: 403 }),
+      "https://corpus.auteur.test/books",
+    );
+    expect(String(detail["body"]).length).toBeLessThan(500);
+    expect(String(detail["body"]).endsWith("…")).toBe(true);
+  });
+
+  test("headers that are not there are not reported as null", async () => {
+    const detail = await refusalDetail(
+      new Response('{"detail":"throttled"}', { status: 429 }),
+      "https://corpus.auteur.test/books",
+    );
+    expect(Object.keys(detail).sort()).toEqual(["body", "status", "url"]);
   });
 });
