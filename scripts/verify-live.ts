@@ -23,7 +23,12 @@ import { subscribe } from "../packages/event-store/src/listen.ts";
  *     dialect than JSON Schema and a request outside it is refused whole; three
  *     stage failures in one afternoon were exactly that, and every test in the
  *     repository sends its schema to a fake, so none of them could see it.
- *  5. **`LISTEN`/`NOTIFY` on Neon's direct endpoint** — the mechanism is
+ *  5. **One real extraction** — whether a model, given the prompt this product
+ *     sends, returns an answer that parses *and* builds a card. The schema
+ *     being accepted is not the same claim: the deployment's `style-extract`
+ *     was accepted, answered valid JSON, and returned no fields at all,
+ *     because the prompt named none of the paths a card needs.
+ *  6. **`LISTEN`/`NOTIFY` on Neon's direct endpoint** — the mechanism is
  *     verified on stock Postgres; Neon specifically is not, and a pooled
  *     `LISTEN` is accepted and then never delivers, which is the worst shape a
  *     failure can take.
@@ -34,6 +39,7 @@ import { subscribe } from "../packages/event-store/src/listen.ts";
  */
 import { served } from "../packages/provider-router/src/gateway-models.ts";
 import { CATALOGUE } from "../packages/provider-router/src/models.ts";
+import { runExtractionProbe } from "./check-extraction.ts";
 import { compare, unservedCandidates } from "./check-router-catalogue.ts";
 import { checkAll } from "./check-stage-schemas.ts";
 import { fetchModels } from "./probe-router-catalogue.ts";
@@ -274,6 +280,36 @@ export const checkStageSchemas = async (
       };
 };
 
+/**
+ * One real extraction, end to end.
+ *
+ * The other model check asks whether the gateway *accepts* the schema. This
+ * asks whether a model can *satisfy* it — a different claim, and the one that
+ * failed last: schema accepted, valid JSON returned, `fields: []`, no card.
+ *
+ * One call against nine short public-domain passages. It judges the contract
+ * and not the reading: whether "a register that reaches for the Latinate
+ * abstraction" is a good sentence about Austen is not a thing a check can
+ * decide, and one that tried would fail on a good answer it did not expect.
+ */
+export const checkExtraction = async (
+  apiKey: string,
+  modelId = "claude-sonnet-5",
+  probe = runExtractionProbe,
+): Promise<SubReport> => {
+  const name = "a real model satisfies the extraction contract";
+  const outcome = await probe(apiKey, modelId);
+  return outcome.ok
+    ? {
+        lines: [
+          `${outcome.fields.toString()} fields and ${outcome.exemplars.toString()} exemplars from ${modelId}, and a card built from them`,
+        ],
+        name,
+        ok: true,
+      }
+    : { lines: outcome.lines, name, ok: false };
+};
+
 export const missing = (name: string, variable: string): SubReport => ({
   lines: [
     `${variable} is unset, so this was not checked.`,
@@ -322,6 +358,15 @@ if (import.meta.main) {
     routerKey === undefined
       ? missing("the gateway accepts every stage schema", "RAMP_ROUTER_API_KEY")
       : await checkStageSchemas(routerKey),
+  );
+
+  reports.push(
+    routerKey === undefined
+      ? missing(
+          "a real model satisfies the extraction contract",
+          "RAMP_ROUTER_API_KEY",
+        )
+      : await checkExtraction(routerKey),
   );
 
   reports.push(

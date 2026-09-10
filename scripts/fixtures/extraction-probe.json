@@ -1,0 +1,74 @@
+{
+  "authorId": "gutenberg:austen-jane-1775",
+  "authorName": "Jane Austen",
+  "note": "Nine short passages from Pride and Prejudice (1813, public domain), and a prosody block measured over them. Short on purpose: the check asks whether the contract is satisfiable, not whether the reading is good, and a full corpus would cost forty times as much to learn the same thing. Nine because a card needs eight exemplars and a probe that offered exactly eight could pass by exhaustion.",
+  "passages": [
+    {
+      "id": "01a08c1f-1000-7000-8000-000000000001",
+      "text": "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife. However little known the feelings or views of such a man may be on his first entering a neighbourhood, this truth is so well fixed in the minds of the surrounding families, that he is considered as the rightful property of some one or other of their daughters."
+    },
+    {
+      "id": "01a08c1f-1000-7000-8000-000000000002",
+      "text": "\"My dear Mr. Bennet,\" said his lady to him one day, \"have you heard that Netherfield Park is let at last?\" Mr. Bennet replied that he had not. \"But it is,\" returned she; \"for Mrs. Long has just been here, and she told me all about it.\" Mr. Bennet made no answer. \"Do not you want to know who has taken it?\" cried his wife impatiently. \"You want to tell me, and I have no objection to hearing it.\" This was invitation enough."
+    },
+    {
+      "id": "01a08c1f-1000-7000-8000-000000000003",
+      "text": "Mr. Bennet was so odd a mixture of quick parts, sarcastic humour, reserve, and caprice, that the experience of three-and-twenty years had been insufficient to make his wife understand his character. Her mind was less difficult to develope. She was a woman of mean understanding, little information, and uncertain temper. When she was discontented, she fancied herself nervous. The business of her life was to get her daughters married; its solace was visiting and news."
+    },
+    {
+      "id": "01a08c1f-1000-7000-8000-000000000004",
+      "text": "Mr. Darcy soon drew the attention of the room by his fine, tall person, handsome features, noble mien, and the report which was in general circulation within five minutes after his entrance, of his having ten thousand a year. But his manners gave a disgust which turned the tide of his popularity; for he was discovered to be proud, to be above his company, and above being pleased."
+    },
+    {
+      "id": "01a08c1f-1000-7000-8000-000000000005",
+      "text": "\"She is tolerable; but not handsome enough to tempt me; and I am in no humour at present to give consequence to young ladies who are slighted by other men. You had better return to your partner and enjoy her smiles, for you are wasting your time with me.\" Mr. Bingley followed his advice. Mr. Darcy walked off; and Elizabeth remained with no very cordial feelings towards him. She told the story, however, with great spirit among her friends; for she had a lively, playful disposition, which delighted in anything ridiculous."
+    },
+    {
+      "id": "01a08c1f-1000-7000-8000-000000000006",
+      "text": "Elizabeth listened in silence, but was not convinced. Their behaviour at the assembly had not been calculated to please in general; and with more quickness of observation and less pliancy of temper than her sister, and with a judgment too unassailed by any attention to herself, she was very little disposed to approve them. They were in fact very fine ladies; not deficient in good humour when they were pleased, nor in the power of being agreeable where they chose it; but proud and conceited."
+    },
+    {
+      "id": "01a08c1f-1000-7000-8000-000000000007",
+      "text": "\"In vain have I struggled. It will not do. My feelings will not be repressed. You must allow me to tell you how ardently I admire and love you.\" Elizabeth's astonishment was beyond expression. She stared, coloured, doubted, and was silent. This he considered sufficient encouragement; and the avowal of all that he felt, and had long felt for her, immediately followed. He spoke well; but there were feelings besides those of the heart to be detailed."
+    },
+    {
+      "id": "01a08c1f-1000-7000-8000-000000000008",
+      "text": "How despicably have I acted! she cried. I, who have prided myself on my discernment! I, who have valued myself on my abilities! who have often disdained the generous candour of my sister, and gratified my vanity in useless or blameable distrust. How humiliating is this discovery! Yet, how just a humiliation! Had I been in love, I could not have been more wretchedly blind. But vanity, not love, has been my folly."
+    },
+    {
+      "id": "01a08c1f-1000-7000-8000-000000000009",
+      "text": "They walked on, without knowing in what direction. There was too much to be thought, and felt, and said, for attention to any other objects. She soon learnt that they were indebted for their present good understanding to the efforts of his aunt, who did call on him in her return through London, and there relate her journey to Longbourn, its motive, and the substance of her conversation with Elizabeth."
+    }
+  ],
+  "prosody": {
+    "commonBigrams": ["Mr. Darcy", "of the", "to be"],
+    "dialogueMarker": "double",
+    "dialogueRatio": 0.24,
+    "latinateRatio": 0.31,
+    "mattr": 0.71,
+    "paragraphLength": {
+      "mean": 78,
+      "median": 74
+    },
+    "perWork": {},
+    "punctuation": {
+      "colon": 1.2,
+      "ellipsis": 0.1,
+      "emDash": 1.4,
+      "exclamation": 3.1,
+      "question": 2.6,
+      "semicolon": 9.8
+    },
+    "sentenceLength": {
+      "mean": 26.1,
+      "median": 23,
+      "p10": 8,
+      "p90": 51,
+      "stdev": 15.3
+    },
+    "words": 3400
+  },
+  "workId": "gutenberg:1342",
+  "workTitle": "Pride and Prejudice",
+  "year": 1813
+}

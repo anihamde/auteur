@@ -3,6 +3,7 @@ import { CATALOGUE } from "../packages/provider-router/src/models.ts";
 import {
   checkCatalogue,
   checkCatalogueDrift,
+  checkExtraction,
   checkStageSchemas,
   exitCodeFor,
   missing,
@@ -142,5 +143,38 @@ describe("the gateway's word on the stage schemas", () => {
     expect(report.lines[0]).toBe(
       "style-extract: Enum value None does not match declared type 'string'",
     );
+  });
+});
+
+describe("one real extraction, end to end", () => {
+  test("a card built is the pass, and it says how much of one", async () => {
+    const report = await checkExtraction(
+      "key",
+      "claude-sonnet-5",
+      async () => ({
+        exemplars: 9,
+        fields: 22,
+        ok: true,
+      }),
+    );
+    expect(report.ok).toBe(true);
+    expect(report.lines[0]).toContain("22 fields");
+  });
+
+  test("the finding is the probe's own lines, not a summary of them", async () => {
+    // "The extraction failed" would send the reader back to the log this
+    // exists to replace. The zod paths are the diagnosis.
+    const report = await checkExtraction(
+      "key",
+      "claude-sonnet-5",
+      async () => ({
+        lines: ["fields: Too small: expected array to have >=1 items"],
+        ok: false,
+      }),
+    );
+    expect(report.ok).toBe(false);
+    expect(report.lines).toEqual([
+      "fields: Too small: expected array to have >=1 items",
+    ]);
   });
 });
