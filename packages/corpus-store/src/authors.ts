@@ -127,3 +127,82 @@ export const recordMeasuredWords = async (
     words,
   ]);
 };
+
+/**
+ * What a search row carries: the author, and the latest card if there is one.
+ *
+ * The card comes back in the same query rather than as a lookup per row.
+ * Twenty rows on a search screen is twenty round trips to Neon, which is the
+ * difference between a list that appears and a list that arrives.
+ */
+export type AuthorMatch = StoredAuthor & {
+  readonly card: {
+    readonly confidence: number;
+    readonly version: number;
+  } | null;
+};
+
+type MatchRow = Row & {
+  card_confidence: string | null;
+  card_version: number | null;
+};
+
+/** How many authors a search answers with. §5.3: the list is short on purpose. */
+export const SEARCH_LIMIT = 20;
+
+/**
+ * Authors whose name contains the query.
+ *
+ * `ILIKE '%q%'` rather than a prefix match, because a reader types "chekhov"
+ * and the catalogue stores "Chekhov, Anton Pavlovich" — a prefix search finds
+ * a surname and nothing else. The trigram index added with `catalogue_works`
+ * is what makes an unanchored match a query rather than a scan of 32,000 rows.
+ *
+ * Ordered by work count: an author with two hundred books is more likely the
+ * one meant than a namesake with one, and the count is already the number the
+ * detail line shows.
+ */
+/**
+ * A reader's query as a literal, not a pattern.
+ *
+ * `%` and `_` are wildcards to `ILIKE`, so a search for `%` becomes `%%%` and
+ * matches every author in the catalogue — bound, so not an injection, and
+ * wrong all the same: a character a reader typed should find what contains it.
+ * The backslash goes first, because escaping the escape after the others would
+ * escape the escapes.
+ */
+export const literalPattern = (query: string): string =>
+  `%${query.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+
+export const searchAuthors = async (
+  db: Db,
+  query: string,
+  limit: number = SEARCH_LIMIT,
+): Promise<AuthorMatch[]> => {
+  const result = await db.query<MatchRow>(
+    `SELECT ${columns(COLUMNS)}, card.confidence AS card_confidence,
+            card.version AS card_version
+       FROM authors
+       LEFT JOIN LATERAL (
+         SELECT confidence, version
+           FROM style_cards
+          WHERE style_cards.author_id = authors.id
+          ORDER BY version DESC
+          LIMIT 1
+       ) AS card ON true
+      WHERE authors.display_name ILIKE $1 ESCAPE '\\'
+      ORDER BY authors.work_count DESC, authors.display_name
+      LIMIT $2`,
+    [literalPattern(query), limit],
+  );
+  return result.rows.map((row) => ({
+    ...toAuthor(row),
+    card:
+      row["card_version"] === null || row["card_confidence"] === null
+        ? null
+        : {
+            confidence: Number(row["card_confidence"]),
+            version: row["card_version"],
+          },
+  }));
+};
