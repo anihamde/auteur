@@ -316,7 +316,7 @@ CREATE TABLE works (
   title         text NOT NULL,
   year          integer,
   language      text NOT NULL,
-  translator    text,                       -- when gutendex reports one (§5.2)
+  translator    text,                       -- when the fetch reports one (§5.2)
   source_url    text NOT NULL,
   cleaner_version text NOT NULL,            -- §4.2
   word_count    integer NOT NULL,
@@ -912,27 +912,21 @@ for a provider that does not exist.
 
 Four steps, three of them cached in `works` and `passages`.
 
-**Author search** is `GET https://gutendex.com/books?search=<query>&languages=en`,
-debounced at 250ms in the browser and aborted on the next keystroke. Results are
-books; the provider folds them into authors by the `authors[].name` gutendex
-reports and counts works per author.
+**Author search reads this system's own tables**, debounced at 250ms in the
+browser and aborted on the next keystroke. Project Gutenberg's published
+catalogue is imported once by `bun run catalogue:import`, folded into authors and
+their works, and search matches `authors.display_name`. Decision 0023 records
+why: the index host answers a serverless function with a Cloudflare challenge
+and the text host does not, so the part that has to work per keystroke is the
+part held here.
 
-**gutendex has no author id**, so `authors.id` is minted here: the provider slug,
+**The catalogue has no author id**, so `authors.id` is minted here: the provider slug,
 then the reported name slugified, then the birth year when one is given —
 `gutenberg:borges-jorge-luis-1899`. It is stable as long as the name string is,
 and a name that changes upstream produces a second author row rather than a
 silently rewritten card cache. Disambiguation between two authors sharing a name
 is what the birth year is for, and the UI shows dates on every row for the same
 reason.
-
-> **Unverified.** This session had no network access to gutendex, so the field
-> names above are from the API's public documentation and not from a live
-> response. Build order step 3 (§15) begins with a probe script — the same
-> pattern as nexus's `scripts/probe-router-responses.ts` — that records one real
-> response as a fixture and pins the zod schema against it. Every field name in
-> this section is a claim that probe either confirms or corrects, and the code
-> parses rather than casts (invariant 4), so a wrong guess is a loud parse
-> failure on the first search rather than a silent `undefined`.
 
 **English texts, whichever translation Gutenberg has.** The segmenter's
 abbreviation list, the suffix classifier and the dialogue-marker detector are
@@ -942,7 +936,7 @@ their translators, and the product does not treat that as a defect to apologise
 for: a translation is the prose an English reader has, and it is the prose the
 draft is measured against.
 
-`sources[].translator` is recorded when gutendex reports one, and the author
+`sources[].translator` is recorded when the fetch reports one, and the author
 detail line names it ("Constance Garnett translations", as the design's own
 sample data does) — not as a caveat but because it is a fact about which text
 was read, the same as the work title. `corpus-select` prefers a single
@@ -951,15 +945,19 @@ mixes two prose styles into one set of numbers; where it does not, it takes what
 is available and the card lists them. A future non-English tier is a `text`
 package per language, not a flag.
 
-**Text fetch** takes the plain-text format from the book's `formats` map,
-preferring UTF-8. A book offering no plain-text format is dropped from
-selection, not fetched as HTML: stripping Gutenberg's HTML is a second cleaner
-with a second set of failure modes for no gain while the plain-text corpus is
-this large.
+**Text fetch** downloads the plain-text url the catalogue derived for the book.
+Plain text and nothing else: stripping Gutenberg's HTML is a second cleaner with
+a second set of failure modes for no gain while the plain-text corpus is this
+large, and a measurement taken over markup that leaked through is worse than a
+missing work because nothing about it looks wrong.
 
 **Work selection** — the `corpus-select` stage (§6.2), the only model call in
-this package's path. It is given titles, years, word counts and first passages,
-never full texts, and returns up to twelve work ids with a one-line reason each.
+this package's path. Its candidates are the chosen author's `catalogue_works`
+rows, so choosing a corpus needs no third party to be reachable. It is given
+titles, years, word counts and first passages, never full texts, and returns up
+to twelve work ids with a one-line reason each. An id it names that was not
+offered is dropped before storage, so a hallucinated work cannot become a 404 in
+`work-fetch` two minutes later.
 Its instruction is `PRD.md` §13's mitigation: sample across career period and
 across form. The reasons are stored and shown as the stage's streamed detail
 lines, which is what makes the `corpus-select` panel say "12 works sampled
@@ -996,8 +994,8 @@ rule that degradation names which part is missing and why.
 
 ### 5.4 Rate limits and failure
 
-gutendex is a free public service and this is a local single-user app, so the
-budget is politeness rather than throughput: at most four concurrent requests,
+Project Gutenberg is a free public service and this is a local single-user app,
+so the budget is politeness rather than throughput: at most four concurrent requests,
 one retry on a 5xx or a timeout with 2s then 4s backoff, and no retry on a 4xx.
 A fetched work is never re-fetched — `works` is the cache and it is keyed by
 source url plus `cleaner_version`.
@@ -1558,7 +1556,7 @@ mapping is ordinary:
 type ErrorCode =
   | "not_found"            // 404
   | "invalid_input"        // 400
-  | "corpus_unavailable"   // 502 — gutendex is down or the work will not fetch
+  | "corpus_unavailable"   // 502 — the catalogue has nothing, or the work will not fetch
   | "corpus_unusable"      // 422 — fetched, but no Gutenberg markers (§4.2)
   | "provider_error"       // 502 — the gateway or the model failed
   | "rate_limited"         // 429

@@ -1,4 +1,19 @@
 import type { Db } from "@auteur/db/db";
+
+/**
+ * A book the catalogue knows about, before anything has been downloaded.
+ *
+ * The shape `corpus-select` offers a model and `work-fetch` downloads. It
+ * carries its own `sourceUrl` because the catalogue derives one per book and
+ * the fetcher no longer has a formats map to choose from.
+ */
+export type CorpusCandidate = {
+  readonly id: string;
+  readonly title: string;
+  readonly sourceUrl: string;
+  readonly translator: string | null;
+};
+
 import { columns, maybeRow } from "@auteur/db/sql";
 
 /**
@@ -138,4 +153,66 @@ export const putWork = async (
     throw new Error("putWork returned no row");
   }
   return toWork(row);
+};
+
+/**
+ * How many works `corpus-select` is offered to choose twelve from.
+ *
+ * The list goes into a prompt, so it is bounded: a compilation credited to one
+ * editor runs to hundreds of entries, and an unbounded candidate list makes the
+ * prompt's size a property of whichever author was typed.
+ */
+export const CANDIDATE_LIMIT = 200;
+
+/**
+ * The works the catalogue credits to an author.
+ *
+ * This is the candidate list `corpus-select` chooses from. It used to come
+ * from a search against `gutendex.com`, which answers a bot challenge to a
+ * datacenter address (decision 0023) — so it comes from here, where
+ * `bun run catalogue:import` put it.
+ *
+ * **The cut is a sample, not a truncation.** Taking the first two hundred
+ * titles alphabetically would hand a prolific author's selection everything up
+ * to "M" and nothing after it, and `corpus-select`'s whole instruction is to
+ * sample across a career. `md5(id)` orders the same author's works the same way
+ * every time — so a re-run is comparable to the run before it — while the
+ * ordering itself has nothing to do with the title, the date, or the order the
+ * import happened to write them in. The page that survives is then presented by
+ * title, which is the order a reader would expect to see it in.
+ *
+ * A row with an empty title is not a candidate. The catalogue's `title` is
+ * `NOT NULL` and nothing in it forbids an empty string, and a work whose title
+ * is blank is one `corpus-select` cannot reason about and one whose detail line
+ * would name nothing.
+ */
+export const catalogueWorksFor = async (
+  db: Db,
+  authorId: string,
+  limit: number = CANDIDATE_LIMIT,
+): Promise<CorpusCandidate[]> => {
+  const result = await db.query<{
+    id: string;
+    title: string;
+    source_url: string;
+  }>(
+    `SELECT id, title, source_url FROM (
+       SELECT id, title, source_url
+         FROM catalogue_works
+        WHERE author_id = $1 AND title <> ''
+        ORDER BY md5(id)
+        LIMIT $2
+     ) AS sampled
+     ORDER BY title`,
+    [authorId, limit],
+  );
+  return result.rows.map((row) => ({
+    id: row["id"],
+    sourceUrl: row["source_url"],
+    title: row["title"],
+    // The catalogue credits people to a book without saying which is the
+    // translator, so this is unknown here rather than guessed. `work-fetch`
+    // stores what it is given.
+    translator: null,
+  }));
 };

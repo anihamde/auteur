@@ -23,7 +23,15 @@ import {
   SCRIPTED_MODELS,
   type ScriptedTurn,
 } from "@auteur/test-support/scripted-provider";
+import { z } from "zod";
 import { createStageBody } from "../../server/_stages/index.ts";
+import { corpusCandidateSchema } from "../../server/_stages/research.ts";
+
+/** `corpus-select`'s return value, parsed rather than cast. */
+const corpusSelectionShape = z.object({
+  books: z.array(corpusCandidateSchema),
+  chosen: z.array(z.object({ id: z.string(), why: z.string() })),
+});
 
 /**
  * The stage bodies against a scripted provider and a fixture corpus.
@@ -104,6 +112,53 @@ const seedCorpus = async (): Promise<void> => {
     ],
   );
 };
+
+describe("corpus-select", () => {
+  const seedCatalogue = async (): Promise<void> => {
+    await harness.db.query(
+      `INSERT INTO catalogue_works (id, author_id, title, language, source_url)
+       VALUES ($1, $2, 'Ward No. 6', 'en', 'https://example.invalid/1.txt'),
+              ($3, $2, 'The Steppe', 'en', 'https://example.invalid/2.txt')
+       ON CONFLICT (author_id, id) DO NOTHING`,
+      [WORK, AUTHOR, "gutenberg:2"],
+    );
+  };
+
+  test("the candidates are the catalogue's rows, and one never offered is dropped", async () => {
+    // Decision 0023: the corpus index is held here rather than searched live,
+    // so the `sourceUrl` the stage hands `work-fetch` is the catalogue's. A
+    // hallucinated id would become a 404 in `work-fetch` two minutes later.
+    await seedCatalogue();
+    const selection = corpusSelectionShape.parse(
+      await run("corpus-select", [
+        respondingWith({
+          chosen: [
+            { id: "gutenberg:99999", why: "invented" },
+            { id: WORK, why: "real" },
+          ],
+        }),
+      ]),
+    );
+    expect(selection.chosen.map((entry) => entry.id)).toEqual([WORK]);
+    expect(selection.books.map((candidate) => candidate.sourceUrl)).toEqual([
+      "https://example.invalid/1.txt",
+    ]);
+  });
+
+  test("an author with no catalogued works is corpus_unavailable", async () => {
+    await harness.db.query(
+      `INSERT INTO authors (id, provider, kind, display_name, work_count)
+       VALUES ('gutenberg:uncatalogued', 'gutenberg', 'full-text', 'Nobody', 0)
+       ON CONFLICT (id) DO NOTHING`,
+    );
+    await updateSession(harness.db, sessionId, {
+      authorId: "gutenberg:uncatalogued",
+    });
+    await expect(
+      run("corpus-select", [respondingWith({ chosen: [] })]),
+    ).rejects.toThrow(/catalogue holds no English works/i);
+  });
+});
 
 describe("prosody-compute", () => {
   test("it measures the fetched corpus and calls no model", async () => {

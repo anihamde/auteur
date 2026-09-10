@@ -27,6 +27,8 @@ export const putPassages = async (
 ## `@auteur/corpus-store/works`
 
 ```ts
+export const CANDIDATE_LIMIT = 200
+export const catalogueWorksFor = async (
 export const findWorkBySource = async (
 export const listWorksByAuthor = async (
 export const putWork = async (

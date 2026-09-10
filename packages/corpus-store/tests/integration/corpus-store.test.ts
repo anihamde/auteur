@@ -12,6 +12,7 @@ import {
   putPassages,
 } from "../../src/passages.ts";
 import {
+  catalogueWorksFor,
   findWorkBySource,
   listWorksByAuthor,
   putWork,
@@ -144,6 +145,90 @@ describe("an author's measurement is this system's, not the provider's", () => {
     expect((await findAuthor(harness.db, "gutenberg:moved"))?.deathYear).toBe(
       1985,
     );
+  });
+});
+
+describe("the catalogue is the candidate list corpus-select reads", () => {
+  test("only the asked-for author's rows come back, in title order", async () => {
+    // The catalogue holds every author at once, so an unscoped or unordered
+    // read would offer `corpus-select` another writer's books and make the
+    // twelve it chooses depend on insertion order.
+    const borges = `gutenberg:borges-${newId()}`;
+    const other = `gutenberg:other-${newId()}`;
+    await upsertAuthor(harness.db, anAuthor(borges));
+    await upsertAuthor(harness.db, anAuthor(other));
+    await harness.db.query(
+      `INSERT INTO catalogue_works (id, author_id, title, language, source_url)
+       VALUES ($1, $2, 'The Steppe', 'en', 'https://example.invalid/b2.txt'),
+              ($3, $2, 'A Personal Anthology', 'en', 'https://example.invalid/b1.txt'),
+              ($4, $5, 'Somebody Else', 'en', 'https://example.invalid/o1.txt')`,
+      [`${borges}:2`, borges, `${borges}:1`, `${other}:1`, other],
+    );
+
+    const candidates = await catalogueWorksFor(harness.db, borges);
+    expect(candidates.map((candidate) => candidate.title)).toEqual([
+      "A Personal Anthology",
+      "The Steppe",
+    ]);
+    expect(candidates[0]?.sourceUrl).toBe("https://example.invalid/b1.txt");
+  });
+
+  test("the candidate list is bounded, and the cut spreads across the œuvre", async () => {
+    // The list goes into a prompt. Unbounded, its size is a property of
+    // whichever author was typed — a compilation credited to one editor runs to
+    // hundreds of entries. Taking the first N titles alphabetically would be
+    // bounded and wrong in a second way: `corpus-select` is instructed to
+    // sample across a career, and everything after "M" would never be offered.
+    const prolific = `gutenberg:prolific-${newId()}`;
+    await upsertAuthor(harness.db, anAuthor(prolific));
+    const titles = Array.from({ length: 40 }, (_, index) =>
+      String.fromCodePoint(97 + (index % 26))
+        .repeat(3)
+        .concat(index.toString()),
+    );
+    await harness.db.query(
+      `INSERT INTO catalogue_works (id, author_id, title, language, source_url)
+       SELECT $1 || '-' || ordinality::text, $2, title, 'en',
+              'https://example.invalid/' || ordinality::text || '.txt'
+         FROM unnest($3::text[]) WITH ORDINALITY AS t(title, ordinality)`,
+      [prolific, prolific, titles],
+    );
+
+    const capped = await catalogueWorksFor(harness.db, prolific, 10);
+    expect(capped).toHaveLength(10);
+    // Alphabetical truncation would return ten titles starting with "a" or
+    // "b"; a sample returns letters from across the list.
+    const initials = new Set(capped.map((c) => c.title[0]));
+    expect(initials.size).toBeGreaterThan(2);
+    // What survives is still presented in title order.
+    expect(capped.map((c) => c.title)).toEqual(
+      [...capped.map((c) => c.title)].sort(),
+    );
+  });
+
+  test("a work with no title is not a candidate", async () => {
+    // `catalogue_works.title` is NOT NULL and admits an empty string, and the
+    // import writes the CSV's Title column verbatim. Offered, such a row goes
+    // into a prompt as a blank line and into the stage's detail lines as
+    // " — because…" — and `corpus-select` cannot reason about it either way.
+    const patchy = `gutenberg:patchy-${newId()}`;
+    await upsertAuthor(harness.db, anAuthor(patchy));
+    await harness.db.query(
+      `INSERT INTO catalogue_works (id, author_id, title, language, source_url)
+       VALUES ($1, $2, '', 'en', 'https://example.invalid/p0.txt'),
+              ($3, $2, 'A Real Title', 'en', 'https://example.invalid/p1.txt')`,
+      [`${patchy}:0`, patchy, `${patchy}:1`],
+    );
+
+    expect(
+      (await catalogueWorksFor(harness.db, patchy)).map((c) => c.title),
+    ).toEqual(["A Real Title"]);
+  });
+
+  test("an author the import never saw is an empty list, not an error", async () => {
+    const unknown = `gutenberg:unknown-${newId()}`;
+    await upsertAuthor(harness.db, anAuthor(unknown));
+    expect(await catalogueWorksFor(harness.db, unknown)).toEqual([]);
   });
 });
 

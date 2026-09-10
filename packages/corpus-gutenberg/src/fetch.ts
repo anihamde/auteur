@@ -1,16 +1,16 @@
+import type { CorpusCandidate } from "@auteur/corpus-store/works";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { cleanGutenberg } from "@auteur/text/clean";
 import { countWords } from "@auteur/text/tokenize";
 import { cleanerVersion } from "@auteur/text/version";
 import { type FetchLike, USER_AGENT } from "./gutendex.ts";
-import type { GutendexBook } from "./schema.ts";
 
 /**
  * Fetching and cleaning a work's text.
  *
- * gutendex is a free public service and this is a single-user application, so
- * the budget is **politeness rather than throughput**: at most four concurrent
- * requests, one retry on a 5xx or a timeout at 2s then 4s, and no retry on a
+ * Project Gutenberg is a free public service and this is a single-user
+ * application, so the budget is **politeness rather than throughput**: at most
+ * four concurrent requests, one retry on a 5xx or a timeout at 2s then 4s, and no retry on a
  * 4xx (`ARCHITECTURE.md` §5.4). A 4xx will not become a 2xx by asking again,
  * and retrying one is how a client turns its own bug into someone else's load.
  */
@@ -28,23 +28,6 @@ export const RETRY_DELAYS_MS = [2000, 4000] as const;
  * ask for again.
  */
 export const ATTEMPT_TIMEOUT_MS = 15_000;
-
-/**
- * The plain-text format, UTF-8 preferred.
- *
- * A book offering no plain-text format is **dropped from selection, not fetched
- * as HTML**. Stripping Gutenberg's HTML is a second cleaner with a second set
- * of failure modes, for no gain while the plain-text corpus is this large — and
- * a measurement taken over markup that leaked through is worse than a missing
- * work, because nothing about it looks wrong.
- */
-export const plainTextUrl = (book: GutendexBook): string | undefined => {
-  const entries = Object.entries(book.formats).filter(([type]) =>
-    type.startsWith("text/plain"),
-  );
-  const utf8 = entries.find(([type]) => /utf-?8/i.test(type));
-  return (utf8 ?? entries[0])?.[1];
-};
 
 export type FetchedWork = {
   readonly id: string;
@@ -70,23 +53,22 @@ export type FetchTextConfig = {
 /**
  * One work: fetch, retry once on a 5xx or a timeout, clean, count.
  *
+ * The candidate carries its own `sourceUrl`, from the catalogue. There is no
+ * format negotiation left to do here: the catalogue names the plain-text file
+ * and nothing else is offered, because stripping Gutenberg's HTML is a second
+ * cleaner with a second set of failure modes and a measurement taken over
+ * markup that leaked through is worse than a missing work.
+ *
  * The cleaner runs here rather than at the store, because `works` is keyed on
  * `(source_url, cleaner_version)` and the version has to be the one that
  * actually produced the stored text. Cleaning later would let a row be written
  * under a version it was not cleaned by.
  */
 export const fetchWork = async (
-  book: GutendexBook,
+  book: CorpusCandidate,
   config: FetchTextConfig = {},
 ): Promise<FetchedWork> => {
-  const url = plainTextUrl(book);
-  if (url === undefined) {
-    throw new AuteurError(
-      "corpus_unusable",
-      `${book.title} offers no plain-text format.`,
-      { detail: { bookId: book.id } },
-    );
-  }
+  const url = book.sourceUrl;
 
   const call = config.fetch ?? fetch;
   const sleep =
@@ -104,8 +86,8 @@ export const fetchWork = async (
     try {
       const response = await call(url, {
         // A text download is not JSON, so it asks for what it wants — but it
-        // says who it is for the same reason the search does: an unidentified
-        // client is one gutendex answers 403 to.
+        // says who it is for the same reason the catalogue import does: an
+        // unidentified client is one the host answers 403 to.
         headers: { accept: "text/plain", "user-agent": USER_AGENT },
         // The caller's own cancellation wins; absent one, each attempt is
         // bounded so the retries stay a politeness budget rather than a way to
@@ -122,11 +104,11 @@ export const fetchWork = async (
         const text = cleanGutenberg(raw, url);
         return {
           cleanerVersion: cleanerVersion(),
-          id: `${"gutenberg"}:${book.id.toString()}`,
+          id: book.id,
           sourceUrl: url,
           text,
           title: book.title,
-          translator: book.translators[0]?.name ?? null,
+          translator: book.translator,
           wordCount: countWords(text),
         };
       }
@@ -170,7 +152,7 @@ export type FetchOutcome =
   | { readonly ok: true; readonly work: FetchedWork }
   | {
       readonly ok: false;
-      readonly bookId: number;
+      readonly bookId: string;
       readonly title: string;
       readonly reason: string;
     };
@@ -189,7 +171,7 @@ export type FetchOutcome =
  * slots — and Gutenberg's texts vary by two orders of magnitude in size.
  */
 export const fetchWorks = async (
-  books: readonly GutendexBook[],
+  books: readonly CorpusCandidate[],
   config: FetchTextConfig = {},
   concurrency = MAX_CONCURRENCY,
 ): Promise<FetchOutcome[]> => {

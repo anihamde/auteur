@@ -1,11 +1,13 @@
-import { PROVIDER } from "@auteur/corpus-gutenberg/authors";
 import { fetchWorks } from "@auteur/corpus-gutenberg/fetch";
-import { searchBooks } from "@auteur/corpus-gutenberg/gutendex";
 import { selectPassages } from "@auteur/corpus-gutenberg/passages";
-import type { GutendexBook } from "@auteur/corpus-gutenberg/schema";
-import { recordMeasuredWords } from "@auteur/corpus-store/authors";
+import { findAuthor, recordMeasuredWords } from "@auteur/corpus-store/authors";
 import { putPassages } from "@auteur/corpus-store/passages";
-import { listWorksByAuthor, putWork } from "@auteur/corpus-store/works";
+import {
+  type CorpusCandidate,
+  catalogueWorksFor,
+  listWorksByAuthor,
+  putWork,
+} from "@auteur/corpus-store/works";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { corpusSelect } from "@auteur/prompt/corpus-select";
 import { measureCorpus } from "@auteur/prosody/prosody";
@@ -37,6 +39,27 @@ export const corpusSelectionSchema = z.object({
 });
 export type CorpusSelection = z.infer<typeof corpusSelectionSchema>;
 
+/**
+ * A candidate as it is stored in `corpus-select`'s output and read back by
+ * `work-fetch`.
+ *
+ * The two stages are separate invocations, so the list travels through the
+ * database and comes back as unknown JSON. It is parsed rather than trusted:
+ * an artifact written by an older build is external data like any other. The
+ * annotation is what keeps this schema and `CorpusCandidate` from drifting.
+ */
+export const corpusCandidateSchema: z.ZodType<CorpusCandidate> = z.object({
+  id: z.string().min(1),
+  sourceUrl: z.string().url(),
+  // No `min(1)`: `catalogue_works.title` is `NOT NULL` and nothing forbids an
+  // empty string, so requiring one here would reject a document the store can
+  // legitimately produce — and `z.array` fails whole, so one untitled work
+  // would lose all twelve. The blank ones are excluded when the candidates are
+  // read instead, where a work a model cannot reason about does not belong.
+  title: z.string(),
+  translator: z.string().nullable(),
+});
+
 const CORPUS_JSON_SCHEMA = {
   additionalProperties: false,
   properties: {
@@ -60,15 +83,18 @@ const CORPUS_JSON_SCHEMA = {
 /**
  * `corpus-select` — which works, and why each.
  *
- * The candidate list comes from gutendex, and the model chooses from it. It
+ * The candidate list comes from the imported catalogue rather than a live
+ * search, so this stage does not depend on a third party being reachable at the
+ * moment a run starts (decision 0023). The model chooses from that list and
  * cannot invent an id: the selection is filtered against the candidates before
  * it is stored, so a hallucinated id is dropped here rather than becoming a
  * 404 in `work-fetch` two minutes later.
  */
 export const runCorpusSelect = async (
   context: StageContext,
-  config: { readonly fetch?: typeof globalThis.fetch } = {},
-): Promise<CorpusSelection & { readonly books: readonly GutendexBook[] }> => {
+): Promise<
+  CorpusSelection & { readonly books: readonly CorpusCandidate[] }
+> => {
   const authorId = context.session.authorId;
   if (authorId === null) {
     throw new AuteurError(
@@ -76,16 +102,14 @@ export const runCorpusSelect = async (
       "This session has no author, so there is no corpus to choose from.",
     );
   }
-  const authorName = authorId.slice(`${PROVIDER}:`.length);
+  const author = await findAuthor(context.db, authorId);
+  const authorName = author?.displayName ?? authorId;
 
-  const books = await searchBooks(
-    authorName.replaceAll("-", " "),
-    config.fetch === undefined ? {} : { fetch: config.fetch },
-  );
+  const books = await catalogueWorksFor(context.db, authorId);
   if (books.length === 0) {
     throw new AuteurError(
       "corpus_unavailable",
-      `Project Gutenberg returned no works for ${authorName}.`,
+      `The catalogue holds no English works for ${authorName}.`,
     );
   }
 
@@ -102,7 +126,7 @@ export const runCorpusSelect = async (
       limit: CORPUS_LIMIT,
       works: books.map((book) => ({
         firstPassage: "",
-        id: book.id.toString(),
+        id: book.id,
         title: book.title,
         wordCount: null,
         year: null,
@@ -114,7 +138,7 @@ export const runCorpusSelect = async (
 
   // A hallucinated id is dropped here rather than becoming a 404 two minutes
   // later. The model chooses from the list; it does not extend it.
-  const byId = new Map(books.map((book) => [book.id.toString(), book]));
+  const byId = new Map(books.map((book) => [book.id, book]));
   const chosen = selection.chosen.filter((entry) => byId.has(entry.id));
   if (chosen.length === 0) {
     throw new AuteurError(
@@ -148,7 +172,7 @@ export const runCorpusSelect = async (
  */
 export const runWorkFetch = async (
   context: StageContext,
-  books: readonly GutendexBook[],
+  books: readonly CorpusCandidate[],
   config: { readonly fetch?: typeof globalThis.fetch } = {},
 ): Promise<{ readonly stored: number; readonly words: number }> => {
   const authorId = context.session.authorId;

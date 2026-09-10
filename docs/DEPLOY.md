@@ -79,6 +79,27 @@ action.
    its own variable names, map rather than rename — the app reads only these
    two.
 6. **Redeploy.** The schema migrates on the first request.
+7. **Import the catalogue**, from any machine with egress, pointed at the
+   deployment's database:
+
+   ```
+   DATABASE_URL='<the unpooled Neon url>' bun run catalogue:import
+   ```
+
+   Author search and `corpus-select` both read `authors` and `catalogue_works`,
+   and both are empty until this runs — search finds nobody and a session that
+   somehow named an author fails with `corpus_unavailable`. It downloads
+   Project Gutenberg's published CSV, keeps the English texts, and upserts
+   around 32,000 authors and 86,000 works. It never touches `measured_words`,
+   so re-running it refreshes names and counts without discarding a measured
+   corpus.
+
+   **It runs from anywhere, not from the deployment** — that is the point.
+   `gutendex.com` answers a serverless function with Cloudflare's managed
+   challenge (decision 0023), so the index is imported once from a network that
+   is not challenged and read locally afterwards. The text host,
+   `gutenberg.org`, answers the deployment normally and is still fetched at run
+   time.
 
 ## Verifying
 
@@ -108,8 +129,11 @@ action.
    A failing run naming an unwritten check is the honest state. A run that
    reported four passes would mean nothing ran — which is what it did until
    `unchecked` existed.
-4. One flash story, end to end, in the browser.
-5. Kill a stage mid-run and confirm the sweep re-invokes it. That is the only
+4. `GET /api/authors?q=chekhov` returns rows. An empty `results` with a 200 is
+   the catalogue import not having run against this database, not a search
+   defect — `SELECT count(*) FROM catalogue_works` says which.
+5. One flash story, end to end, in the browser.
+6. Kill a stage mid-run and confirm the sweep re-invokes it. That is the only
    check that exercises the recovery path rather than the happy one.
-6. `bun run stats` and `bun run discrimination`, and fill in
+7. `bun run stats` and `bun run discrimination`, and fill in
    `docs/BASELINE.md`.

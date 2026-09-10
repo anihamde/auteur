@@ -46,9 +46,11 @@ Every model response goes through a schema. A stage that cannot parse its
 output fails with `schema_violation` rather than proceeding with a shape it
 guessed at.
 
-*Decided:* the gutendex schema rejects unknown keys and requires every field the
-provider reads, so a renamed field is a loud parse failure on the first search
-rather than `undefined` on every row.
+*Decided:* `corpus-select` filters the model's chosen ids against the candidate
+list it was offered, so a work nobody has is dropped at the stage that invented
+it rather than becoming a 404 in `work-fetch` two minutes later. Parsing is not
+only the schema: a value of the right *shape* naming a thing that does not exist
+is still output that was trusted.
 
 ## `data-boundaries` is promoted to ALWAYS by this document
 

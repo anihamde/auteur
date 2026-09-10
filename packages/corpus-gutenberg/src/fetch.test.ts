@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import type { CorpusCandidate } from "@auteur/corpus-store/works";
 import {
   fetchWork,
   fetchWorks,
   MAX_CONCURRENCY,
-  plainTextUrl,
   RETRY_DELAYS_MS,
 } from "./fetch.ts";
-import type { GutendexBook } from "./schema.ts";
 
 const GUTENBERG = [
   "The Project Gutenberg eBook of Something",
@@ -20,48 +19,15 @@ const GUTENBERG = [
   "Licence boilerplate nobody should measure.",
 ].join("\n");
 
-const book = (overrides: Partial<GutendexBook> = {}): GutendexBook => ({
-  authors: [{ birth_year: 1860, death_year: 1904, name: "Chekhov, Anton" }],
-  formats: {
-    "text/html": "https://x/1.html",
-    "text/plain; charset=us-ascii": "https://x/1.ascii.txt",
-    "text/plain; charset=utf-8": "https://x/1.utf8.txt",
-  },
-  id: 1,
+const book = (overrides: Partial<CorpusCandidate> = {}): CorpusCandidate => ({
+  id: "1",
+  sourceUrl: "https://x/1.utf8.txt",
   title: "A Work",
-  translators: [{ birth_year: null, death_year: null, name: "Garnett, C" }],
+  translator: "Garnett, C",
   ...overrides,
 });
 
-const responding = (
-  handler: (url: string) => Response,
-): { fetch: (url: string) => Promise<Response>; urls: string[] } => {
-  const urls: string[] = [];
-  return {
-    fetch: (url) => {
-      urls.push(url);
-      return Promise.resolve(handler(url));
-    },
-    urls,
-  };
-};
-
 const noSleep = async (): Promise<void> => undefined;
-
-describe("format selection", () => {
-  test("UTF-8 plain text wins over the ascii variant", () => {
-    expect(plainTextUrl(book())).toBe("https://x/1.utf8.txt");
-  });
-
-  test("a book with no plain-text format yields undefined, and is dropped", () => {
-    // Stripping Gutenberg's HTML is a second cleaner with a second set of
-    // failure modes, and a measurement over markup that leaked through is
-    // worse than a missing work because nothing about it looks wrong.
-    expect(
-      plainTextUrl(book({ formats: { "text/html": "https://x/1.html" } })),
-    ).toBeUndefined();
-  });
-});
 
 describe("retries are the politeness budget, not a throughput one", () => {
   test("a 500 retries and then succeeds", async () => {
@@ -147,18 +113,6 @@ describe("retries are the politeness budget, not a throughput one", () => {
     ).rejects.toMatchObject({ code: "corpus_unusable" });
     expect(calls).toBe(1);
   });
-
-  test("a book with no plain-text format is corpus_unusable before any request", async () => {
-    const { fetch: call, urls } = responding(
-      () => new Response("", { status: 200 }),
-    );
-    await expect(
-      fetchWork(book({ formats: { "text/html": "https://x/1.html" } }), {
-        fetch: call,
-      }),
-    ).rejects.toMatchObject({ code: "corpus_unusable" });
-    expect(urls).toEqual([]);
-  });
 });
 
 describe("the corpus is fetched at most four at a time", () => {
@@ -167,8 +121,8 @@ describe("the corpus is fetched at most four at a time", () => {
     let peak = 0;
     const books = Array.from({ length: 12 }, (_, index) =>
       book({
-        formats: { "text/plain": `https://x/${index.toString()}.txt` },
-        id: index + 1,
+        id: (index + 1).toString(),
+        sourceUrl: `https://x/${index.toString()}.txt`,
       }),
     );
 
@@ -192,7 +146,7 @@ describe("the corpus is fetched at most four at a time", () => {
     // and the stage names what was lost. Refusing the whole corpus for one bad
     // work would turn a low-confidence card into an error.
     const books = [1, 2, 3].map((id) =>
-      book({ formats: { "text/plain": `https://x/${id.toString()}.txt` }, id }),
+      book({ id: id.toString(), sourceUrl: `https://x/${id.toString()}.txt` }),
     );
     const outcomes = await fetchWorks(books, {
       fetch: (url) =>
@@ -212,7 +166,7 @@ describe("the corpus is fetched at most four at a time", () => {
 
   test("outcomes stay in input order, so perWork lines up with selection", async () => {
     const books = [1, 2, 3].map((id) =>
-      book({ formats: { "text/plain": `https://x/${id.toString()}.txt` }, id }),
+      book({ id: id.toString(), sourceUrl: `https://x/${id.toString()}.txt` }),
     );
     const outcomes = await fetchWorks(
       books,

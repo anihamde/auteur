@@ -2,7 +2,6 @@ import { findCard } from "@auteur/card-store/cards";
 import { prosodyBlockSchema } from "@auteur/core/prosody";
 import { outlineSchema, storySchema } from "@auteur/core/session";
 import type { StyleCard } from "@auteur/core/style-card";
-import { gutendexBookSchema } from "@auteur/corpus-gutenberg/schema";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import type { ModelProvider } from "@auteur/model-provider/provider";
 import { findArtifact } from "@auteur/session-store/artifacts";
@@ -16,6 +15,7 @@ import { runStyleExtract } from "./card.ts";
 import { contextFor } from "./context.ts";
 import { runStyleFit } from "./report.ts";
 import {
+  corpusCandidateSchema,
   corpusSelectionSchema,
   runCorpusSelect,
   runProsodyCompute,
@@ -53,7 +53,7 @@ export type StageBodyDeps = {
 
 /** The output of `corpus-select`, as it is stored and read back. */
 const selectionOutputSchema = corpusSelectionSchema.extend({
-  books: z.array(gutendexBookSchema),
+  books: z.array(corpusCandidateSchema),
 });
 
 /** The card the session is bound to, or a stated failure. */
@@ -106,7 +106,7 @@ export const createStageBody =
 
     switch (stageId) {
       case "corpus-select": {
-        return runCorpusSelect(context, fetchConfig);
+        return runCorpusSelect(context);
       }
       case "work-fetch": {
         const selection = await readStageOutput(
