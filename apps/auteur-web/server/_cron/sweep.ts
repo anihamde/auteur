@@ -28,6 +28,12 @@ import type { AdvanceDeps } from "../_routes/advance.ts";
 
 export type SweepDeps = {
   readonly db: Db;
+  /**
+   * The handle events are appended on. `append` is transactional — the NOTIFY
+   * has to land with the row — and a pooled handle refuses a transaction
+   * (§3.1), so this is the direct one on the deployment and `db` in a test.
+   */
+  readonly eventDb: Db;
   readonly invokeStage: NonNullable<AdvanceDeps["invokeStage"]>;
   /** Overridden only by a test that cannot wait five minutes. */
   readonly staleAfterSeconds?: number;
@@ -79,7 +85,8 @@ export const sweep = async (deps: SweepDeps): Promise<SweepResult> => {
       // Appended so a client reconnecting at its cursor is told the run ended
       // and why. Without it the stream simply stops, which reads as a slow
       // stage rather than a finished one.
-      await append(deps.db, claim.sessionId, {
+      // `eventDb`: appending is transactional and a pooled handle refuses one.
+      await append(deps.eventDb, claim.sessionId, {
         code: "internal",
         message:
           "This stage stopped responding and has been retried as often as it can be.",

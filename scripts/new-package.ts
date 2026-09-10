@@ -372,6 +372,14 @@ const appBunfig = (spec: AppSpec): string | undefined => {
  * `packages/tsconfig` exists to set — and gate 2 passes an app it never really
  * checked. Found on WP-A5's first run, when the app type-checked green with no
  * config at all.
+ *
+ * `include` named `api` until the routes moved to `server/`, and a directory
+ * that does not exist is not an error — so for four work packages the routes
+ * were compiled only where a test happened to import them, and `entry.ts`,
+ * which nothing imports, was compiled nowhere. It lost a function to a refactor
+ * and kept the call to it: every stage invocation on the deployment threw
+ * `selfOrigin is not defined` into a `void`ed promise. This list is what
+ * decides whether the deployed code is type-checked at all.
  */
 const appTsconfig = (): unknown => ({
   compilerOptions: {
@@ -381,7 +389,7 @@ const appTsconfig = (): unknown => ({
     types: ["bun"],
   },
   extends: "../../packages/tsconfig/react.json",
-  include: ["api", "src", "tests"],
+  include: ["server", "src", "tests"],
 });
 
 const syncApp = async (spec: AppSpec): Promise<void> => {

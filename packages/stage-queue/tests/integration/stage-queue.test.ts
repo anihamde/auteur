@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { createDb } from "@auteur/db/db";
 import { newId } from "@auteur/ids/new-id";
 import { seedSession } from "@auteur/test-db/seed-session";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
@@ -121,11 +122,13 @@ describe("attempts, and the point at which the queue gives up", () => {
     await enqueueStage(harness.db, { id, sessionId, stageId: "draft" });
     await claimStage(harness.db, id, "inv-1");
 
-    const outcome = await failStage(harness.db, id, "inv-1", newId());
-    expect(outcome.outcome).toBe("released");
-    if (outcome.outcome !== "released") return;
-    expect(outcome.next.attempt).toBe(1);
-    expect(outcome.next.status).toBe("queued");
+    const next = newId();
+    expect((await failStage(harness.db, id, "inv-1", next)).outcome).toBe(
+      "released",
+    );
+    const released = await findQueueEntry(harness.db, next);
+    expect(released?.attempt).toBe(1);
+    expect(released?.status).toBe("queued");
     // The failed row survives, so the queue keeps what was tried.
     expect((await findQueueEntry(harness.db, id))?.status).toBe("error");
   });
@@ -268,6 +271,51 @@ describe("a stage that has run can be asked to run again", () => {
     expect(
       rows.filter((row) => row.stageId === "draft").map((row) => row.status),
     ).toEqual(["queued"]);
+  });
+});
+
+describe("the retry budget is reachable from the handle a route holds", () => {
+  test("a failure releases on a pooled connection, which is what production has", async () => {
+    // `failStage` was a transaction, and `createDb` refuses one on a pooled
+    // handle (§3.1) — which is the handle every route has, because function
+    // instances are plural. So the only path that runs when a stage fails threw
+    // on its way out, the row stayed `claimed` until the sweep released it five
+    // minutes later, and the retry budget existed and was unreachable. Every
+    // test here used the harness's direct handle, which is why none of them saw
+    // it.
+    const pooled = createDb({ endpoint: "pooled", url: harness.url });
+    try {
+      const sessionId = await freshSession();
+      const id = newId();
+      await enqueueStage(pooled, { id, sessionId, stageId: "draft" });
+      await claimStage(pooled, id, "inv");
+
+      const next = newId();
+      expect((await failStage(pooled, id, "inv", next)).outcome).toBe(
+        "released",
+      );
+      expect((await findQueueEntry(pooled, id))?.status).toBe("error");
+      expect((await findQueueEntry(pooled, next))?.attempt).toBe(1);
+    } finally {
+      await pooled.close();
+    }
+  });
+
+  test("the two writes are one command, so neither lands without the other", async () => {
+    // A claimant that does not hold the row updates nothing, and the insert
+    // reads the update's own output — so there is no state where an attempt is
+    // requeued beside a row still marked `claimed`.
+    const sessionId = await freshSession();
+    const id = newId();
+    await enqueueStage(harness.db, { id, sessionId, stageId: "draft" });
+    await claimStage(harness.db, id, "inv");
+
+    const next = newId();
+    expect(
+      (await failStage(harness.db, id, "someone-else", next)).outcome,
+    ).toBe("not-claimed");
+    expect(await findQueueEntry(harness.db, next)).toBeUndefined();
+    expect((await findQueueEntry(harness.db, id))?.status).toBe("claimed");
   });
 });
 

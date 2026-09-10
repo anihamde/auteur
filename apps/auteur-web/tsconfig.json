@@ -6,5 +6,5 @@
     "types": ["bun"]
   },
   "extends": "../../packages/tsconfig/react.json",
-  "include": ["api", "src", "tests"]
+  "include": ["server", "src", "tests"]
 }

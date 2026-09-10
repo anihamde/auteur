@@ -34,3 +34,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0023 | [The corpus index is held here](decisions/0023-the-corpus-index-is-held-here.md) | accepted | 2026-09-10 |
 | 0024 | [The queue is a work list, not a history](decisions/0024-the-queue-is-a-work-list-not-a-history.md) | accepted | 2026-09-10 |
 | 0025 | [Nothing asks gutendex](decisions/0025-nothing-asks-gutendex.md) | accepted | 2026-09-10 |
+| 0026 | [A route writes on a handle that can hold it](decisions/0026-a-route-writes-on-a-handle-that-can-hold-it.md) | accepted | 2026-09-10 |

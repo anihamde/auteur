@@ -52,6 +52,15 @@ export type StageBody = (input: {
 
 export type InternalStageDeps = {
   readonly db: Db;
+  /**
+   * The handle events are appended on.
+   *
+   * `append` wraps its insert and its `NOTIFY` in a transaction, because
+   * Postgres holds notifications until commit and a subscriber must not be woken
+   * for a row that has not landed. A pooled handle refuses a transaction (§3.1),
+   * so this is the direct one on the deployment and `db` in a test.
+   */
+  readonly eventDb: Db;
   readonly stageSecret: string;
   readonly runStageBody: StageBody;
   readonly invokeStage?: AdvanceDeps["invokeStage"];
@@ -93,7 +102,9 @@ export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
     const emit = async (event: SessionEvent): Promise<void> => {
       // Appended before it is pushed (§7.3): the table is the truth and the
       // stream is a convenience.
-      await append(db, body.sessionId, event);
+      // `deps.eventDb`, not `db`: appending is transactional — the NOTIFY has
+      // to land with the row — and a pooled handle refuses a transaction.
+      await append(deps.eventDb, body.sessionId, event);
     };
 
     let output: unknown;

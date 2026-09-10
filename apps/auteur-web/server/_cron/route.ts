@@ -25,6 +25,8 @@ import { type SweepDeps, sweep } from "./sweep.ts";
  */
 export type CronRoutesDeps = {
   readonly db: Db;
+  /** The handle `append` runs on. See `SweepDeps`. */
+  readonly eventDb: Db;
   readonly invokeStage: NonNullable<AdvanceDeps["invokeStage"]>;
   /** Vercel's `CRON_SECRET`, read under that exact name. */
   readonly cronSecret: string;
@@ -65,6 +67,7 @@ export const cronRoutes = (deps: CronRoutesDeps): Hono => {
     }
     return sweep({
       db: deps.db,
+      eventDb: deps.eventDb,
       invokeStage: deps.invokeStage,
       ...deps.thresholds,
     });
