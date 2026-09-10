@@ -206,6 +206,25 @@ describe("the catalogue is the candidate list corpus-select reads", () => {
     );
   });
 
+  test("a work with no title is not a candidate", async () => {
+    // `catalogue_works.title` is NOT NULL and admits an empty string, and the
+    // import writes the CSV's Title column verbatim. Offered, such a row goes
+    // into a prompt as a blank line and into the stage's detail lines as
+    // " — because…" — and `corpus-select` cannot reason about it either way.
+    const patchy = `gutenberg:patchy-${newId()}`;
+    await upsertAuthor(harness.db, anAuthor(patchy));
+    await harness.db.query(
+      `INSERT INTO catalogue_works (id, author_id, title, language, source_url)
+       VALUES ($1, $2, '', 'en', 'https://example.invalid/p0.txt'),
+              ($3, $2, 'A Real Title', 'en', 'https://example.invalid/p1.txt')`,
+      [`${patchy}:0`, patchy, `${patchy}:1`],
+    );
+
+    expect(
+      (await catalogueWorksFor(harness.db, patchy)).map((c) => c.title),
+    ).toEqual(["A Real Title"]);
+  });
+
   test("an author the import never saw is an empty list, not an error", async () => {
     const unknown = `gutenberg:unknown-${newId()}`;
     await upsertAuthor(harness.db, anAuthor(unknown));

@@ -180,6 +180,11 @@ export const CANDIDATE_LIMIT = 200;
  * ordering itself has nothing to do with the title, the date, or the order the
  * import happened to write them in. The page that survives is then presented by
  * title, which is the order a reader would expect to see it in.
+ *
+ * A row with an empty title is not a candidate. The catalogue's `title` is
+ * `NOT NULL` and nothing in it forbids an empty string, and a work whose title
+ * is blank is one `corpus-select` cannot reason about and one whose detail line
+ * would name nothing.
  */
 export const catalogueWorksFor = async (
   db: Db,
@@ -194,7 +199,7 @@ export const catalogueWorksFor = async (
     `SELECT id, title, source_url FROM (
        SELECT id, title, source_url
          FROM catalogue_works
-        WHERE author_id = $1
+        WHERE author_id = $1 AND title <> ''
         ORDER BY md5(id)
         LIMIT $2
      ) AS sampled

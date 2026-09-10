@@ -25,7 +25,7 @@ import { listQueueForSession } from "@auteur/stage-queue/queue";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
 import { createApp } from "../../server/_app.ts";
 import { stalenessInputFor } from "../../server/_routes/advance.ts";
-import { inputKeys } from "../../server/_staleness.ts";
+import { inputKeys, OUTPUT_VERSIONS } from "../../server/_staleness.ts";
 
 /**
  * §7.5's six consequences, one test each.
@@ -178,6 +178,34 @@ describe("§7.5's six consequences", () => {
     const queue = await listQueueForSession(harness.db, sessionId);
     expect(queue.map((entry) => entry.stageId)).toEqual(["outline", "draft"]);
     expect(queue.every((entry) => entry.status === "queued")).toBe(true);
+  });
+});
+
+describe("a stage whose stored shape changed is stale", () => {
+  test("bumping a stage's output version restales it and everything downstream", async () => {
+    // The failure this closes: `corpus-select`'s inputs are the author alone,
+    // so changing the schema `work-fetch` reads its output back with left the
+    // stage fresh and its stored document unreadable. `readStageOutput` throws,
+    // `work-fetch` fails, the sweep retries it, and every retry fails the same
+    // way — the only stage that could rewrite the output is the one staleness
+    // reports as up to date.
+    await markEverythingCurrent(sessionId);
+    expect(await staleNow(sessionId)).toEqual([]);
+
+    const input = await stalenessInputFor(harness.db, sessionId);
+    const before = inputKeys(input);
+    const after = inputKeys(input, { ...OUTPUT_VERSIONS, "corpus-select": 99 });
+
+    expect(after.get("corpus-select")).not.toBe(before.get("corpus-select"));
+    // Downstream follows, because a stage's key includes the keys it reads.
+    expect(after.get("work-fetch")).not.toBe(before.get("work-fetch"));
+    expect(after.get("draft")).not.toBe(before.get("draft"));
+    // And it points one way: a stage downstream changing shape leaves the
+    // stages that produced its inputs alone, so bumping `draft` does not
+    // re-fetch a corpus.
+    const draftBumped = inputKeys(input, { ...OUTPUT_VERSIONS, draft: 99 });
+    expect(draftBumped.get("draft")).not.toBe(before.get("draft"));
+    expect(draftBumped.get("corpus-select")).toBe(before.get("corpus-select"));
   });
 });
 

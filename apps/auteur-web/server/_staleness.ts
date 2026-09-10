@@ -94,14 +94,44 @@ const isPromptId = (value: string): value is PromptId =>
   Object.hasOwn(PROMPT_VERSIONS, value);
 
 /**
+ * The shape a stage writes its stored output in.
+ *
+ * A stage's key covers everything that decides *what it would produce*, and
+ * until this it did not cover the *shape* that output is stored in. Those come
+ * apart exactly once: when the schema a downstream stage reads the output back
+ * with changes while every input stays the same. The stage is then fresh by
+ * comparison and unreadable in fact — `readStageOutput` throws on a document
+ * written by the older shape, the downstream stage fails, and the only stage
+ * that could rewrite it is the one staleness reports as up to date. Retrying
+ * cannot help, because nothing about the session changed.
+ *
+ * Bumping the number here is what restales such an output. A stage with no
+ * entry has never changed shape, which is why this map is short rather than
+ * one line per stage: this is the same kind of declaration as `PROMPT_VERSIONS`
+ * — a version of the thing produced, not an invalidation rule about who reads
+ * it.
+ */
+export const OUTPUT_VERSIONS: Readonly<Record<string, number>> = {
+  // 2: candidates come from `catalogue_works`, so the stored works are
+  // `CorpusCandidate` (string id, `sourceUrl`) and no longer gutendex books.
+  "corpus-select": 2,
+};
+
+/**
  * Every stage's input key, in graph order.
  *
  * A stage's key includes the keys of the stages it reads, so a change anywhere
  * upstream reaches every stage downstream without anyone listing the descendants.
  * The keys are computed from the current session — not read from `stage_keys` —
  * because the question being asked is "what would this stage's key be now".
+ *
+ * `outputVersions` is a parameter so a test can assert that a bump propagates
+ * without waiting for a real shape change to make one.
  */
-export const inputKeys = (input: StalenessInput): Map<string, string> => {
+export const inputKeys = (
+  input: StalenessInput,
+  outputVersions: Readonly<Record<string, number>> = OUTPUT_VERSIONS,
+): Map<string, string> => {
   const keys = new Map<string, string>();
   for (const stage of input.pipeline.stages) {
     const promptVersion =
@@ -113,6 +143,7 @@ export const inputKeys = (input: StalenessInput): Map<string, string> => {
       hash([
         stage.id,
         promptVersion,
+        `output=${(outputVersions[stage.id] ?? 1).toString()}`,
         input.models.get(stage.id) ?? "<no-model>",
         ...stage.reads.map((read) => keys.get(read) ?? "<not-computed>"),
         ...directInputsOf(stage, input),

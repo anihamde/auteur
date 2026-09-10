@@ -51,7 +51,12 @@ export type CorpusSelection = z.infer<typeof corpusSelectionSchema>;
 export const corpusCandidateSchema: z.ZodType<CorpusCandidate> = z.object({
   id: z.string().min(1),
   sourceUrl: z.string().url(),
-  title: z.string().min(1),
+  // No `min(1)`: `catalogue_works.title` is `NOT NULL` and nothing forbids an
+  // empty string, so requiring one here would reject a document the store can
+  // legitimately produce — and `z.array` fails whole, so one untitled work
+  // would lose all twelve. The blank ones are excluded when the candidates are
+  // read instead, where a work a model cannot reason about does not belong.
+  title: z.string(),
   translator: z.string().nullable(),
 });
 
