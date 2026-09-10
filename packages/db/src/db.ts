@@ -30,8 +30,22 @@ export type DbConfig = {
   readonly connectionTimeoutMs?: number;
 };
 
-/** Long enough to outlast a burst, short enough to be a message and not a hang. */
-export const CONNECTION_TIMEOUT_MS = 5_000;
+/**
+ * Long enough to outlast a burst, short enough to be a message and not a hang.
+ *
+ * Five seconds was the first answer and it was wrong, in the direction that
+ * matters: it turned *waiting* into an error. Two hundred concurrent appends
+ * over a pool of four queue legitimately, and under load the last of them
+ * waited longer than five seconds and was refused — a burst the pool would have
+ * served, reported as a pool with nothing free.
+ *
+ * A queue is not a stuck pool. What this exists to catch is the second one:
+ * connections held and never returned, which is a wait that does not end. So it
+ * is set well above any queue this application produces and well below the
+ * platform's sixty-second ceiling, which is the thing it was introduced to stop
+ * a caller from reaching in silence.
+ */
+export const CONNECTION_TIMEOUT_MS = 15_000;
 
 export type Db = {
   readonly endpoint: Endpoint;
