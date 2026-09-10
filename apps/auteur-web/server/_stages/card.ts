@@ -1,11 +1,12 @@
 import { putCard } from "@auteur/card-store/cards";
 import type { ProsodyBlock } from "@auteur/core/prosody";
-import type { StyleCard } from "@auteur/core/style-card";
+import { CLAIM_PATHS, type StyleCard } from "@auteur/core/style-card";
 import { findAuthor } from "@auteur/corpus-store/authors";
 import { listPassagesForWork } from "@auteur/corpus-store/passages";
 import { listWorksByAuthor } from "@auteur/corpus-store/works";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { newId } from "@auteur/ids/new-id";
+import type { JsonSchema } from "@auteur/model-provider/request";
 import { cardFromExtraction, extractionSchema } from "@auteur/pipeline/extract";
 import { styleExtract } from "@auteur/prompt/style-extract";
 import { PROMPT_VERSIONS } from "@auteur/prompt/versions";
@@ -34,20 +35,33 @@ export const EXTRACT_PASSAGES = 40;
  * Strict mode refuses a property with no `type`, and `value` had none: it is a
  * zod union of a string and a string array, and an empty `{}` is what that
  * looks like when nobody writes the union out. The whole request was rejected,
- * so `style-extract` failed for every session ever run and said only "The model
- * gateway failed."
+ * so `style-extract` failed for every session ever run.
  *
- * `citationPassageId` is `["string", "null"]` for the neighbouring reason.
- * Strict mode requires **every** property in `required`, so there is no way to
- * express "may be absent" but there is a way to express "may be null" — and
- * before this the model had to send the key with no citation to give, which
- * meant an empty string, which is not a uuid, which failed the zod parse of the
- * whole extraction.
+ * `citationPassageId` is nullable for the neighbouring reason. Strict mode
+ * requires **every** property in `required`, so there is no way to express "may
+ * be absent" but there is a way to express "may be null" — and before this the
+ * model had to send the key with no citation to give, which meant an empty
+ * string, which is not a uuid, which failed the zod parse of the whole
+ * extraction.
  *
- * `stage-schemas.test.ts` holds every one of these rules against every stage
- * rather than against this one.
+ * **Built per request, because two of its fields are enumerations of this
+ * request's own data.** `path` is one of the card's twenty-two claim paths and
+ * `passageId` is one of the ids actually offered, so a path the assembler would
+ * discard and a passage id nobody offered are both refused by the gateway
+ * rather than parsed and dropped here. The model returned an invented
+ * `passageId` when the schema let it; with an enum it cannot.
+ *
+ * What the schema still cannot say is **how many**: strict mode does not
+ * support `minItems` or `maxItems`, so the eight-to-fifteen exemplar range and
+ * "one field per path" live in the prompt and in zod. That is the reason the
+ * prompt now states them — a constraint enforced only after the fact is one the
+ * model was never told.
+ *
+ * `stage-schemas.test.ts` holds strict mode's rules against every stage.
  */
-export const EXTRACTION_JSON_SCHEMA = {
+export const extractionJsonSchema = (
+  passageIds: readonly string[],
+): JsonSchema => ({
   additionalProperties: false,
   properties: {
     exemplars: {
@@ -55,7 +69,7 @@ export const EXTRACTION_JSON_SCHEMA = {
         additionalProperties: false,
         properties: {
           demonstrates: { type: "string" },
-          passageId: { type: "string" },
+          passageId: { enum: [...passageIds], type: "string" },
         },
         required: ["demonstrates", "passageId"],
         type: "object",
@@ -66,8 +80,14 @@ export const EXTRACTION_JSON_SCHEMA = {
       items: {
         additionalProperties: false,
         properties: {
-          citationPassageId: { type: ["string", "null"] },
-          path: { type: "string" },
+          citationPassageId: {
+            enum: [...passageIds, null],
+            type: ["string", "null"],
+          },
+          path: {
+            enum: CLAIM_PATHS.map((claim) => claim.path),
+            type: "string",
+          },
           // The union written out. `{}` is a schema strict mode refuses.
           value: {
             anyOf: [
@@ -84,7 +104,7 @@ export const EXTRACTION_JSON_SCHEMA = {
   },
   required: ["exemplars", "fields"],
   type: "object",
-} as const;
+});
 
 export const runStyleExtract = async (
   context: StageContext,
@@ -134,7 +154,7 @@ export const runStyleExtract = async (
   }
 
   const extraction = await callModel(context, {
-    jsonSchema: EXTRACTION_JSON_SCHEMA,
+    jsonSchema: extractionJsonSchema(passages.map((passage) => passage.id)),
     prompt: styleExtract.build({
       authorName: author.displayName,
       passages: passages.map((passage) => ({

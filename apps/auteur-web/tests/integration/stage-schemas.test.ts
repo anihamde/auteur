@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { EXTRACTION_JSON_SCHEMA } from "../../server/_stages/card.ts";
+import { CLAIM_PATHS } from "@auteur/core/style-card";
+import { extractionJsonSchema } from "../../server/_stages/card.ts";
 import { CORPUS_JSON_SCHEMA } from "../../server/_stages/research.ts";
 import {
   CLARIFY_JSON_SCHEMA,
@@ -20,10 +21,16 @@ import {
  * rules are the same five, and the next one written by hand will be the sixth.
  */
 
+/** The ids a request would carry; the extraction schema enumerates them. */
+const PASSAGE_IDS = [
+  "01a08c1f-0000-7000-8000-000000000001",
+  "01a08c1f-0000-7000-8000-000000000002",
+];
+
 const SCHEMAS = {
   CLARIFY_JSON_SCHEMA,
   CORPUS_JSON_SCHEMA,
-  EXTRACTION_JSON_SCHEMA,
+  EXTRACTION_JSON_SCHEMA: extractionJsonSchema(PASSAGE_IDS),
   FINDINGS_JSON_SCHEMA,
   OUTLINE_JSON_SCHEMA,
 } as const;
@@ -161,5 +168,42 @@ describe("the check itself refuses what the gateway refuses", () => {
 
   test("a nullable type is accepted, since that is how absence is expressed", () => {
     expect(violations({ type: ["string", "null"] }, "$")).toEqual([]);
+  });
+});
+
+describe("the extraction schema refuses what the assembler would discard", () => {
+  const schema = extractionJsonSchema(PASSAGE_IDS) as Record<string, Node>;
+  const fields = (schema["properties"] as Record<string, Node>)[
+    "fields"
+  ] as Node;
+  const field = fields["items"] as Record<string, Node>;
+  const properties = field["properties"] as Record<string, Node>;
+
+  test("every claim path the card requires is offered, and only those", () => {
+    // A path the assembler does not recognise is a field silently dropped and
+    // a card that then fails to build for a missing claim — two failures away
+    // from the typo that caused it.
+    expect(properties["path"]?.["enum"]).toEqual(
+      CLAIM_PATHS.map((claim) => claim.path),
+    );
+  });
+
+  test("a citation is one of the offered ids or null, and nothing else", () => {
+    // The model returned an invented uuid when the schema allowed any string.
+    // An enum is the difference between the gateway refusing it and this code
+    // dropping it after a 49-second call.
+    expect(properties["citationPassageId"]?.["enum"]).toEqual([
+      ...PASSAGE_IDS,
+      null,
+    ]);
+  });
+
+  test("an exemplar's passage id is one that was offered", () => {
+    const exemplars = (schema["properties"] as Record<string, Node>)[
+      "exemplars"
+    ] as Node;
+    const item = exemplars["items"] as Record<string, Node>;
+    const props = item["properties"] as Record<string, Node>;
+    expect(props["passageId"]?.["enum"]).toEqual(PASSAGE_IDS);
   });
 });
