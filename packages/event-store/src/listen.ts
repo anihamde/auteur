@@ -46,25 +46,58 @@ export const subscribe = async (
   const channel = channelFor(sessionId);
   const client = await db.connect();
   let closed = false;
+  let released = false;
   let lost = false;
+
+  /**
+   * Hand the connection back exactly once.
+   *
+   * Separate from `closed` because the two answer different questions — "has
+   * anyone asked this to stop" and "has the pool got its connection back" — and
+   * conflating them loses the slot. `close()` sets `closed` before awaiting
+   * `UNLISTEN`, so a backend dying during that round trip reached an error
+   * listener that saw `closed` and returned without releasing, while the
+   * rejected `UNLISTEN` threw past the release below. The client stayed checked
+   * out for the life of the process, and four of those empty a direct pool.
+   *
+   * `release(cause)` destroys the connection rather than returning it, so the
+   * next subscriber opens a new one instead of inheriting a broken one.
+   */
+  const release = async (cause?: Error): Promise<void> => {
+    if (released) return;
+    released = true;
+    client.removeAllListeners("notification");
+    if (lost) {
+      // The pool's removal path calls `end()` without a catch, and `end()` on a
+      // connection that is already gone rejects — an unhandled rejection, on
+      // the very path that exists to keep one dropped connection from ending
+      // the process. Ending it here first, with the rejection handled, leaves
+      // the pool's own call nothing left to fail at.
+      await client.end().catch(() => undefined);
+    }
+    if (cause === undefined) {
+      client.release();
+      return;
+    }
+    client.release(cause);
+  };
 
   // A checked-out client is the one thing `pg` does not carry an error listener
   // for: the pool removes its own on checkout and hands the client to the
-  // caller. So a backend that dies mid-stream — Neon scaling to zero, a restart,
-  // an admin terminating it — emits `error` on an `EventEmitter` with nothing
-  // listening, which in Node is an unhandled `error` event and takes the
-  // process with it. One dropped connection would end every stream and every
-  // request on the instance, not the one stream that lost its connection.
-  //
-  // `release(error)` rather than `release()`: a connection that errored is
-  // destroyed rather than returned to the pool, so the next subscriber opens a
-  // new one instead of inheriting a broken one.
+  // caller. So a backend that dies mid-stream — Neon scaling to zero, a
+  // restart, an admin terminating it — emits `error` on an `EventEmitter` with
+  // nothing listening, which in Node is an unhandled `error` event and takes
+  // the process with it. One dropped connection would end every stream and
+  // every request on the instance, not the one stream that lost its connection.
   client.on("error", (cause: Error) => {
+    lost = true;
+    // A close already running owns the release, and its `finally` does it once
+    // the rejected `UNLISTEN` comes back. Tearing the client down from here at
+    // the same time destroys a connection with a query still in flight, and
+    // `pg` rejects that query a second time with nobody listening.
     if (closed) return;
     closed = true;
-    lost = true;
-    client.removeAllListeners("notification");
-    client.release(cause);
+    void release(cause);
   });
 
   client.on("notification", (message) => {
@@ -94,14 +127,22 @@ export const subscribe = async (
 
   return {
     close: async () => {
-      // Already released by the error listener above, and `UNLISTEN` on a dead
-      // connection throws. Closing twice is the ordinary case here — the route
-      // closes on abort and again in its `finally`.
+      // Closing twice is the ordinary case here — the route closes on abort and
+      // again in its `finally` — and closing after a loss is the other one.
       if (closed) return;
       closed = true;
-      client.removeAllListeners("notification");
-      await client.query(`UNLISTEN ${identifier(channel)}`);
-      client.release();
+      try {
+        await client.query(`UNLISTEN ${identifier(channel)}`);
+      } catch {
+        // The connection is gone, which is what `UNLISTEN` was for. Reported as
+        // a loss rather than thrown: a caller asking to stop listening does not
+        // need an error about the listening having already stopped, and this
+        // one is awaited inside a stream's `finally` where a throw would become
+        // an unhandled rejection.
+        lost = true;
+      } finally {
+        await release();
+      }
     },
     /** Whether the connection was lost rather than closed. */
     lost: () => lost,

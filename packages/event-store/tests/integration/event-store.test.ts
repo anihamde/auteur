@@ -199,7 +199,50 @@ describe("a lost connection ends one subscription, not the process", () => {
       await subscription.close();
 
       // The pool holds one connection, so this only succeeds if the dead one
-      // was destroyed rather than handed back.
+      // was handed back rather than left checked out.
+      const next = await subscribe(listener, sessionId, () => undefined);
+      await next.close();
+    } finally {
+      await listener.close();
+    }
+  }, 20_000);
+});
+
+describe("a connection lost while closing is still handed back", () => {
+  test("close() resolves and the pool's only slot is free again", async () => {
+    // `close()` marks itself closed before awaiting `UNLISTEN`, so a backend
+    // dying during that round trip used to reach an error listener that saw
+    // "already closing" and returned without releasing — while the rejected
+    // `UNLISTEN` threw past the release. The client stayed checked out for the
+    // life of the process, and four of those empty a direct pool: the failure
+    // the error listener exists to prevent, reached by the other path.
+    const sessionId = await freshSession();
+    const listener = createDb({ endpoint: "direct", max: 1, url: harness.url });
+    try {
+      const subscription = await subscribe(
+        listener,
+        sessionId,
+        () => undefined,
+      );
+      const pids = await harness.other.query<{ pid: number }>(
+        `SELECT pid FROM pg_stat_activity
+          WHERE datname = current_database() AND query LIKE 'LISTEN %'`,
+      );
+
+      for (const row of pids.rows) {
+        await harness.other.query(`SELECT pg_terminate_backend($1)`, [
+          row["pid"],
+        ]);
+      }
+      // Closed without waiting for the error event, so `UNLISTEN` goes to a
+      // connection that is already gone. It resolves rather than throwing: a
+      // caller asking to stop listening does not need an error about the
+      // listening having already stopped, and this is awaited inside a
+      // stream's `finally` where a throw becomes an unhandled rejection.
+      await subscription.close();
+
+      // The pool holds one connection. This is the assertion that the slot came
+      // back rather than being lost with the client.
       const next = await subscribe(listener, sessionId, () => undefined);
       await next.close();
     } finally {
