@@ -24,7 +24,18 @@ import { idOf } from "./_id.ts";
  * running two models the reader never chose together, which is worse than not
  * writing at all because nobody would think to look for it.
  */
-export const pinRoutes = (deps: { readonly db: Db }): Hono => {
+/**
+ * `writeDb` is the handle `putPins` runs on. It replaces the set in one
+ * transaction so a reader cannot see the delete without the insert, and a
+ * pooled handle refuses a transaction (§3.1) — so this is the direct one on the
+ * deployment and `db` in a test.
+ */
+export type PinRoutesDeps = {
+  readonly db: Db;
+  readonly writeDb: Db;
+};
+
+export const pinRoutes = (deps: PinRoutesDeps): Hono => {
   const routes = new Hono();
   const { db } = deps;
   const catalogue = CATALOGUE.map(toDescriptor);
@@ -64,7 +75,7 @@ export const pinRoutes = (deps: { readonly db: Db }): Hono => {
       );
     }
 
-    await putPins(db, id, new Map(Object.entries(body.pins)));
+    await putPins(deps.writeDb, id, new Map(Object.entries(body.pins)));
     return context.json({ pins: Object.fromEntries(await readPins(db, id)) });
   });
 

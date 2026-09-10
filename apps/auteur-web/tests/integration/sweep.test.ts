@@ -54,6 +54,7 @@ beforeEach(async () => {
 const run = async (thresholds: { stale?: number; queued?: number } = {}) =>
   sweep({
     db: harness.db,
+    eventDb: harness.db,
     invokeStage: async ({ queueId, stageId }) => {
       invoked.push({ queueId, stageId });
     },

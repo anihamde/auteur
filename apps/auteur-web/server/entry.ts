@@ -98,6 +98,26 @@ const invokeStage = async (input: {
  * protected one without the secret is a configuration to fix rather than
  * something to work around here.
  */
+/**
+ * The origin this function answers on.
+ *
+ * `VERCEL_URL` is the deployment's own host, so an invocation reaches the
+ * deployment that made it rather than whatever the production alias points at —
+ * a preview must not drive production's pipeline. Absent, this is a local
+ * `vite dev`.
+ *
+ * It was deleted by the change that added the bypass header below, and nothing
+ * noticed: `apps/auteur-web/tsconfig.json` still named the `api/` directory
+ * this one replaced, so no typecheck ever read this file. Every invocation
+ * threw `selfOrigin is not defined` before it reached `fetch`, which the
+ * `void`ed promise then swallowed — so the queue filled, the sweep re-invoked
+ * into the same throw, and nothing anywhere said why.
+ */
+const selfOrigin = (): string => {
+  const host = process.env["VERCEL_URL"];
+  return host === undefined ? "http://127.0.0.1:3000" : `https://${host}`;
+};
+
 const protectionBypass = (): Record<string, string> => {
   const secret = process.env["VERCEL_AUTOMATION_BYPASS_SECRET"];
   return secret === undefined || secret === ""
@@ -114,6 +134,14 @@ const protectionBypass = (): Record<string, string> => {
  */
 const app = boot(() => {
   const db = createDb({ endpoint: "pooled", url: env().DATABASE_URL });
+  // The one connection that can hold a transaction and a `LISTEN`. Every route
+  // reads and writes on the pooled handle; this is for the writes that must be
+  // atomic — appending an event with its NOTIFY, replacing a session's pins —
+  // and for the SSE subscription.
+  const directDb = createDb({
+    endpoint: "direct",
+    url: env().DATABASE_URL_DIRECT,
+  });
 
   return createApp({
     apiToken: env().AUTEUR_API_TOKEN,
@@ -122,13 +150,9 @@ const app = boot(() => {
       invokeStage,
     },
     db,
+    directDb,
     // The one place `LISTEN` gets the connection it needs. §7.
-    events: {
-      directDb: createDb({
-        endpoint: "direct",
-        url: env().DATABASE_URL_DIRECT,
-      }),
-    },
+    events: { directDb },
     internalStage: {
       runStageBody: createStageBody({
         provider: createRouterProvider({ apiKey: env().RAMP_ROUTER_API_KEY }),

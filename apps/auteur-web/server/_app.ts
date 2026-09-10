@@ -48,13 +48,16 @@ export type AppDeps = {
    * not exercise the pipeline, and the route is then not mounted at all —
    * which is stricter than mounting it with an empty secret.
    */
-  readonly internalStage?: Omit<InternalStageDeps, "db" | "invokeStage">;
+  readonly internalStage?: Omit<
+    InternalStageDeps,
+    "db" | "eventDb" | "invokeStage"
+  >;
   /**
    * `/api/internal/cron/sweep`, and the sweep that traffic drives. Absent in a
    * test that does not sweep, and neither is mounted — the same rule the stage
    * route follows.
    */
-  readonly cron?: Omit<CronRoutesDeps, "db"> & {
+  readonly cron?: Omit<CronRoutesDeps, "db" | "eventDb"> & {
     /** Overridden by a test that cannot wait for the window to pass. */
     readonly sweepEverySeconds?: number;
   };
@@ -75,6 +78,15 @@ export type AppDeps = {
    * delivers.
    */
   readonly events?: EventRoutesDeps;
+  /**
+   * The handle for writes that must hold a transaction.
+   *
+   * `createDb` refuses `transaction` on a pooled handle (§3.1), and every route
+   * has a pooled one: `append` and `putPins` therefore threw in production and
+   * only in production, because every test's handle is direct. Absent here
+   * means `db` is already direct, which is the test case.
+   */
+  readonly directDb?: Db;
 };
 
 /**
@@ -91,6 +103,16 @@ const unauthenticatedPaths = new Set(
   UNAUTHENTICATED.map((name) => specOf(name).path),
 );
 
+/**
+ * The handle a write that needs a transaction runs on.
+ *
+ * `events.directDb` before `directDb` for the deployment's sake — they are the
+ * same connection there — and `db` last, for a test whose only handle is
+ * already direct.
+ */
+const transactional = (deps: AppDeps): Db =>
+  deps.directDb ?? deps.events?.directDb ?? deps.db;
+
 export const createApp = (deps: AppDeps): Hono => {
   const app = new Hono();
 
@@ -106,7 +128,7 @@ export const createApp = (deps: AppDeps): Hono => {
       // backend is free. `events.directDb` is the one handle that can.
       // Falling back to `deps.db` covers a test whose only handle is already
       // direct.
-      migrated ??= ensureSchema(deps.db, deps.events?.directDb ?? deps.db);
+      migrated ??= ensureSchema(deps.db, transactional(deps));
       await migrated;
     }
     if (
@@ -151,6 +173,7 @@ export const createApp = (deps: AppDeps): Hono => {
       "*",
       sweepOnTraffic({
         db: deps.db,
+        eventDb: transactional(deps),
         invokeStage: deps.cron.invokeStage,
         onError: (error) => {
           deps.logger?.error("sweep failed", {
@@ -201,21 +224,25 @@ export const createApp = (deps: AppDeps): Hono => {
   app.route("/", healthRoutes());
   app.route("/", modelRoutes());
   if (deps.cron !== undefined) {
-    app.route("/", cronRoutes({ db: deps.db, ...deps.cron }));
+    app.route(
+      "/",
+      cronRoutes({ ...deps.cron, db: deps.db, eventDb: transactional(deps) }),
+    );
   }
   if (deps.internalStage !== undefined) {
     app.route(
       "/",
       internalStageRoutes({
-        db: deps.db,
         ...deps.internalStage,
+        db: deps.db,
+        eventDb: transactional(deps),
         ...(deps.invokeStage !== undefined && {
           invokeStage: deps.invokeStage,
         }),
       }),
     );
   }
-  app.route("/", pinRoutes({ db: deps.db }));
+  app.route("/", pinRoutes({ db: deps.db, writeDb: transactional(deps) }));
   app.route(
     "/",
     regenerateRoutes({

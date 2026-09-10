@@ -215,8 +215,16 @@ export const completeStage = async (
   return (result.rowCount ?? 0) === 1;
 };
 
+/**
+ * What giving up on an attempt did.
+ *
+ * `released` carries no row. The caller's next act is to return — the released
+ * attempt is invoked by the sweep, not from here — and the only way to hand
+ * back a row was to left-join it onto the two outcomes that have none, which
+ * made every column nullable in a type where none of them is.
+ */
 export type FailureOutcome =
-  | { readonly outcome: "released"; readonly next: QueueEntry }
+  | { readonly outcome: "released" }
   | { readonly outcome: "failed" }
   | { readonly outcome: "not-claimed" };
 
@@ -229,37 +237,60 @@ export type FailureOutcome =
  * duplicate. Past the budget the row is marked `error` and nothing is
  * re-enqueued: a stage that has failed three times fails the session rather
  * than looping until the cron sweep is turned off.
+ *
+ * **One statement, not a transaction.** It was a transaction, and
+ * `createDb` refuses one on a pooled handle (§3.1) — which is the handle every
+ * route has, because function instances are plural. So in production the only
+ * path that runs when a stage fails threw `A transaction needs the direct
+ * database endpoint` on its way out, leaving the row `claimed` until the sweep
+ * released it five minutes later. The retry budget existed and was unreachable.
+ *
+ * A data-modifying CTE gives the same atomicity on any handle: the `UPDATE` and
+ * the `INSERT` are one command, so either both land or neither does, and the
+ * `INSERT` reads the failing row's own `RETURNING` rather than a second query's
+ * answer.
+ *
+ * The outer `LEFT JOIN` is what distinguishes the three outcomes in one round
+ * trip: no row at all means this claimant does not hold the entry, a row whose
+ * requeued half is null means the budget is spent, and a full row is the
+ * release.
  */
 export const failStage = async (
   db: Db,
   id: string,
   claimant: string,
   nextId: string,
-): Promise<FailureOutcome> =>
-  db.transaction(async (client) => {
-    const claimed = await client.query<Row>(
-      `UPDATE stage_queue SET status = 'error'
+): Promise<FailureOutcome> => {
+  const result = await db.query<{
+    failed_id: string;
+    requeued_id: string | null;
+  }>(
+    `WITH failed AS (
+       UPDATE stage_queue SET status = 'error'
         WHERE id = $1 AND status = 'claimed' AND claimed_by = $2
-        RETURNING ${columns(COLUMNS)}`,
-      [id, claimant],
-    );
-    const row = claimed.rows[0];
-    if (row === undefined) return { outcome: "not-claimed" };
-
-    const attempt = row["attempt"] + 1;
-    if (attempt >= MAX_ATTEMPTS) return { outcome: "failed" };
-
-    const requeued = await client.query<Row>(
-      `INSERT INTO stage_queue (id, session_id, stage_id, status, attempt)
-       VALUES ($1, $2, $3, 'queued', $4)
+        RETURNING id AS failed_id, session_id AS failed_session,
+                  stage_id AS failed_stage, attempt AS failed_attempt
+     ),
+     requeued AS (
+       INSERT INTO stage_queue (id, session_id, stage_id, status, attempt)
+       SELECT $3, failed_session, failed_stage, 'queued', failed_attempt + 1
+         FROM failed
+        WHERE failed_attempt + 1 < $4::int
        ON CONFLICT (session_id, stage_id, attempt) DO NOTHING
-       RETURNING ${columns(COLUMNS)}`,
-      [nextId, row["session_id"], row["stage_id"], attempt],
-    );
-    const next = requeued.rows[0];
-    if (next === undefined) return { outcome: "failed" };
-    return { next: toEntry(next), outcome: "released" };
-  });
+       RETURNING id
+     )
+     SELECT failed_id, requeued.id AS requeued_id
+       FROM failed LEFT JOIN requeued ON true`,
+    [id, claimant, nextId, MAX_ATTEMPTS],
+  );
+  const row = maybeRow(result.rows);
+  if (row === undefined) return { outcome: "not-claimed" };
+  // Null when the budget is spent, and when a row for that attempt already
+  // existed. Both are "nothing more will run".
+  return row["requeued_id"] === null
+    ? { outcome: "failed" }
+    : { outcome: "released" };
+};
 
 export const findQueueEntry = async (
   db: Db,
