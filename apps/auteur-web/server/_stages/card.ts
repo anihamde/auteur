@@ -25,8 +25,54 @@ import { callModel, type StageContext } from "./context.ts";
  * that takes forty passages and a large model to build.
  */
 
-/** How many passages the extraction reads. §4.3. */
-export const EXTRACT_PASSAGES = 40;
+/**
+ * How many passages the extraction reads (§4.3).
+ *
+ * Twenty, of the roughly forty the segmenter produces. It was forty, and the
+ * call then needed more than the sixty seconds an invocation gets: about
+ * fifty against nine short passages in `verify:live`, and a timeout on the
+ * deployment against forty long ones. Halving the input halves the prefill,
+ * and the segmenter still stores the full spread, so nothing about the corpus
+ * is lost — only how much of it one model call reads.
+ *
+ * It is a real trade: a card read from half the evidence is a card with less
+ * behind it. `cardStrength.measuredWords` and `workCount` still report the
+ * whole corpus, because prosody is computed from the full texts and only this
+ * qualitative half is sampled.
+ */
+export const EXTRACT_PASSAGES = 20;
+
+/**
+ * Take a spread across the works, not a prefix of them.
+ *
+ * The lists arrive one per work and were concatenated and sliced, which was
+ * harmless while the budget exceeded the total and is a defect the moment it
+ * does not: a prefix of a concatenation is the earliest works entire and the
+ * later ones not at all. `corpus-select` spends its whole instruction sampling
+ * across a career, and a prefix here would throw that away one stage later.
+ *
+ * Round-robin, so the first passage of every work is taken before the second
+ * of any, and a work with fewer passages simply drops out of later rounds.
+ */
+export const spreadAcross = <Item>(
+  byWork: readonly (readonly Item[])[],
+  limit: number,
+): Item[] => {
+  const chosen: Item[] = [];
+  // Before the loop, because the check inside it runs *after* a push: a limit
+  // of zero would otherwise take everything, which is the opposite of nothing.
+  if (limit <= 0) return chosen;
+  const deepest = Math.max(0, ...byWork.map((work) => work.length));
+  for (let round = 0; round < deepest; round += 1) {
+    for (const work of byWork) {
+      const item = work[round];
+      if (item === undefined) continue;
+      chosen.push(item);
+      if (chosen.length >= limit) return chosen;
+    }
+  }
+  return chosen;
+};
 
 /**
  * The extraction's shape, as the gateway's strict `json_schema` mode requires
@@ -140,21 +186,18 @@ export const runStyleExtract = async (
     workIds: works.map((work) => work.id),
   });
 
-  const passages = (
+  const passages = spreadAcross(
     await Promise.all(
       works.map(async (work) =>
-        (
-          await listPassagesForWork(context.db, work.id)
-        ).map((passage) => ({
+        (await listPassagesForWork(context.db, work.id)).map((passage) => ({
           ...passage,
           workTitle: work.title,
           year: work.year,
         })),
       ),
-    )
-  )
-    .flat()
-    .slice(0, EXTRACT_PASSAGES);
+    ),
+    EXTRACT_PASSAGES,
+  );
 
   if (passages.length === 0) {
     throw new AuteurError(

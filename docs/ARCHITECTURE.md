@@ -969,7 +969,8 @@ across 1935 to 1975" rather than "Analyzing...".
 are windows of 400 to 900 words cut on paragraph boundaries by `text`'s cut
 ladder (§2), sampled uniformly across each selected work's length with the first
 and last 5% excluded — front matter and endings are unrepresentative in opposite
-directions. Around forty candidates go to `style-extract`, which cites the ones
+directions. Around forty candidates are stored; `style-extract` reads twenty of
+them, spread across the works rather than taken from the front, and cites the ones
 it uses; a candidate nothing cites is still stored, because an exemplar the user
 excludes and later re-includes must still exist.
 
