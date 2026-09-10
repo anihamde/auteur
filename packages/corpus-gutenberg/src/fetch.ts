@@ -2,7 +2,7 @@ import { AuteurError } from "@auteur/errors/auteur-error";
 import { cleanGutenberg } from "@auteur/text/clean";
 import { countWords } from "@auteur/text/tokenize";
 import { cleanerVersion } from "@auteur/text/version";
-import type { FetchLike } from "./gutendex.ts";
+import { type FetchLike, USER_AGENT } from "./gutendex.ts";
 import type { GutendexBook } from "./schema.ts";
 
 /**
@@ -90,6 +90,10 @@ export const fetchWork = async (
     }
     try {
       const response = await call(url, {
+        // A text download is not JSON, so it asks for what it wants — but it
+        // says who it is for the same reason the search does: an unidentified
+        // client is one gutendex answers 403 to.
+        headers: { accept: "text/plain", "user-agent": USER_AGENT },
         ...(config.signal !== undefined && { signal: config.signal }),
       });
       if (response.ok) {

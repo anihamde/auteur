@@ -248,3 +248,21 @@ describe("the cleaner version travels with the text it produced", () => {
     expect(work.translator).toBe("Garnett, C");
   });
 });
+
+describe("a text download says who it is too", () => {
+  test("the work fetch carries a User-Agent", async () => {
+    // The search and the download hit the same service. Fixing one and not the
+    // other would move the 403 from the author list to the corpus fetch, one
+    // screen later.
+    let seen: Readonly<Record<string, string>> | undefined;
+    await fetchWork(book(), {
+      fetch: async (_url, init) => {
+        seen = init?.headers;
+        return new Response(GUTENBERG);
+      },
+    });
+
+    expect(seen?.["user-agent"]).toContain("auteur/");
+    expect(seen?.["accept"]).toBe("text/plain");
+  });
+});

@@ -15,8 +15,31 @@ export const GUTENDEX_BASE = "https://gutendex.com";
 /** Injected so every test runs offline. */
 export type FetchLike = (
   url: string,
-  init?: { readonly signal?: AbortSignal },
+  init?: {
+    readonly headers?: Readonly<Record<string, string>>;
+    readonly signal?: AbortSignal;
+  },
 ) => Promise<Response>;
+
+/**
+ * Who is asking.
+ *
+ * Node's `fetch` sends no `User-Agent` at all, and gutendex answers **403** to
+ * a request without one — which arrives here as `corpus_unavailable` and
+ * reaches a reader as "gutenberg unavailable". The same url from a laptop, by
+ * curl or a browser, returns thirty books: the difference was the header.
+ *
+ * It names the project and links to it, which is what a free public service is
+ * owed by something making automated requests to it. A rate limit or a block
+ * should be able to find a person.
+ */
+export const USER_AGENT = "auteur/0.1 (+https://github.com/anihamde/auteur)";
+
+/** Every outbound request to the corpus carries these. */
+export const CORPUS_HEADERS: Readonly<Record<string, string>> = {
+  accept: "application/json",
+  "user-agent": USER_AGENT,
+};
 
 export type GutendexConfig = {
   readonly fetch?: FetchLike;
@@ -44,7 +67,7 @@ export const searchPage = async (
 
   let response: Response;
   try {
-    response = await call(url);
+    response = await call(url, { headers: CORPUS_HEADERS });
   } catch (cause) {
     throw new AuteurError(
       "corpus_unavailable",
