@@ -18,6 +18,14 @@ import { channelFor } from "./events.ts";
  * not.
  */
 
+/**
+ * How long a lost connection is given to close before the release goes ahead.
+ *
+ * Long enough for an ordinary socket teardown, short enough that a stream's
+ * `finally` never becomes the reason an invocation is killed.
+ */
+export const END_TIMEOUT_MS = 1000;
+
 export type Subscription = {
   /** Stops listening and returns the connection to the pool. */
   readonly close: () => Promise<void>;
@@ -73,7 +81,20 @@ export const subscribe = async (
       // the very path that exists to keep one dropped connection from ending
       // the process. Ending it here first, with the rejection handled, leaves
       // the pool's own call nothing left to fail at.
-      await client.end().catch(() => undefined);
+      //
+      // **Bounded, because `end()` on a socket that is gone can wait for a
+      // graceful shutdown that never arrives.** This is awaited inside the
+      // stream route's `finally`, so a hang here is a function invocation held
+      // until the platform kills it, with the row it was writing still
+      // `claimed`. The point of the call is to own the rejection, and that is
+      // achieved the moment the handler is attached; the release below does not
+      // depend on the socket ever closing.
+      await Promise.race([
+        client.end().catch(() => undefined),
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, END_TIMEOUT_MS);
+        }),
+      ]);
     }
     if (cause === undefined) {
       client.release();
