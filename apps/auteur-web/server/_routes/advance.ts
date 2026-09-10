@@ -11,7 +11,7 @@ import { readPins } from "@auteur/session-store/pins";
 import { answerSetFor } from "@auteur/session-store/questions";
 import { requireSession, updateSession } from "@auteur/session-store/sessions";
 import { readStageKeys } from "@auteur/session-store/stage-keys";
-import { enqueueStage } from "@auteur/stage-queue/queue";
+import { enqueueForRun } from "@auteur/stage-queue/queue";
 import { Hono } from "hono";
 import { type StalenessInput, staleUpTo } from "../_staleness.ts";
 import { idOf } from "./_id.ts";
@@ -141,17 +141,22 @@ export const enqueueStaleUpTo = async (
     return [];
   }
 
-  const rows = stale.map((stageId) => ({
-    id: newId(),
-    sessionId,
-    stageId,
-  }));
-  for (const row of rows) {
-    await enqueueStage(deps.db, row);
+  // `enqueueForRun`, not `enqueueStage`: a stage that has run leaves a finished
+  // row on its attempt-0 key, and that row is what a plain enqueue collides
+  // with — silently, so the session was told the stage would run again and it
+  // did not.
+  const queued = [];
+  for (const stageId of stale) {
+    queued.push(
+      await enqueueForRun(deps.db, { id: newId(), sessionId, stageId }),
+    );
   }
 
-  const first = rows[0];
+  const first = queued[0];
   if (first !== undefined && deps.invokeStage !== undefined) {
+    // `first.id` and not the id minted above: on a stage already in flight the
+    // enqueue answers with the row that exists, and invoking the other id would
+    // name no row at all.
     await deps.invokeStage({
       queueId: first.id,
       sessionId,

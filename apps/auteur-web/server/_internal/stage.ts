@@ -11,7 +11,7 @@ import { recordStageKey } from "@auteur/session-store/stage-keys";
 import {
   claimStage,
   completeStage,
-  enqueueStage,
+  enqueueForRun,
   failStage,
 } from "@auteur/stage-queue/queue";
 import { Hono } from "hono";
@@ -132,15 +132,22 @@ export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
     await completeStage(db, body.queueId, claimant);
 
     const next = successorsOf(body.stageId);
-    const rows = next.map((stageId) => ({
-      id: newId(),
-      sessionId: body.sessionId,
-      stageId,
-    }));
-    for (const row of rows) {
-      await enqueueStage(db, row);
+    // `enqueueForRun`, not `enqueueStage`: on a second run of a session — a
+    // changed author, a regenerate — each successor still carries the finished
+    // row from the first, and a plain enqueue collides with it. Without this
+    // the chain stops one stage in: this stage re-ran, and the next silently
+    // did not.
+    const queued = [];
+    for (const stageId of next) {
+      queued.push(
+        await enqueueForRun(db, {
+          id: newId(),
+          sessionId: body.sessionId,
+          stageId,
+        }),
+      );
     }
-    const first = rows[0];
+    const first = queued[0];
     if (first !== undefined) {
       await deps.invokeStage?.({
         queueId: first.id,
