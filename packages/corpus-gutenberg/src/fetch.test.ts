@@ -266,3 +266,28 @@ describe("a text download says who it is too", () => {
     expect(seen?.["accept"]).toBe("text/plain");
   });
 });
+
+describe("a download attempt is bounded", () => {
+  test("a service that accepts and then says nothing does not hold the stage", async () => {
+    // Three attempts and six seconds of backoff have to fit inside a stage. A
+    // request with no bound fits inside nothing.
+    let attempts = 0;
+    const outcome = await fetchWork(book(), {
+      fetch: (_url, init) => {
+        attempts += 1;
+        return new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("timed out", "TimeoutError"));
+          });
+        });
+      },
+      timeoutMs: 10,
+    }).catch((thrown: unknown) => thrown);
+
+    // Every attempt was made and every attempt was bounded.
+    expect(attempts).toBe(RETRY_DELAYS_MS.length + 1);
+    expect(outcome).toBeInstanceOf(Error);
+    // The six seconds this test spends are the retry backoff itself, which is
+    // the policy under test: the attempts are spaced, and bounded, and end.
+  }, 20_000);
+});
