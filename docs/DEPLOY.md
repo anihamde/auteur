@@ -99,10 +99,15 @@ action.
    plan's ceiling fails exactly this way.
 2. `bun run preflight` locally, with the same values in `.env`. It names every
    missing or malformed variable at once rather than the first.
-3. `bun run verify:live` — the four checks that need real credentials: the
-   model catalogue against the gateway, the Gutendex response schema, the
-   latinate classifier's precision, and `LISTEN`/`NOTIFY` on Neon's direct
-   endpoint. It fails on any discrepancy rather than absorbing it.
+3. `bun run verify:live` — the checks that need real credentials, from a
+   machine with egress. Two of them run: the Gutendex response schema against
+   a live response, and `LISTEN`/`NOTIFY` on Neon's direct endpoint. Two do
+   not, and say so rather than passing: the gateway probe's measurement half
+   is unwritten, and the latinate classifier's labelled set does not exist.
+
+   A failing run naming an unwritten check is the honest state. A run that
+   reported four passes would mean nothing ran — which is what it did until
+   `unchecked` existed.
 4. One flash story, end to end, in the browser.
 5. Kill a stage mid-run and confirm the sweep re-invokes it. That is the only
    check that exercises the recovery path rather than the happy one.

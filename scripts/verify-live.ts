@@ -26,6 +26,7 @@
 import { createDb } from "../packages/db/src/db.ts";
 import { channelFor } from "../packages/event-store/src/events.ts";
 import { subscribe } from "../packages/event-store/src/listen.ts";
+import { probeLive } from "./probe-gutendex.ts";
 
 export type SubReport = {
   readonly name: string;
@@ -97,7 +98,57 @@ export const checkListenNotify = async (
   }
 };
 
+/**
+ * A sub-report for a check nobody has written yet.
+ *
+ * Distinct from `missing`, which is a credential away from running. This is
+ * the state three of these four were in while reporting `ok` and naming the
+ * script that would have checked them — which made a green run mean "nothing
+ * ran", the exact thing the header claims it cannot mean.
+ */
+export const unchecked = (
+  name: string,
+  why: string,
+  command: string,
+): SubReport => ({
+  lines: [
+    why,
+    `Run \`${command}\` when that is possible. Until then this is UNVERIFIED,`,
+    "and a pass that said otherwise would be the only untrue line in the run.",
+  ],
+  name,
+  ok: false,
+});
+
 /** A sub-report for a check that cannot run because a credential is absent. */
+/**
+ * The committed schema against a live response.
+ *
+ * This is the check that mattered tonight: `schema.ts` was written from
+ * documentation, never against a response, and a parse failure surfaces on the
+ * deployment as "gutenberg unavailable" with no reason attached.
+ */
+export const checkGutendex = async (
+  probe: typeof probeLive = probeLive,
+): Promise<SubReport> => {
+  const result = await probe("chekhov");
+  return result.ok
+    ? {
+        lines: [`the live response parsed: ${result.books.toString()} books`],
+        name: "the gutendex response shape",
+        ok: true,
+      }
+    : {
+        lines: [
+          result.problem,
+          "Every difference is a field ARCHITECTURE.md §5.2 got wrong, and it",
+          "reaches a reader as an empty author list.",
+        ],
+        name: "the gutendex response shape",
+        ok: false,
+      };
+};
+
 export const missing = (name: string, variable: string): SubReport => ({
   lines: [
     `${variable} is unset, so this was not checked.`,
@@ -116,28 +167,22 @@ if (import.meta.main) {
   reports.push(
     routerKey === undefined
       ? missing("the catalogue's declared capabilities", "RAMP_ROUTER_API_KEY")
-      : {
-          lines: [
-            "run `bun scripts/check-router-catalogue.ts` and",
-            "`bun scripts/probe-router-responses.ts`; both write their findings",
-            "into docs/spikes/.",
-          ],
-          name: "the catalogue's declared capabilities",
-          ok: true,
-        },
+      : unchecked(
+          "the catalogue's declared capabilities",
+          'The measurement half of the gateway probe is not written; every row is tagged "declared".',
+          "bun scripts/probe-router-responses.ts",
+        ),
   );
 
-  reports.push({
-    lines: ["run `bun scripts/probe-gutendex.ts`"],
-    name: "the gutendex response shape",
-    ok: true,
-  });
+  reports.push(await checkGutendex());
 
-  reports.push({
-    lines: ["run `bun scripts/score-latinate.ts`"],
-    name: "the latinate classifier's precision",
-    ok: true,
-  });
+  reports.push(
+    unchecked(
+      "the latinate classifier's precision",
+      "The hand-labelled set it scores against does not exist yet.",
+      "bun scripts/score-latinate.ts <labelled.json>",
+    ),
+  );
 
   reports.push(
     directUrl === undefined
