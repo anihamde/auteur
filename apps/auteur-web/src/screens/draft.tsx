@@ -1,4 +1,4 @@
-import { Card, CardHeader } from "@auteur/component-library/core";
+import { Button, Card, CardHeader } from "@auteur/component-library/core";
 import { ProsodyStat } from "@auteur/component-library/pipeline";
 import { Markdown } from "@auteur/component-library/prose";
 import { COPY } from "@auteur/copy/index";
@@ -43,7 +43,30 @@ export const latestDrift = (
   return drift;
 };
 
-export const DraftScreen = ({ state }: ScreenProps): ReactElement => {
+export const DraftScreen = ({
+  sessionId,
+  setState,
+  state,
+  transport,
+}: ScreenProps): ReactElement => {
+  /**
+   * Read the result.
+   *
+   * Disabled until there is prose: `style-fit` measures the draft, and a
+   * result screen with nothing to measure is a screen of empty readings.
+   */
+  const next = async (): Promise<void> => {
+    if (sessionId === undefined) return;
+    await transport.client.call("advance", {
+      body: { to: "result" },
+      params: { id: sessionId },
+    });
+    const view = await transport.client.call("session", {
+      params: { id: sessionId },
+    });
+    setState((previous) => ({ ...previous, view }));
+  };
+
   const streamed = streamedText(state.events);
   const stored = state.view?.story?.markdown ?? "";
   const text = streamed === "" ? stored : streamed;
@@ -77,6 +100,14 @@ export const DraftScreen = ({ state }: ScreenProps): ReactElement => {
           ))}
         </Card>
       </div>
+
+      <Button
+        disabled={text === ""}
+        onClick={() => void next()}
+        variant="primary"
+      >
+        {COPY.draft.next}
+      </Button>
     </>
   );
 };

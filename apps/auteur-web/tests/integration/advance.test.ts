@@ -249,6 +249,38 @@ describe("advance's scope", () => {
   });
 });
 
+describe("advancing is how the wizard moves", () => {
+  const advanceTo = async (to: Step): Promise<void> => {
+    const app = createApp({ apiToken: TOKEN, db: harness.db });
+    const response = await app.request(`/api/sessions/${sessionId}/advance`, {
+      body: JSON.stringify({ to }),
+      headers: {
+        authorization: `Bearer ${TOKEN}`,
+        "content-type": "application/json",
+      },
+      method: "POST",
+    });
+    expect(response.status).toBe(200);
+  };
+
+  test("the session's step becomes the step asked for", async () => {
+    // The rail offers only steps already behind you, so a screen that starts
+    // work and does not record where the reader now is leaves them looking at
+    // the screen they just finished with. Every forward control in the client
+    // goes through this route.
+    await advanceTo("outline");
+    expect((await requireSession(harness.db, sessionId)).step).toBe("outline");
+  });
+
+  test("a step that runs no stages still moves", async () => {
+    // `idea` and `author` map to no stage. Enqueuing nothing is right;
+    // staying put is not, and it is how the idea screen created a session and
+    // never left.
+    await advanceTo("author");
+    expect((await requireSession(harness.db, sessionId)).step).toBe("author");
+  });
+});
+
 describe("choosing an author is the other moment work begins", () => {
   /** The row the screen is holding, which is what the choice carries. */
   const rowFor = (id: string) => ({
@@ -278,6 +310,16 @@ describe("choosing an author is the other moment work begins", () => {
       enqueued: string[];
     };
   };
+
+  test("it moves the wizard to research", async () => {
+    // The step follows the work: choosing an author starts the research
+    // stages, and `research` is the screen that shows them running. Without
+    // this the client re-read a session still saying `idea` and rendered
+    // screen one again — which is what "the button does nothing" was.
+    const app = createApp({ apiToken: TOKEN, db: harness.db });
+    await chooseAuthor(app, "gutenberg:chekhov");
+    expect((await requireSession(harness.db, sessionId)).step).toBe("research");
+  });
 
   test("it records the author and enqueues the research stages", async () => {
     // Nothing on the research screen calls `advance`: it renders four stages

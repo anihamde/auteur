@@ -73,7 +73,12 @@ export const selectAuthorRoutes = (deps: SelectAuthorDeps): Hono => {
       provider: providerOf(author.id),
       workCount: author.workCount,
     });
-    await updateSession(deps.db, id, { authorId: author.id });
+    // The step moves with the work: choosing an author starts the research
+    // stages, and `research` is the screen that shows them running.
+    await updateSession(deps.db, id, {
+      authorId: author.id,
+      step: "research",
+    });
 
     return context.json({
       enqueued: await enqueueStaleUpTo(deps, id, "research"),

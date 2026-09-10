@@ -9,7 +9,7 @@ import { resolveAll } from "@auteur/pipeline/resolve-tier";
 import { CATALOGUE, toDescriptor } from "@auteur/provider-router/models";
 import { readPins } from "@auteur/session-store/pins";
 import { answerSetFor } from "@auteur/session-store/questions";
-import { requireSession } from "@auteur/session-store/sessions";
+import { requireSession, updateSession } from "@auteur/session-store/sessions";
 import { readStageKeys } from "@auteur/session-store/stage-keys";
 import { enqueueStage } from "@auteur/stage-queue/queue";
 import { Hono } from "hono";
@@ -168,9 +168,13 @@ export const advanceRoutes = (deps: AdvanceDeps): Hono => {
   routes.post(ROUTES.advance.path, async (context) => {
     const id = idOf(context.req.param("id") ?? "");
     const body = parseBody("advance", await context.req.json());
-    return context.json({
-      enqueued: await enqueueStaleUpTo(deps, id, body.to),
-    });
+    const enqueued = await enqueueStaleUpTo(deps, id, body.to);
+    // Asking to advance to a step is how the wizard moves. The rail offers
+    // only steps already behind you, so without this a screen starts work and
+    // stays where it was — `outline`'s "Draft" button enqueued the draft and
+    // left the reader looking at the beat sheet.
+    await updateSession(deps.db, id, { step: body.to });
+    return context.json({ enqueued });
   });
 
   return routes;
