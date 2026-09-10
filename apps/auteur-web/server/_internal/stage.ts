@@ -13,6 +13,7 @@ import {
   completeStage,
   enqueueStage,
   failStage,
+  retireFinished,
 } from "@auteur/stage-queue/queue";
 import { Hono } from "hono";
 import type { AdvanceDeps } from "../_routes/advance.ts";
@@ -132,15 +133,22 @@ export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
     await completeStage(db, body.queueId, claimant);
 
     const next = successorsOf(body.stageId);
-    const rows = next.map((stageId) => ({
-      id: newId(),
-      sessionId: body.sessionId,
-      stageId,
-    }));
-    for (const row of rows) {
-      await enqueueStage(db, row);
+    // On a second run of a session — a changed author, a regenerate — each
+    // successor still carries the finished row from the first, and that row is
+    // what a re-enqueue collides with. Without this the chain stops one stage
+    // in: this stage re-ran, and the next silently did not.
+    await retireFinished(db, body.sessionId, next);
+    const queued = [];
+    for (const stageId of next) {
+      queued.push(
+        await enqueueStage(db, {
+          id: newId(),
+          sessionId: body.sessionId,
+          stageId,
+        }),
+      );
     }
-    const first = rows[0];
+    const first = queued[0];
     if (first !== undefined) {
       await deps.invokeStage?.({
         queueId: first.id,

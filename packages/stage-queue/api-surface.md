@@ -15,6 +15,7 @@ export const enqueueStage = async (
 export const failStage = async (
 export const findQueueEntry = async (
 export const listQueueForSession = async (
+export const retireFinished = async (
 ```
 
 ## `@auteur/stage-queue/sweep`

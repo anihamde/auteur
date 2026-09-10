@@ -8,7 +8,9 @@ import {
   enqueueStage,
   failStage,
   findQueueEntry,
+  listQueueForSession,
   MAX_ATTEMPTS,
+  retireFinished,
 } from "../../src/queue.ts";
 import {
   claimSweep,
@@ -100,8 +102,15 @@ describe("only the claimant may finish its own row", () => {
       sessionId,
       stageId: "critique",
     });
-    expect(first).toBeDefined();
-    expect(second).toBeUndefined();
+    // The same row, not a second copy — and it is returned rather than
+    // withheld, because the caller's next act is to invoke a queue id and the
+    // id it minted names no row.
+    expect(second.id).toBe(first.id);
+    expect(
+      (await listQueueForSession(harness.db, sessionId)).filter(
+        (row) => row.stageId === "critique",
+      ),
+    ).toHaveLength(1);
   });
 });
 
@@ -149,6 +158,82 @@ describe("attempts, and the point at which the queue gives up", () => {
     expect((await failStage(harness.db, id, "inv", newId())).outcome).toBe(
       "not-claimed",
     );
+  });
+});
+
+describe("a stage that has run can be asked to run again", () => {
+  test("without retiring the finished row, the re-enqueue is a silent no-op", async () => {
+    // The failure this closes. `(session_id, stage_id, attempt)` is unique and
+    // a stage that ran leaves an attempt-0 row, so enqueuing it again hit that
+    // row: the caller was handed the finished row, invoked it, and the claim
+    // failed because the row was not `queued`. Changing a session's author did
+    // exactly this — the corpus was reported as re-fetched and was not.
+    const sessionId = await freshSession();
+    const first = newId();
+    await enqueueStage(harness.db, { id: first, sessionId, stageId: "draft" });
+    const claimant = newId();
+    await claimStage(harness.db, first, claimant);
+    await completeStage(harness.db, first, claimant);
+
+    const again = await enqueueStage(harness.db, {
+      id: newId(),
+      sessionId,
+      stageId: "draft",
+    });
+    expect(again.id).toBe(first);
+    expect(again.status).toBe("done");
+    expect(await claimStage(harness.db, again.id, newId())).toBeUndefined();
+  });
+
+  test("retiring it first makes the next enqueue a real, claimable row", async () => {
+    const sessionId = await freshSession();
+    const first = newId();
+    await enqueueStage(harness.db, { id: first, sessionId, stageId: "draft" });
+    const claimant = newId();
+    await claimStage(harness.db, first, claimant);
+    await completeStage(harness.db, first, claimant);
+
+    expect(await retireFinished(harness.db, sessionId, ["draft"])).toBe(1);
+    const again = await enqueueStage(harness.db, {
+      id: newId(),
+      sessionId,
+      stageId: "draft",
+    });
+    expect(again.id).not.toBe(first);
+    expect(again.status).toBe("queued");
+    expect(await claimStage(harness.db, again.id, newId())).toBeDefined();
+  });
+
+  test("a run in flight is not retired out from under its invocation", async () => {
+    // Deleting a claimed row would strand the invocation holding it: its
+    // `completeStage` would find nothing to complete, and the sweep would
+    // never see a stale claim to release because there would be no row.
+    const sessionId = await freshSession();
+    const id = newId();
+    await enqueueStage(harness.db, { id, sessionId, stageId: "outline" });
+    const claimant = newId();
+    await claimStage(harness.db, id, claimant);
+
+    expect(await retireFinished(harness.db, sessionId, ["outline"])).toBe(0);
+    expect(await completeStage(harness.db, id, claimant)).toBe(true);
+  });
+
+  test("retiring one stage leaves the others' rows alone", async () => {
+    const sessionId = await freshSession();
+    for (const stageId of ["outline", "draft"]) {
+      const id = newId();
+      await enqueueStage(harness.db, { id, sessionId, stageId });
+      const claimant = newId();
+      await claimStage(harness.db, id, claimant);
+      await completeStage(harness.db, id, claimant);
+    }
+
+    await retireFinished(harness.db, sessionId, ["draft"]);
+    expect(
+      (await listQueueForSession(harness.db, sessionId)).map(
+        (row) => row.stageId,
+      ),
+    ).toEqual(["outline"]);
   });
 });
 
