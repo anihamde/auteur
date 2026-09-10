@@ -1,7 +1,7 @@
 {
   "authorId": "gutenberg:austen-jane-1775",
   "authorName": "Jane Austen",
-  "note": "Nine short passages from Pride and Prejudice (1813, public domain), and a prosody block measured over them. Short on purpose: the check asks whether the contract is satisfiable, not whether the reading is good, and a full corpus would cost forty times as much to learn the same thing. Nine because a card needs eight exemplars and a probe that offered exactly eight could pass by exhaustion.",
+  "note": "Nine short passages from Pride and Prejudice (1813, public domain), and a prosody block measured over them. Short on purpose: the check asks whether the contract is satisfiable, not whether the reading is good, and a full corpus would cost forty times as much to learn the same thing. Nine because a card needs eight exemplars and a probe that offered exactly eight could pass by exhaustion. It is fewer than the twenty a real extraction reads, so a pass here is not a promise about the deployment's latency — the cost line beside it is what says that.",
   "passages": [
     {
       "id": "01a08c1f-1000-7000-8000-000000000001",
