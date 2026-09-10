@@ -47,15 +47,78 @@ describe("the gateway's own label survives", () => {
   });
 });
 
-describe("what does not become a line", () => {
-  test("a detail with no reason produces nothing", () => {
-    // `schema_violation` carries a zod issue tree. Rendering it would put a
-    // paragraph of JSON paths on the research screen.
+describe("a schema violation names the field", () => {
+  const violation = (issues: unknown) =>
+    new AuteurError(
+      "schema_violation",
+      "style-extract returned JSON that is not the shape it declared.",
+      { detail: { issues, stageId: "style-extract" } },
+    );
+
+  test("the path and zod's own message", () => {
+    // The whole diagnosis of a stage that otherwise reports only that the
+    // model returned the wrong shape — and reading it should not require the
+    // platform's log viewer.
     expect(
       detailLine(
-        new AuteurError("schema_violation", "Not a card.", {
-          detail: { issues: [{ code: "invalid_type", path: ["fields"] }] },
+        violation([
+          {
+            code: "too_small",
+            message: "Array must contain at least 8 element(s)",
+            path: ["exemplars"],
+          },
+        ]),
+      ),
+    ).toBe("exemplars: Array must contain at least 8 element(s)");
+  });
+
+  test("a deep path is joined, and a rootless issue says so", () => {
+    expect(
+      detailLine(
+        violation([
+          { message: "Invalid uuid", path: ["fields", 3, "citationPassageId"] },
+          { message: "Expected object", path: [] },
+        ]),
+      ),
+    ).toBe("fields.3.citationPassageId: Invalid uuid; (root): Expected object");
+  });
+
+  test("beyond three, the count stands in for the rest", () => {
+    // A model that returns the wrong shape returns it wrongly in one way
+    // repeated; forty identical paths are no more diagnostic than three.
+    const line = detailLine(
+      violation(
+        Array.from({ length: 12 }, (_, index) => ({
+          message: "Invalid uuid",
+          path: ["fields", index, "citationPassageId"],
+        })),
+      ),
+    );
+    expect(line?.endsWith("(+9 more)")).toBe(true);
+    expect(line).toContain("fields.0.citationPassageId");
+    expect(line).not.toContain("fields.3.");
+  });
+
+  test("an issue with no message is still located", () => {
+    expect(detailLine(violation([{ path: ["fields"] }]))).toBe("fields");
+  });
+});
+
+describe("what does not become a line", () => {
+  test("a detail carrying neither a reason nor issues produces nothing", () => {
+    expect(
+      detailLine(
+        new AuteurError("internal", "Failed.", {
+          detail: { stageId: "draft" },
         }),
+      ),
+    ).toBeUndefined();
+  });
+
+  test("an empty issue list is not an empty line", () => {
+    expect(
+      detailLine(
+        new AuteurError("internal", "Failed.", { detail: { issues: [] } }),
       ),
     ).toBeUndefined();
   });

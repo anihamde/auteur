@@ -199,6 +199,15 @@ export const ROUTES = {
     response: z.object({
       claimed: z.boolean(),
       enqueued: z.array(z.string().min(1)),
+      /**
+       * How the stage ended, for a caller that has no other way to tell.
+       *
+       * `claimed: true, enqueued: []` was the answer for a stage that finished
+       * with no successor *and* for one that failed, so the response said
+       * nothing about the only thing it was asked. Absent when the row was not
+       * claimed, because then this invocation ran no stage at all.
+       */
+      outcome: z.enum(["done", "error"]).optional(),
     }),
   },
   internalSweep: {

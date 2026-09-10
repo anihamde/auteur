@@ -101,7 +101,21 @@ export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
       context.req.header(SIGNATURE_HEADER),
     );
 
-    const body = parseBody("internalStage", JSON.parse(raw));
+    // `JSON.parse` throws a `SyntaxError`, which is not in the taxonomy and so
+    // reaches `app.onError` as an unexpected failure: a malformed body from a
+    // caller was answered `500 internal`, reporting a client's bug as a
+    // server's. Every other bad input on this route is a 400.
+    let payload: unknown;
+    try {
+      payload = JSON.parse(raw);
+    } catch (cause) {
+      throw new AuteurError(
+        "invalid_input",
+        "This request's body is not JSON.",
+        { cause },
+      );
+    }
+    const body = parseBody("internalStage", payload);
     const claimant = claimantOf();
     const claimed = await claimStage(db, body.queueId, claimant);
     if (claimed === undefined) {
@@ -155,7 +169,7 @@ export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
       // at attempt + 1 under the budget. Never left `claimed` for ever, which
       // is the state the sweep cannot distinguish from a stage still running.
       await failStage(db, body.queueId, claimant, newId());
-      return context.json({ claimed: true, enqueued: [] });
+      return context.json({ claimed: true, enqueued: [], outcome: "error" });
     }
 
     // The key is recorded in the same breath as the completion, so a stage
@@ -193,7 +207,7 @@ export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
       });
     }
 
-    return context.json({ claimed: true, enqueued: next });
+    return context.json({ claimed: true, enqueued: next, outcome: "done" });
   });
 
   return routes;
