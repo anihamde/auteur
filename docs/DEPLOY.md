@@ -124,7 +124,13 @@ action.
    plan's ceiling fails exactly this way.
 2. `bun run preflight` locally, with the same values in `.env`. It names every
    missing or malformed variable at once rather than the first.
-3. `bun run verify:live` — the checks that need real credentials, with
+3. `RAMP_ROUTER_API_KEY=… bun run catalogue:models`, then commit the diff.
+   The model catalogue is generated from the gateway's own model list
+   (decision 0028), and it is only as current as the last run. A model the
+   gateway has retired is a pin waiting to fail mid-session;
+   `bun run test:catalogue-drift` is what says so.
+
+4. `bun run verify:live` — the checks that need real credentials, with
    `DATABASE_URL` and `DATABASE_URL_DIRECT` pointed at the deployment's
    database. Two of them run: whether the catalogue import has landed in this
    database, and whether `LISTEN`/`NOTIFY` works on Neon's direct endpoint. Two
@@ -134,11 +140,11 @@ action.
    A failing run naming an unwritten check is the honest state. A run that
    reported four passes would mean nothing ran — which is what it did until
    `unchecked` existed.
-4. `GET /api/authors?q=chekhov` returns rows. An empty `results` with a 200 is
+5. `GET /api/authors?q=chekhov` returns rows. An empty `results` with a 200 is
    the catalogue import not having run against this database, not a search
    defect — `SELECT count(*) FROM catalogue_works` says which.
-5. One flash story, end to end, in the browser.
-6. Kill a stage mid-run and confirm the sweep re-invokes it. That is the only
+6. One flash story, end to end, in the browser.
+7. Kill a stage mid-run and confirm the sweep re-invokes it. That is the only
    check that exercises the recovery path rather than the happy one.
-7. `bun run stats` and `bun run discrimination`, and fill in
+8. `bun run stats` and `bun run discrimination`, and fill in
    `docs/BASELINE.md`.

@@ -67,9 +67,9 @@ describe("the probe fails on a discrepancy rather than absorbing it", () => {
   test("the report names every drifted row rather than only counting them", () => {
     const report = renderReport([
       row(),
-      row({ id: "kimi-k2-0905", measuredStructuredOutput: false }),
+      row({ id: "kimi-k3", measuredStructuredOutput: false }),
     ]);
-    expect(report).toContain("1 row(s) drifted: kimi-k2-0905");
+    expect(report).toContain("1 row(s) drifted: kimi-k3");
     expect(report).toContain("true → false");
   });
 

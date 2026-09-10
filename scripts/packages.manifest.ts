@@ -490,6 +490,7 @@ export const PACKAGES: readonly PackageSpec[] = [
     devDeps: [],
     exports: {
       client: src("client.ts"),
+      "gateway-models": src("gateway-models.ts"),
       models: src("models.ts"),
       pricing: src("pricing.ts"),
       "provider-errors": src("provider-errors.ts"),

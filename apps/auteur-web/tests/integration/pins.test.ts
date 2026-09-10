@@ -59,7 +59,7 @@ const forEveryStage = (modelId: string): Record<string, string> =>
 
 describe("writing every pin at once", () => {
   test("a model that satisfies every stage is written for all of them", async () => {
-    const response = await put(forEveryStage("claude-sonnet-4.5"));
+    const response = await put(forEveryStage("claude-sonnet-5"));
     expect(response.status).toBe(200);
     const body = ROUTES.pins.response.parse(await response.json());
     expect(Object.keys(body.pins).sort()).toEqual([...TIERED].sort());
@@ -90,7 +90,7 @@ describe("writing every pin at once", () => {
     // chose together, which is worse than not writing at all because nobody
     // would think to look for it.
     const response = await put({
-      draft: "claude-sonnet-4.5",
+      draft: "claude-sonnet-5",
       outline: "no-such-model",
     });
     expect(response.status).toBe(400);
@@ -100,27 +100,27 @@ describe("writing every pin at once", () => {
   });
 
   test("pinning a stage that runs no model is refused with the reason", async () => {
-    const response = await put({ "prosody-compute": "claude-sonnet-4.5" });
+    const response = await put({ "prosody-compute": "claude-sonnet-5" });
     expect(response.status).toBe(400);
     expect((await readPins(harness.db, sessionId)).size).toBe(0);
   });
 
   test("pinning a stage that is not in the pipeline is refused", async () => {
-    const response = await put({ "no-such-stage": "claude-sonnet-4.5" });
+    const response = await put({ "no-such-stage": "claude-sonnet-5" });
     expect(response.status).toBe(400);
   });
 });
 
 describe("the set is replaced, not merged", () => {
   test("a later write removes the pins it omits", async () => {
-    await put({ draft: "claude-sonnet-4.5", outline: "gpt-5" });
+    await put({ draft: "claude-sonnet-5", outline: "gpt-5" });
     const response = await put({ draft: "gpt-5" });
     const body = ROUTES.pins.response.parse(await response.json());
     expect(body.pins).toEqual({ draft: "gpt-5" });
   });
 
   test("an empty set clears every pin", async () => {
-    await put({ draft: "claude-sonnet-4.5" });
+    await put({ draft: "claude-sonnet-5" });
     const body = ROUTES.pins.response.parse(await (await put({})).json());
     expect(body.pins).toEqual({});
   });
