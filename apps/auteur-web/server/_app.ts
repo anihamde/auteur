@@ -175,7 +175,9 @@ export const createApp = (deps: AppDeps): Hono => {
       sweepOnTraffic({
         db: deps.db,
         eventDb: transactional(deps),
-        invokeStage: deps.cron.invokeStage,
+        ...(deps.cron.invokeStage !== undefined && {
+          invokeStage: deps.cron.invokeStage,
+        }),
         onError: (error) => {
           deps.logger?.error("sweep failed", {
             message: error instanceof Error ? error.message : "non-error",

@@ -1,8 +1,23 @@
 # Deploying
 
-One Vercel project serves the client and the routes; one Neon database holds
-everything. There is no second origin and no release phase — the schema comes
-up to date on the first request, under `ensureSchema`'s lock.
+Two processes and one database.
+
+**Vercel** serves the client and the routes — everything a browser touches, and
+all of it answers in milliseconds. **Fly** runs one worker that drains
+`stage_queue`: it claims a row, runs the stage, enqueues the successors, and
+claims the next. **Neon** holds everything, and is the only thing the two share.
+
+They do not call each other. Vercel's routes enqueue and the worker drains, which
+is the whole interface.
+
+The worker exists because a stage does not fit in a serverless invocation:
+`style-fields` and `style-extract` each need more than the sixty seconds one is
+allowed, measured, and splitting the work made the total worse rather than
+better. Decision 0032 has the numbers and what came off the serverless path with
+it.
+
+There is no release phase on either — the schema comes up to date on the first
+request, under `ensureSchema`'s lock.
 
 ## Environment
 
@@ -105,10 +120,44 @@ action.
    `gutenberg.org`, answers the deployment normally and is still fetched at run
    time.
 
+## The worker on Fly
+
+```
+fly launch --no-deploy          # once; `fly.toml` is committed
+fly secrets set \
+  DATABASE_URL=… \
+  DATABASE_URL_DIRECT=… \
+  RAMP_ROUTER_API_KEY=…
+fly deploy
+```
+
+Three secrets, and they are the three the stages need: the pooled endpoint for
+reads and ordinary writes, the direct one for appending an event with its
+`NOTIFY`, and the gateway key. It needs **no** `AUTEUR_API_TOKEN`, no
+`AUTEUR_STAGE_SECRET` and no `CRON_SECRET` — nothing calls it, so it has nothing
+to authenticate.
+
+`fly.toml` declares no `[[services]]` and no ports. Nothing connects *to* the
+worker; it connects out, and the only way work reaches it is a row Vercel wrote.
+
+**What it looks like when the worker is not running:** the research screen shows
+four rows that never move, and `stage_queue` fills with `queued` rows that are
+never claimed. `fly logs` says whether it is alive; `fly status` says whether a
+machine exists at all.
+
+**Two workers is safe and unnecessary.** `claimNext` uses
+`FOR UPDATE SKIP LOCKED` and the claim is conditional, so a second worker takes
+the second row rather than contending for the first — but one drains this queue
+faster than a person can fill it, and a second only doubles the bill.
+
 ## Deployment Protection
 
 A stage runs by the deployment asking itself, over HTTP, to run it, so the
 protection setting decides whether the pipeline runs at all.
+
+It bears on far less than it did: the deployment no longer calls itself, so a
+guarded hostname costs a person reaching the site by its preview URL and nothing
+else. What follows is what remains true.
 
 **Standard Protection** guards a deployment's generated hostname —
 `auteur-<hash>-<team>.vercel.app` — and leaves the project's production domain

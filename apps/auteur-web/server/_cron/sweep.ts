@@ -34,7 +34,16 @@ export type SweepDeps = {
    * (§3.1), so this is the direct one on the deployment and `db` in a test.
    */
   readonly eventDb: Db;
-  readonly invokeStage: NonNullable<AdvanceDeps["invokeStage"]>;
+  /**
+   * Ask for a swept stage to run now.
+   *
+   * Optional since the worker drains the queue: a row this sweep re-queues is
+   * claimed on the worker's next tick, and there is no instance to wake. It
+   * stays for a deployment that has no worker — a `vite dev`, or the serverless
+   * arrangement this replaced — where a re-queued row nobody invokes waits for
+   * the next sweep instead.
+   */
+  readonly invokeStage?: NonNullable<AdvanceDeps["invokeStage"]>;
   /** Overridden only by a test that cannot wait five minutes. */
   readonly staleAfterSeconds?: number;
   readonly queuedAfterSeconds?: number;
@@ -58,7 +67,7 @@ export const sweep = async (deps: SweepDeps): Promise<SweepResult> => {
     // No claim is taken here. Asking for the stage to run is all this does, and
     // whoever answers claims it — so a sweep racing a late invocation is the
     // same race the claim already settles.
-    await deps.invokeStage({
+    await deps.invokeStage?.({
       queueId: row.id,
       sessionId: row.sessionId,
       stageId: row.stageId,
@@ -72,7 +81,7 @@ export const sweep = async (deps: SweepDeps): Promise<SweepResult> => {
     if (claim.attempt + 1 < MAX_ATTEMPTS) {
       if (await releaseStaleClaim(deps.db, claim.id, staleAfter)) {
         released.push(claim.id);
-        await deps.invokeStage({
+        await deps.invokeStage?.({
           queueId: claim.id,
           sessionId: claim.sessionId,
           stageId: claim.stageId,

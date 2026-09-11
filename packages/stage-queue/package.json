@@ -11,6 +11,7 @@
     "typescript": "catalog:"
   },
   "exports": {
+    "./claim-next": "./src/claim-next.ts",
     "./queue": "./src/queue.ts",
     "./sweep": "./src/sweep.ts"
   },

@@ -27,7 +27,16 @@ export type CronRoutesDeps = {
   readonly db: Db;
   /** The handle `append` runs on. See `SweepDeps`. */
   readonly eventDb: Db;
-  readonly invokeStage: NonNullable<AdvanceDeps["invokeStage"]>;
+  /**
+   * Ask for a swept stage to run now.
+   *
+   * Optional since the worker drains the queue: a row this sweep re-queues is
+   * claimed on the worker's next tick, and there is no instance to wake. It
+   * stays for a deployment that has no worker — a `vite dev`, or the serverless
+   * arrangement this replaced — where a re-queued row nobody invokes waits for
+   * the next sweep instead.
+   */
+  readonly invokeStage?: NonNullable<AdvanceDeps["invokeStage"]>;
   /** Vercel's `CRON_SECRET`, read under that exact name. */
   readonly cronSecret: string;
   readonly thresholds?: Pick<
@@ -68,7 +77,9 @@ export const cronRoutes = (deps: CronRoutesDeps): Hono => {
     return sweep({
       db: deps.db,
       eventDb: deps.eventDb,
-      invokeStage: deps.invokeStage,
+      ...(deps.invokeStage !== undefined && {
+        invokeStage: deps.invokeStage,
+      }),
       ...deps.thresholds,
     });
   };
