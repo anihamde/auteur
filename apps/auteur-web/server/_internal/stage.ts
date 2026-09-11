@@ -1,25 +1,13 @@
 import { parseBody } from "@auteur/api-contract/contract";
 import { ROUTES } from "@auteur/api-contract/routes";
-import { DEFAULT_PIPELINE } from "@auteur/config/stages";
-import type { SessionEvent } from "@auteur/core/events";
 import type { Db } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
-import { detailLine } from "@auteur/errors/detail-line";
-import { isAuteurError } from "@auteur/errors/is-auteur-error";
-import { append } from "@auteur/event-store/events";
 import { newId } from "@auteur/ids/new-id";
 import type { Logger } from "@auteur/logger/logger";
-import { recordStageKey } from "@auteur/session-store/stage-keys";
-import {
-  claimStage,
-  completeStage,
-  enqueueForRun,
-  failStage,
-} from "@auteur/stage-queue/queue";
+import { claimStage } from "@auteur/stage-queue/queue";
 import { Hono } from "hono";
 import type { AdvanceDeps } from "../_routes/advance.ts";
-import { stalenessInputFor } from "../_routes/advance.ts";
-import { inputKeys } from "../_staleness.ts";
+import { runClaimedStage, type StageBody, successorsOf } from "./run-stage.ts";
 import { requireSignature, SIGNATURE_HEADER } from "./signature.ts";
 
 /**
@@ -37,20 +25,13 @@ import { requireSignature, SIGNATURE_HEADER } from "./signature.ts";
  */
 
 /**
- * What actually runs a stage. Injected, so this route's mechanics are testable
- * without a model provider and without the network.
+ * Re-exported so nothing that imported them from here has to move.
  *
- * It returns whatever the stage produced that is not a document — stored
- * beside the key in the same statement, per decision 0007. A stage that writes
- * to its own table returns `undefined`, and that is a real answer rather than
- * an omission.
+ * Both now live in `run-stage.ts`, with the logic the worker and this route
+ * share.
  */
-export type StageBody = (input: {
-  readonly db: Db;
-  readonly sessionId: string;
-  readonly stageId: string;
-  readonly emit: (event: SessionEvent) => Promise<void>;
-}) => Promise<unknown>;
+export type { StageBody };
+export { successorsOf };
 
 export type InternalStageDeps = {
   readonly db: Db;
@@ -78,12 +59,6 @@ export type InternalStageDeps = {
    */
   readonly logger?: Logger;
 };
-
-/** The stages the pipeline would run after this one, in graph order. */
-export const successorsOf = (stageId: string): string[] =>
-  DEFAULT_PIPELINE.stages
-    .filter((stage) => stage.reads.includes(stageId))
-    .map((stage) => stage.id);
 
 export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
   const routes = new Hono();
@@ -119,95 +94,30 @@ export const internalStageRoutes = (deps: InternalStageDeps): Hono => {
     const claimant = claimantOf();
     const claimed = await claimStage(db, body.queueId, claimant);
     if (claimed === undefined) {
-      // Someone else has it. Not an error: this is the ordinary outcome of a
-      // sweep racing a live invocation, and it is what makes the sweep safe.
+      // Someone else has it — the worker, or a sweep racing this invocation.
+      // Not an error: it is the ordinary outcome of a conditional claim, and it
+      // is what makes two things draining one queue safe.
       return context.json({ claimed: false, enqueued: [] });
     }
 
-    const emit = async (event: SessionEvent): Promise<void> => {
-      // Appended before it is pushed (§7.3): the table is the truth and the
-      // stream is a convenience.
-      // `deps.eventDb`, not `db`: appending is transactional — the NOTIFY has
-      // to land with the row — and a pooled handle refuses a transaction.
-      await append(deps.eventDb, body.sessionId, event);
-    };
-
-    let output: unknown;
-    try {
-      output = await deps.runStageBody({
+    const { enqueued, outcome } = await runClaimedStage(
+      {
         db,
-        emit,
-        sessionId: body.sessionId,
-        stageId: body.stageId,
-      });
-    } catch (thrown) {
-      const error = isAuteurError(thrown)
-        ? thrown
-        : new AuteurError("internal", "The stage failed.");
-      // The whole of it, structured. `createLogger` redacts by key name at
-      // every depth, so a provider body spliced in whole loses its
-      // `authorization` without this having to remember to.
-      deps.logger?.error("stage failed", {
-        code: error.code,
-        detail: error.detail,
-        // The thrown message, not the mapped one: everything that is not an
-        // `AuteurError` becomes the same "The stage failed." sentence, and
-        // this is the only place the real one survives.
-        message: thrown instanceof Error ? thrown.message : "non-error thrown",
-        sessionId: body.sessionId,
-        stageId: body.stageId,
-      });
-      const detail = detailLine(error);
-      await emit({
-        code: error.code,
-        ...(detail !== undefined && { detail }),
-        message: error.message,
-        stageId: body.stageId,
-        type: "stage_error",
-      });
-      // The row becomes `error` with the attempt recorded, and is re-enqueued
-      // at attempt + 1 under the budget. Never left `claimed` for ever, which
-      // is the state the sweep cannot distinguish from a stage still running.
-      await failStage(db, body.queueId, claimant, newId());
-      return context.json({ claimed: true, enqueued: [], outcome: "error" });
-    }
-
-    // The key is recorded in the same breath as the completion, so a stage
-    // whose output was written and whose key was not cannot exist — that state
-    // presents as a stage that re-runs for ever.
-    const keys = inputKeys(await stalenessInputFor(db, body.sessionId));
-    const key = keys.get(body.stageId);
-    if (key !== undefined) {
-      await recordStageKey(db, body.sessionId, body.stageId, key, output);
-    }
-    await completeStage(db, body.queueId, claimant);
-
-    const next = successorsOf(body.stageId);
-    // `enqueueForRun`, not `enqueueStage`: on a second run of a session — a
-    // changed author, a regenerate — each successor still carries the finished
-    // row from the first, and a plain enqueue collides with it. Without this
-    // the chain stops one stage in: this stage re-ran, and the next silently
-    // did not.
-    const queued = [];
-    for (const stageId of next) {
-      queued.push(
-        await enqueueForRun(db, {
-          id: newId(),
-          sessionId: body.sessionId,
-          stageId,
+        eventDb: deps.eventDb,
+        runStageBody: deps.runStageBody,
+        ...(deps.invokeStage !== undefined && {
+          invokeStage: deps.invokeStage,
         }),
-      );
-    }
-    const first = queued[0];
-    if (first !== undefined) {
-      await deps.invokeStage?.({
-        queueId: first.id,
+        ...(deps.logger !== undefined && { logger: deps.logger }),
+      },
+      {
+        claimant,
+        queueId: body.queueId,
         sessionId: body.sessionId,
-        stageId: first.stageId,
-      });
-    }
-
-    return context.json({ claimed: true, enqueued: next, outcome: "done" });
+        stageId: body.stageId,
+      },
+    );
+    return context.json({ claimed: true, enqueued, outcome });
   });
 
   return routes;

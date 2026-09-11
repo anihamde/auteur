@@ -1,0 +1,29 @@
+# The stage worker. One process, no HTTP.
+#
+# There are no `[[services]]` and no ports: nothing connects *to* this. It
+# connects out — to Neon for the queue and to the model gateway — and the only
+# way work reaches it is a row Vercel wrote to `stage_queue`.
+app = "auteur-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Where the queue is drained from is not a secret; the URLs are, and they are
+  # set with `fly secrets set`.
+  NODE_ENV = "production"
+
+[[vm]]
+  # A stage is one model call and some Postgres. It waits far more than it
+  # computes, so the smallest machine is the right one — and being cheap is why
+  # this can stay running rather than being woken.
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"
+
+[deploy]
+  # Stop the old machine before the new one starts. Two workers is safe —
+  # `claimNext` uses `FOR UPDATE SKIP LOCKED` and the claim is conditional — but
+  # one is enough for this queue, and an overlap would only pay twice.
+  strategy = "immediate"

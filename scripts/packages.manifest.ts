@@ -391,7 +391,11 @@ export const PACKAGES: readonly PackageSpec[] = [
     description:
       "The durable stage chain: enqueue, claim, complete, and the sweep query.",
     devDeps: [],
-    exports: { queue: src("queue.ts"), sweep: src("sweep.ts") },
+    exports: {
+      "claim-next": src("claim-next.ts"),
+      queue: src("queue.ts"),
+      sweep: src("sweep.ts"),
+    },
     integration: true,
     layer: "store",
     name: "stage-queue",

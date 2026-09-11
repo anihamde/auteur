@@ -2,11 +2,8 @@ import { createDb } from "@auteur/db/db";
 import { env } from "@auteur/env/env";
 import { createLogger } from "@auteur/logger/logger";
 import { createRouterProvider } from "@auteur/provider-router/client";
-import { waitUntil } from "@vercel/functions";
 import { createApp } from "./_app.ts";
 import { boot } from "./_boot.ts";
-import { createInvokeStage } from "./_internal/invoke-stage.ts";
-import { selfOriginFrom } from "./_internal/self-origin.ts";
 import { createStageBody } from "./_stages/index.ts";
 
 /**
@@ -29,55 +26,25 @@ import { createStageBody } from "./_stages/index.ts";
 const log = createLogger({ bound: { component: "api" } });
 
 /**
- * The origin this function addresses when it asks for a stage.
+ * Nothing here asks for a stage any more.
  *
- * The rule, and why it is not `VERCEL_URL`, is in `self-origin.ts`. Here
- * because this module and it alone reads the environment.
+ * This function used to invoke itself over HTTP to start each one — with an
+ * HMAC so the call could not be forged, a `waitUntil` to keep the caller alive
+ * long enough to send it, a protection-bypass header to get past the platform's
+ * own login wall, and a sweep to re-invoke whatever was lost. All four existed
+ * because a serverless invocation may not run for more than sixty seconds, and
+ * `style-fields` and `style-extract` each need longer than that on a real
+ * corpus.
+ *
+ * So a worker on Fly drains `stage_queue` instead, and these routes only
+ * enqueue. The division is the queue and nothing else crosses it: both processes
+ * talk to the same Neon database and neither calls the other.
+ *
+ * `POST /api/internal/stage` is still mounted and still claims a row by id,
+ * because running one stage by hand is how every stage in this product was
+ * first run and the signature is what keeps that from being an open door.
+ * Nothing calls it automatically.
  */
-const selfOrigin = (): string => selfOriginFrom(process.env);
-
-/**
- * What lets a deployment call itself when the platform is guarding it.
- *
- * Deployment Protection puts an authentication wall in front of a deployment's
- * generated hostname, which is the hostname a **preview** invokes: without this
- * every invocation there reaches a login page rather than the route. Production
- * addresses the alias instead and needs no header at all — this is what keeps
- * previews working, not what keeps the pipeline running.
- *
- * Absent, this sends nothing: an unprotected deployment needs no header, and a
- * protected one without the secret is a configuration to fix rather than
- * something to work around here.
- */
-const protectionBypass = (): Record<string, string> => {
-  const secret = process.env["VERCEL_AUTOMATION_BYPASS_SECRET"];
-  return secret === undefined || secret === ""
-    ? {}
-    : {
-        "x-vercel-protection-bypass": secret,
-        "x-vercel-set-bypass-cookie": "false",
-      };
-};
-
-/**
- * The invocation, wired to the platform.
- *
- * `waitUntil` is what keeps this instance alive until the request is actually
- * sent. Without it the promise was dropped and the instance froze with the
- * response, so no stage was ever started by anything but a person with curl.
- *
- * Built at module scope rather than inside `boot`, and safe there because
- * every value it needs is a thunk: `env()` is read per invocation, so a missing
- * `AUTEUR_STAGE_SECRET` still reaches `boot`'s error response instead of
- * crashing the function before a route exists.
- */
-const invokeStage = createInvokeStage({
-  extraHeaders: protectionBypass,
-  logger: log,
-  origin: selfOrigin,
-  stageSecret: () => env().AUTEUR_STAGE_SECRET,
-  waitUntil,
-});
 
 /**
  * Built inside `boot`, so a missing variable answers with the list of what is
@@ -108,7 +75,6 @@ const app = boot(() => {
     apiToken: env().AUTEUR_API_TOKEN,
     cron: {
       cronSecret: env().CRON_SECRET,
-      invokeStage,
     },
     db,
     directDb,
@@ -120,7 +86,6 @@ const app = boot(() => {
       }),
       stageSecret: env().AUTEUR_STAGE_SECRET,
     },
-    invokeStage,
     logger: log,
     // No release phase on this platform: the schema comes up to date on the
     // first request, under `ensureSchema`'s lock.
