@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ProsodyBlock, WorkProsody } from "@auteur/core/prosody";
 import type { AuthorRef, WorkRef } from "@auteur/core/style-card";
-import { CLAIM_PATHS } from "@auteur/core/style-card";
+import { CLAIM_PATHS, EXEMPLARS } from "@auteur/core/style-card";
 import {
   cardFromExtraction,
   type Extraction,
@@ -250,5 +250,34 @@ describe("the full path produces a card whose citations resolve", () => {
     });
     expect(card.prosody).toEqual(PROSODY);
     expect(card.prosodyTarget.sentenceLength).toEqual(PROSODY.sentenceLength);
+  });
+});
+
+describe("more exemplars than the card has room for", () => {
+  test("the extras are dropped, not the whole answer", () => {
+    // Strict `json_schema` has no `maxItems`, so the gateway cannot hold a
+    // model to the range and only this can. It threw — and a model that
+    // returned seventeen good exemplars when asked for up to fifteen had its
+    // whole answer discarded, along with the forty seconds that produced it.
+    const tooMany = extraction({
+      exemplars: Array.from({ length: EXEMPLARS.max + 4 }, (_, index) => ({
+        demonstrates: `a habit, number ${index.toString()}`,
+        passageId: passage(index % 9),
+      })),
+    });
+    const parsed = parseExtraction(tooMany);
+    expect(parsed.exemplars).toHaveLength(EXEMPLARS.max);
+  });
+
+  test("too few is still a failure, because the card promises eight", () => {
+    // A card with three exemplars is a card that cannot keep its own promise,
+    // and dropping is not available in that direction.
+    expect(() =>
+      parseExtraction(
+        extraction({
+          exemplars: [{ demonstrates: "one", passageId: passage(0) }],
+        }),
+      ),
+    ).toThrow();
   });
 });

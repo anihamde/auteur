@@ -56,6 +56,19 @@ export const fieldsSchema = z.object({
 });
 export type ExtractedFields = z.infer<typeof fieldsSchema>;
 
+/**
+ * The exemplars, with the ceiling applied rather than enforced.
+ *
+ * Strict `json_schema` has no `minItems` or `maxItems`, so the gateway cannot
+ * hold a model to the range and only this can. It was `.max()`, which threw —
+ * and a model that returned seventeen good exemplars when asked for up to
+ * fifteen had its whole answer discarded, along with the forty seconds that
+ * produced it.
+ *
+ * Too many is not a wrong answer, it is an answer with more in it than the card
+ * has room for, so the extras are dropped. Too **few** still fails: the card
+ * promises eight and a card with three is a card that cannot keep it.
+ */
 export const exemplarsSchema = z.object({
   exemplars: z
     .array(
@@ -65,12 +78,20 @@ export const exemplarsSchema = z.object({
       }),
     )
     .min(EXEMPLARS.min)
-    .max(EXEMPLARS.max),
+    .transform((exemplars) => exemplars.slice(0, EXEMPLARS.max)),
 });
 export type ExtractedExemplars = z.infer<typeof exemplarsSchema>;
 
 export const extractionSchema = z.object({
-  ...exemplarsSchema.shape,
+  exemplars: z
+    .array(
+      z.object({
+        demonstrates: z.string().min(1),
+        passageId: z.uuid(),
+      }),
+    )
+    .min(EXEMPLARS.min)
+    .transform((exemplars) => exemplars.slice(0, EXEMPLARS.max)),
   ...fieldsSchema.shape,
 });
 export type Extraction = z.infer<typeof extractionSchema>;

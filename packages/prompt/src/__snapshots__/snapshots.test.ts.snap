@@ -91,10 +91,7 @@ visible in a passage, so there is always one to point at.
 - \`dialogue.tagConventions\` (line)
 - \`diction.concreteness\` (line)
 - \`diction.register\` (line)
-- \`rhythm.devices\` (list)
 - \`rhythm.repetitionHabits\` (line)
-- \`structure.closingMoves\` (list)
-- \`structure.openingMoves\` (list)
 - \`structure.sceneVsSummary\` (line)
 - \`voice.freeIndirect\` (line)
 - \`voice.narratorDistance\` (line)
@@ -114,6 +111,9 @@ being claimed. Return the reading, and return it with null.
 - \`imagery.motifs\` (list)
 - \`imagery.preoccupations\` (list)
 - \`imagery.recurringImages\` (list)
+- \`rhythm.devices\` (list)
+- \`structure.closingMoves\` (list)
+- \`structure.openingMoves\` (list)
 - \`structure.typicalShapes\` (list)
 
 A good value is specific enough to be wrong. "Formal register" is not a
