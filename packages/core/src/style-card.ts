@@ -136,6 +136,19 @@ export type ClaimPath = {
    * `passage` — a reading taken from one passage, which must cite it.
    * `corpus` — an absence or a recurrence, which no single passage can
    * establish and which therefore carries no citation at all.
+   *
+   * **Every `list` is a `corpus` claim, and every `line` is a `passage` one.**
+   * Not a coincidence: a list value is a claim about *several* things, and
+   * several is a frequency — what an author's opening moves *are*, plural, is
+   * a claim about what recurs, and one passage shows one opening. A single
+   * reading is what a single passage can carry.
+   *
+   * Three lists were on the passage side and a real model returned all three
+   * with no citation, twice, identically: `rhythm.devices`,
+   * `structure.closingMoves`, `structure.openingMoves`. It was right and the
+   * classification was wrong. `style-card`'s tests hold the alignment, so a
+   * future claim that breaks it is a decision somebody makes rather than one
+   * that slips through.
    */
   readonly evidence: "passage" | "corpus";
 };
@@ -156,10 +169,10 @@ export const CLAIM_PATHS: readonly ClaimPath[] = [
   { evidence: "corpus", kind: "list", path: "imagery.motifs" },
   { evidence: "corpus", kind: "list", path: "imagery.preoccupations" },
   { evidence: "corpus", kind: "list", path: "imagery.recurringImages" },
-  { evidence: "passage", kind: "list", path: "rhythm.devices" },
+  { evidence: "corpus", kind: "list", path: "rhythm.devices" },
   { evidence: "passage", kind: "line", path: "rhythm.repetitionHabits" },
-  { evidence: "passage", kind: "list", path: "structure.closingMoves" },
-  { evidence: "passage", kind: "list", path: "structure.openingMoves" },
+  { evidence: "corpus", kind: "list", path: "structure.closingMoves" },
+  { evidence: "corpus", kind: "list", path: "structure.openingMoves" },
   { evidence: "passage", kind: "line", path: "structure.sceneVsSummary" },
   { evidence: "corpus", kind: "list", path: "structure.typicalShapes" },
   { evidence: "passage", kind: "line", path: "voice.freeIndirect" },

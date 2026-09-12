@@ -216,3 +216,24 @@ describe("the split is a judgement, and the card holds it", () => {
     expect([...kinds].sort()).toEqual(["corpus", "passage"]);
   });
 });
+
+describe("a list is a claim about recurrence", () => {
+  test("every list is a corpus claim, and every line is a passage one", () => {
+    // Not a coincidence: a list value is a claim about *several* things, and
+    // several is a frequency. What an author's opening moves *are*, plural, is
+    // a claim about what recurs, and one passage shows one opening.
+    //
+    // Three lists sat on the passage side and a real model returned all three
+    // uncited, twice, identically — `rhythm.devices`,
+    // `structure.closingMoves`, `structure.openingMoves`. It was right and the
+    // classification was wrong. This is what stops the next one slipping
+    // through: a claim that breaks the alignment now fails here, so it is a
+    // decision somebody makes rather than a defect a deployment finds.
+    for (const claim of CLAIM_PATHS) {
+      expect([claim.path, claim.evidence]).toEqual([
+        claim.path,
+        claim.kind === "list" ? "corpus" : "passage",
+      ]);
+    }
+  });
+});
