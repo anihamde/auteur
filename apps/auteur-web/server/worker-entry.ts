@@ -1,5 +1,5 @@
 import { createDb } from "@auteur/db/db";
-import { env } from "@auteur/env/env";
+import { envFor } from "@auteur/env/env";
 import { createLogger } from "@auteur/logger/logger";
 import { createRouterProvider } from "@auteur/provider-router/client";
 import { startWorker } from "./_internal/worker.ts";
@@ -17,19 +17,31 @@ import { createStageBody } from "./_stages/index.ts";
  * advancing a step — and this drains. Nothing else crosses: both talk to the
  * same Neon database and neither calls the other.
  *
- * This module and `entry.ts` are the only two that read the environment.
+ * This module and `entry.ts` are the only two that read the environment, and
+ * they read different parts of it. The worker serves no route, so the API
+ * token, the stage secret and the cron secret are not merely unnecessary here
+ * but meaningless: it authenticates nobody, because nothing calls it. Demanding
+ * them would teach whoever is deploying to set secrets by superstition, and the
+ * first one they got wrong would be a real one.
  */
+
+/** The three the stages need, and nothing else. */
+const config = envFor([
+  "DATABASE_URL",
+  "DATABASE_URL_DIRECT",
+  "RAMP_ROUTER_API_KEY",
+]);
 
 const log = createLogger({ bound: { component: "worker" } });
 
-const db = createDb({ endpoint: "pooled", url: env().DATABASE_URL });
+const db = createDb({ endpoint: "pooled", url: config.DATABASE_URL });
 // `append` wraps its insert and its NOTIFY in a transaction so a subscriber is
 // never woken for a row that has not landed, and a pooled handle refuses a
 // transaction (§3.1). The SSE route on Vercel holds its own direct handle for
 // `LISTEN`; this one only ever writes.
 const eventDb = createDb({
   endpoint: "direct",
-  url: env().DATABASE_URL_DIRECT,
+  url: config.DATABASE_URL_DIRECT,
 });
 
 const worker = startWorker({
@@ -37,7 +49,7 @@ const worker = startWorker({
   eventDb,
   logger: log,
   runStageBody: createStageBody({
-    provider: createRouterProvider({ apiKey: env().RAMP_ROUTER_API_KEY }),
+    provider: createRouterProvider({ apiKey: config.RAMP_ROUTER_API_KEY }),
   }),
 });
 

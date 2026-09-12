@@ -23,11 +23,35 @@ export const env = (
   if (cached !== undefined) {
     return cached;
   }
+  cached = envFor(Object.keys(ENV_SPEC) as EnvKey[], source) as Env;
+  return cached;
+};
 
+/**
+ * The same parse, over the variables one process actually uses.
+ *
+ * There are two processes now and they need different things. The worker reads
+ * a queue and calls a gateway; it serves no route, so `AUTEUR_API_TOKEN`,
+ * `AUTEUR_STAGE_SECRET` and `CRON_SECRET` are not merely unnecessary to it but
+ * meaningless — it authenticates nobody, because nothing calls it.
+ *
+ * It refused to start without them, which is the failure this exists to
+ * prevent: an environment check that demands a secret a process cannot use
+ * teaches whoever is deploying to set secrets by superstition, and the first
+ * one they get wrong is a real one.
+ *
+ * **Not memoized**, unlike `env()`. Two callers wanting different subsets in
+ * one process would otherwise get whichever asked first.
+ */
+export const envFor = <Key extends EnvKey>(
+  keys: readonly Key[],
+  source: Record<string, string | undefined> = process.env,
+): { readonly [K in Key]: string } => {
   const values: Record<string, string> = {};
   const problems: string[] = [];
 
-  for (const [key, spec] of Object.entries(ENV_SPEC)) {
+  for (const key of keys) {
+    const spec = ENV_SPEC[key];
     const raw = source[key];
     if (raw === undefined || raw === "") {
       problems.push(`${key} is unset — ${spec.describe}`);
@@ -50,8 +74,7 @@ export const env = (
     );
   }
 
-  cached = values as Env;
-  return cached;
+  return values as { readonly [K in Key]: string };
 };
 
 /** Test seam. Nothing in `apps/` calls this. */

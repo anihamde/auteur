@@ -9,6 +9,7 @@ change and needs a contract review, per the implementation plan's gate 4.
 
 ```ts
 export const env = (
+export const envFor = <Key extends EnvKey>(
 export const resetEnvForTest = (): void =>
 ```
 
