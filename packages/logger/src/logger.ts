@@ -38,6 +38,35 @@ const isRedactedKey = (key: string): boolean => {
 };
 
 /**
+ * The three keys the record itself owns.
+ *
+ * They are spread last, so a field of the same name used to be dropped without
+ * a word. `runClaimedStage` passed the thrown error's sentence as `message` and
+ * the log printed `"message":"stage failed"` — every stage failure for an
+ * evening reported the label and swallowed the reason, which is the one thing a
+ * log exists to carry.
+ */
+const OWNED = new Set(["level", "message", "time"]);
+
+/**
+ * Fields renamed out of the record's own keys rather than dropped.
+ *
+ * `message` becomes `field.message`. Prefixing is ugly and losing the value is
+ * worse: a caller cannot know which names this module will claim next, and a
+ * silent drop is indistinguishable from a caller that never passed the field.
+ */
+const unshadowed = (fields: LogFields | undefined): LogFields => {
+  if (fields === undefined) {
+    return {};
+  }
+  const safe: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    safe[OWNED.has(key) ? `field.${key}` : key] = value;
+  }
+  return safe;
+};
+
+/**
  * `value` with every secret-named key replaced, at every depth.
  *
  * Cycles are broken rather than thrown on: a log call is not a place to fail.
@@ -101,7 +130,13 @@ export const createLogger = (options: LoggerOptions = {}): Logger => {
     fields: LogFields | undefined,
   ): void => {
     const record = redact(
-      { ...bound, ...fields, level, message, time: now() },
+      {
+        ...unshadowed(bound),
+        ...unshadowed(fields),
+        level,
+        message,
+        time: now(),
+      },
       new WeakSet(),
     );
     write(`${JSON.stringify(record)}\n`);

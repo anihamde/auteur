@@ -118,3 +118,53 @@ describe("a log call never throws", () => {
     expect(JSON.stringify(records[0])).toContain("[too deep]");
   });
 });
+
+describe("a field never shadows the record's own keys", () => {
+  const lines: string[] = [];
+  const log = createLogger({
+    bound: {},
+    now: () => 1,
+    write: (line) => lines.push(line),
+  });
+
+  test("a field called message reaches the log, renamed", () => {
+    // `runClaimedStage` passed the thrown error's sentence as `message`, and
+    // the log printed `"message":"stage failed"`. Every stage failure for an
+    // evening reported the label and swallowed the reason — the one thing a
+    // log exists to carry.
+    lines.length = 0;
+    log.error("stage failed", { message: "draft did not return JSON." });
+    const record = JSON.parse(lines[0] ?? "{}") as Record<string, unknown>;
+    expect(record["message"]).toBe("stage failed");
+    expect(record["field.message"]).toBe("draft did not return JSON.");
+  });
+
+  test("level and time are owned too", () => {
+    lines.length = 0;
+    log.info("ok", { level: "debug", time: 99 });
+    const record = JSON.parse(lines[0] ?? "{}") as Record<string, unknown>;
+    expect(record["level"]).toBe("info");
+    expect(record["time"]).toBe(1);
+    expect(record["field.level"]).toBe("debug");
+    expect(record["field.time"]).toBe(99);
+  });
+
+  test("a bound field is protected the same way", () => {
+    // Bound fields are set once and are the easiest place for this to hide.
+    const bound: string[] = [];
+    createLogger({
+      bound: { message: "bound" },
+      now: () => 1,
+      write: (line) => bound.push(line),
+    }).info("hello", {});
+    const record = JSON.parse(bound[0] ?? "{}") as Record<string, unknown>;
+    expect(record["message"]).toBe("hello");
+    expect(record["field.message"]).toBe("bound");
+  });
+
+  test("an ordinary field is untouched", () => {
+    lines.length = 0;
+    log.info("ok", { stageId: "draft" });
+    expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({ stageId: "draft" });
+  });
+});

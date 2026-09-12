@@ -113,12 +113,14 @@ export const runClaimedStage = async (
     deps.logger?.error("stage failed", {
       code: error.code,
       detail: error.detail,
-      // The thrown message, not the mapped one: everything that is not an
-      // `AuteurError` becomes the same "The stage failed." sentence, and this
-      // is the only place the real one survives.
-      message: thrown instanceof Error ? thrown.message : "non-error thrown",
       sessionId: claimed.sessionId,
       stageId: claimed.stageId,
+      // `thrown`, not `message`: the record owns that key and a field of the
+      // same name reached the log as `field.message`, which is correct and
+      // unreadable. The sentence itself is what matters — everything that is
+      // not an `AuteurError` becomes the same "The stage failed.", and this is
+      // the only place the real one survives.
+      thrown: thrown instanceof Error ? thrown.message : "non-error thrown",
     });
     const detail = detailLine(error);
     await emit({

@@ -165,7 +165,43 @@ export const callModel = async <Value>(
   if (outcome.status === "error") {
     throw outcome.error;
   }
-  return parseModelText(input.schema, outcome.text, context.stage.id);
+  // **Only a stage that asked for JSON gets its answer parsed as JSON.**
+  // `draft` is the one stage that does not: it returns the story, its
+  // `schema` is `z.string()`, and its comment says "the parse this skips is
+  // the one there is nothing to parse". The parse was not skipped —
+  // `parseModelText` calls `JSON.parse` before it applies the schema — so
+  // every draft this product ever generated was thrown away with
+  // "draft did not return JSON", after a minute of the strong tier.
+  //
+  // `jsonSchema` is the honest test because it is what was actually *sent*:
+  // a stage that told the gateway nothing about JSON has no business being
+  // held to it, and one that did will fail here if the gateway ignored it.
+  return input.jsonSchema === undefined
+    ? parseModelValue(input.schema, outcome.text, context.stage.id)
+    : parseModelText(input.schema, outcome.text, context.stage.id);
+};
+
+/**
+ * A model's answer applied to a schema, as text.
+ *
+ * For the stage whose answer *is* the text. The schema is not ceremony: a
+ * `min(1)` still catches a model that returned nothing at all, which is a
+ * failure worth naming rather than an empty story worth storing.
+ */
+export const parseModelValue = <Value>(
+  schema: z.ZodType<Value>,
+  text: string,
+  stageId: string,
+): Value => {
+  const parsed = schema.safeParse(text);
+  if (!parsed.success) {
+    throw new AuteurError(
+      "schema_violation",
+      `${stageId} returned text that is not what it declared.`,
+      { detail: { issues: parsed.error.issues, stageId } },
+    );
+  }
+  return parsed.data;
 };
 
 /**

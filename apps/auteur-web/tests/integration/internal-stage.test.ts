@@ -349,10 +349,14 @@ describe("a stage that throws", () => {
     // The thrown message, not the mapped one. Everything that is not an
     // `AuteurError` becomes "The stage failed.", and this is where the real
     // sentence survives.
+    // `thrown`, not `message`: the log record owns that key, and a field of
+    // the same name used to be dropped without a word — which is how every
+    // stage failure for an evening reported "stage failed" and swallowed the
+    // sentence that said why.
     expect(lines[0]?.fields).toMatchObject({
       code: "internal",
-      message: "connect ECONNREFUSED 10.0.0.1:5432",
       stageId: "outline",
+      thrown: "connect ECONNREFUSED 10.0.0.1:5432",
     });
   });
 
