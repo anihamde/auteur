@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { env, resetEnvForTest } from "./env.ts";
+import { env, envFor, resetEnvForTest } from "./env.ts";
 import { ENV_KEYS, ENV_SPEC } from "./env-spec.ts";
 
 const validValue = (key: string): string =>
@@ -149,5 +149,61 @@ describe(".env.example mirrors the schema", () => {
           }
         }
       });
+  });
+});
+
+describe("a process validates what it uses, not what the repository has", () => {
+  const complete = {
+    AUTEUR_API_TOKEN: "a-token-of-at-least-16-chars",
+    AUTEUR_STAGE_SECRET: "a-stage-secret-of-16-plus",
+    CRON_SECRET: "a-cron-secret-of-16-plus!",
+    DATABASE_URL: "postgres://u:p@host-pooler/db",
+    DATABASE_URL_DIRECT: "postgres://u:p@host/db",
+    RAMP_ROUTER_API_KEY: "a-router-key",
+  };
+
+  test("the worker's three parse with the route's three absent", () => {
+    // The failure this exists for: the worker refused to start without an API
+    // token, a stage secret and a cron secret. It serves no route and
+    // authenticates nobody, so those are not merely unnecessary to it but
+    // meaningless — and demanding them teaches whoever is deploying to set
+    // secrets by superstition, which is how a real one gets set wrong.
+    const worker = envFor(
+      ["DATABASE_URL", "DATABASE_URL_DIRECT", "RAMP_ROUTER_API_KEY"],
+      {
+        DATABASE_URL: complete.DATABASE_URL,
+        DATABASE_URL_DIRECT: complete.DATABASE_URL_DIRECT,
+        RAMP_ROUTER_API_KEY: complete.RAMP_ROUTER_API_KEY,
+      },
+    );
+    expect(worker.DATABASE_URL_DIRECT).toBe(complete.DATABASE_URL_DIRECT);
+  });
+
+  test("a subset still reports every one of its own that is missing", () => {
+    // Narrowing what is required must not narrow how much of it is reported:
+    // fixing two variables should take one run, not two.
+    expect(() => envFor(["DATABASE_URL", "RAMP_ROUTER_API_KEY"], {})).toThrow(
+      /DATABASE_URL[\s\S]*RAMP_ROUTER_API_KEY/,
+    );
+  });
+
+  test("a subset is not memoized, so two callers do not collide", () => {
+    // `env()` memoizes because it is the whole set and always the same. Two
+    // subsets in one process would otherwise get whichever asked first.
+    expect(envFor(["RAMP_ROUTER_API_KEY"], complete).RAMP_ROUTER_API_KEY).toBe(
+      complete.RAMP_ROUTER_API_KEY,
+    );
+    expect(envFor(["DATABASE_URL"], complete).DATABASE_URL).toBe(
+      complete.DATABASE_URL,
+    );
+  });
+
+  test("env() still demands all of them", () => {
+    // The routes do use all seven, and narrowing the worker must not narrow
+    // the check the deployment they share is held to.
+    resetEnvForTest();
+    expect(() => env({ DATABASE_URL: complete.DATABASE_URL })).toThrow(
+      /AUTEUR_API_TOKEN is unset/,
+    );
   });
 });

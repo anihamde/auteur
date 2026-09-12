@@ -135,7 +135,13 @@ Three secrets, and they are the three the stages need: the pooled endpoint for
 reads and ordinary writes, the direct one for appending an event with its
 `NOTIFY`, and the gateway key. It needs **no** `AUTEUR_API_TOKEN`, no
 `AUTEUR_STAGE_SECRET` and no `CRON_SECRET` — nothing calls it, so it has nothing
-to authenticate.
+to authenticate, and `worker-entry.ts` asks `envFor` for its three rather than
+`env()` for all seven.
+
+**Set them before `fly deploy`.** `fly secrets set` needs the app to exist, so
+it comes after `fly launch` — and a deploy without them is a machine that
+crash-loops on the environment check, restarting every seven seconds. That is
+the right failure and it is a noisy one; `fly logs` names each variable.
 
 `fly.toml` declares no `[[services]]` and no ports. Nothing connects *to* the
 worker; it connects out, and the only way work reaches it is a row Vercel wrote.
