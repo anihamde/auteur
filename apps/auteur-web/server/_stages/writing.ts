@@ -253,13 +253,12 @@ export const runDraft = async (
       title: outline.title,
       wordTarget: target,
     }),
-    // Prose, not JSON: the schema is the identity, and the parse this skips is
-    // the one there is nothing to parse.
+    // Prose, not JSON. No `jsonSchema`, which is what tells `callModel` to
+    // apply this schema to the text rather than to `JSON.parse` of it — the
+    // distinction that had every draft thrown away as "did not return JSON".
     schema: z.string().min(1),
     system:
       "Write the story itself. Return prose only — no preamble, no headings that the beat sheet did not ask for, no commentary.",
-  }).catch((thrown: unknown) => {
-    throw thrown;
   });
 
   const wordCount = countWords(text);
