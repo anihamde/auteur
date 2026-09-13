@@ -35,6 +35,7 @@ export const ResearchScreen = ({
   transport,
 }: ScreenProps): ReactElement => {
   const card = state.view?.card ?? undefined;
+  const passages = state.view?.exemplarPassages ?? {};
 
   /**
    * Ask the questions.
@@ -92,15 +93,37 @@ export const ResearchScreen = ({
 
           <h3>{COPY.research.exemplarsLabel}</h3>
           <p>{COPY.research.exemplarsRule}</p>
-          {card.exemplars.map((exemplar) => (
-            <Exemplar
-              demonstrates={exemplar.demonstrates}
-              key={exemplar.passageId}
-              text={exemplar.demonstrates}
-              work={exemplar.workTitle}
-              {...(exemplar.year === undefined ? {} : { year: exemplar.year })}
-            />
-          ))}
+          {/* Spaced, because fifteen paper cards flush against one another
+              read as one cream field rather than fifteen pieces of evidence.
+              The gap is what makes the count legible. */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--stack)",
+            }}
+          >
+            {card.exemplars.flatMap((exemplar) => {
+              // An exemplar whose passage is missing renders nothing. The
+              // alternative is a block whose evidence is the sentence
+              // describing the evidence, which is what this screen showed:
+              // every exemplar printed the same line twice.
+              const text = passages[exemplar.passageId];
+              return text === undefined || text === ""
+                ? []
+                : [
+                    <Exemplar
+                      demonstrates={exemplar.demonstrates}
+                      key={exemplar.passageId}
+                      text={text}
+                      work={exemplar.workTitle}
+                      {...(exemplar.year === undefined
+                        ? {}
+                        : { year: exemplar.year })}
+                    />,
+                  ];
+            })}
+          </div>
         </>
       )}
 
