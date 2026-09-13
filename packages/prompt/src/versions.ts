@@ -31,7 +31,10 @@ export const PROMPT_VERSIONS = {
   // `critique` and `revise` were for, and a session holding a `draft@2` key
   // finds no stage that answers to it — which is the correct answer, because
   // the stage no longer exists.
-  story: "story@1",
+  // 2: the previous story and the notes are separate inputs. They were one
+  // object requiring both, so a note filed before the story existed reached
+  // the key and not the prompt — consumed without being used.
+  story: "story@2",
   "style-extract": "style-extract@4",
   "style-fields": "style-fields@1",
   "summarize-beat": "summarize-beat@1",

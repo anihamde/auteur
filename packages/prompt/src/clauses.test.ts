@@ -234,16 +234,25 @@ describe("writing and rewriting are the same prompt", () => {
     expect(built).not.toContain("What the reader asked for");
   });
 
+  test("a note with no previous story is an instruction for writing it", () => {
+    // A note filed before the story existed. Requiring a previous story
+    // alongside it dropped the note from the prompt while its id stayed in the
+    // input key — consumed without being used.
+    const built = story.build({ ...base, notes: ["start at the letter"] });
+    expect(built).toContain("What the reader asked for");
+    expect(built).toContain("start at the letter");
+    expect(built).not.toContain("The story as it stands");
+    expect(built).toContain("The prose, as markdown");
+  });
+
   test("a rewrite carries the story and every note, oldest first", () => {
     // Every one of them. A reader who asked for a shorter middle and then for
     // a longer ending asked for both, and a prompt carrying only the last note
     // silently undoes the first request.
     const built = story.build({
       ...base,
-      previous: {
-        notes: ["shorter in the middle", "and give the ending more room"],
-        story: "The lamp turned. The sea did not.",
-      },
+      notes: ["shorter in the middle", "and give the ending more room"],
+      previousStory: "The lamp turned. The sea did not.",
     });
     expect(built).toContain("The lamp turned. The sea did not.");
     expect(built.indexOf("shorter in the middle")).toBeLessThan(
@@ -256,7 +265,8 @@ describe("writing and rewriting are the same prompt", () => {
     // was only the changed paragraph would store that paragraph as the story.
     const built = story.build({
       ...base,
-      previous: { notes: ["shorter in the middle"], story: "The lamp turned." },
+      notes: ["shorter in the middle"],
+      previousStory: "The lamp turned.",
     });
     expect(built).toContain("The story again, whole");
     expect(built).toContain("leave the rest as it stands");

@@ -182,6 +182,10 @@ export const createStageBody =
           context,
           await cardFor(db, sessionId),
           outlineSchema.parse(stored.body),
+          // The beat sheet's own key, so the stage can tell "the reader wants
+          // a change to this story" from "this story was written from a beat
+          // sheet that no longer exists".
+          stored.inputKey,
           key,
         );
         return undefined;

@@ -185,13 +185,11 @@ describe("rendered prompts", () => {
         cardSummary: CARD,
         exemplars: [],
         lengthPreset: "flash",
-        previous: {
-          notes: [
-            "The middle drags. Cut the second scene to half.",
-            "And give the ending more room.",
-          ],
-          story: "The lamp turned. The sea did not.",
-        },
+        notes: [
+          "The middle drags. Cut the second scene to half.",
+          "And give the ending more room.",
+        ],
+        previousStory: "The lamp turned. The sea did not.",
         targets: "sentence length mean 28.4",
         title: "The Return of the Comet",
         wordTarget: 1000,

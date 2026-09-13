@@ -5,6 +5,7 @@ import { act } from "react";
 import { demoState, demoTransport } from "../demo/transport.ts";
 import { App } from "../shell/app.tsx";
 import type { SessionState, Transport } from "../shell/session-state.ts";
+import { streamedText } from "./story.tsx";
 
 /**
  * Read it, say what you want changed, read it again.
@@ -184,5 +185,58 @@ describe("the notes already written are on the screen", () => {
       <App initial={atStep("story")} transport={demoTransport()} />,
     );
     expect(story.container.textContent).not.toContain("Start at the letter");
+  });
+});
+
+describe("one run of the story is what the reader watches", () => {
+  const delta = (seq: number, stageId: string, text: string) => ({
+    createdAt: new Date(1_770_000_000_000 + seq),
+    event: { stageId, text, type: "stage_delta" as const },
+    seq,
+    sessionId: "01a07f00-0000-7000-8000-00000000005e",
+  });
+  const started = (seq: number, stageId: string) => ({
+    createdAt: new Date(1_770_000_000_000 + seq),
+    event: { role: "draft" as const, stageId, type: "stage_start" as const },
+    seq,
+    sessionId: "01a07f00-0000-7000-8000-00000000005e",
+  });
+
+  test("a rewrite shows the second story, not both joined", () => {
+    // The defect: every delta carries a stage id and no run identity, so a
+    // screen joining them showed the first story immediately followed by the
+    // second, at twice the word count. `story` streams and now runs once per
+    // rewrite, so this is the ordinary case rather than an edge.
+    expect(
+      streamedText(
+        [
+          started(1, "story"),
+          delta(2, "story", "the first story"),
+          started(3, "story"),
+          delta(4, "story", "the second"),
+          delta(5, "story", " story"),
+        ],
+        "story",
+      ),
+    ).toBe("the second story");
+  });
+
+  test("another stage's deltas are not the story's", () => {
+    expect(
+      streamedText(
+        [
+          started(1, "story"),
+          delta(2, "outline", "a beat"),
+          delta(3, "story", "prose"),
+        ],
+        "story",
+      ),
+    ).toBe("prose");
+  });
+
+  test("deltas before any start still render, so a resumed stream is not blank", () => {
+    // A reader who reloads mid-run replays from their cursor and may hold
+    // deltas whose `stage_start` is behind it.
+    expect(streamedText([delta(9, "story", "prose")], "story")).toBe("prose");
   });
 });

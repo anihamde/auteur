@@ -274,6 +274,59 @@ export const runOutline = async (
 };
 
 /**
+ * The story as it is stored, with the bookkeeping the stage needs and the
+ * response does not.
+ *
+ * `storySchema` strips what it does not name, so these two fields live in the
+ * artifact and never reach `GET /api/sessions/:id`. They are facts about how
+ * this row was produced rather than about the story, and a screen that could
+ * read them is a screen that could come to depend on them.
+ */
+export const storedStorySchema = storySchema.extend({
+  /** The notes already applied. Anything else is what this run is for. */
+  noteIds: z.array(z.uuid()).default([]),
+  /** The `outline` artifact's key when this was written. See `runStory`. */
+  outlineKey: z.string().default(""),
+});
+
+/**
+ * What this run of `story` is revising, if anything.
+ *
+ * Three cases, and the middle one is the one that is easy to get wrong.
+ *
+ * - **The beat sheet moved.** `outlineKey` differs, so the stored prose was
+ *   written from a beat sheet that has been replaced — a regenerated outline, a
+ *   changed answer, a different card. Revising it would produce a careful
+ *   edit of a story nobody is going to read. Write it again, and carry the
+ *   reader's notes into the writing rather than dropping them.
+ * - **New notes on the same beat sheet.** Revise, and send **only** the notes
+ *   the stored prose was not written from. Sending all of them re-applies the
+ *   earlier ones to a story that already has them, and "cut the second scene to
+ *   half" applied twice is a scene at a quarter.
+ * - **Nothing new.** Some other input changed — the preset, the card — so there
+ *   is nothing to revise and the story is written again.
+ */
+export const revisionFor = (input: {
+  readonly stored: z.infer<typeof storedStorySchema> | undefined;
+  readonly notes: readonly { readonly id: string; readonly note: string }[];
+  readonly outlineKey: string;
+}): { readonly notes?: string[]; readonly previousStory?: string } => {
+  const sameOutline =
+    input.stored !== undefined && input.stored.outlineKey === input.outlineKey;
+  const applied = new Set(sameOutline ? (input.stored?.noteIds ?? []) : []);
+  const pending = input.notes
+    .filter((note) => !applied.has(note.id))
+    .map((note) => note.note);
+
+  if (pending.length === 0) return {};
+  return {
+    notes: pending,
+    ...(sameOutline &&
+      input.stored !== undefined && { previousStory: input.stored.markdown }),
+  };
+};
+
+/**
  * `story` — the prose, written or written again.
  *
  * One stage for both, because a rewrite differs from a first attempt in exactly
@@ -288,6 +341,7 @@ export const runStory = async (
   context: StageContext,
   card: StyleCard,
   outline: z.infer<typeof outlineSchema>,
+  outlineKey: string,
   inputKey: string,
 ) => {
   const target = WORD_TARGET[context.session.lengthPreset];
@@ -300,16 +354,9 @@ export const runStory = async (
     findArtifact(context.db, context.sessionId, "draft"),
   ]);
 
-  // Both or neither. A story with no note is a request to write the same thing
-  // again, and a note with no story is a note about nothing — either alone
-  // would put a section in the prompt that contradicts the other's absence.
-  const previous =
-    notes.length === 0 || existing === undefined
-      ? undefined
-      : {
-          notes: notes.map((entry) => entry.note),
-          story: storySchema.parse(existing.body).markdown,
-        };
+  const stored =
+    existing === undefined ? undefined : storedStorySchema.parse(existing.body);
+  const revision = revisionFor({ notes, outlineKey, stored });
 
   const text = await callModel(context, {
     prompt: storyPrompt.build({
@@ -319,7 +366,7 @@ export const runStory = async (
       cardSummary: summariseCard(card),
       exemplars: attachPassageText(card.exemplars, passages),
       lengthPreset: context.session.lengthPreset,
-      ...(previous !== undefined && { previous }),
+      ...revision,
       targets: renderTargets(card),
       title: outline.title,
       wordTarget: target,
@@ -329,7 +376,7 @@ export const runStory = async (
     // distinction that had every draft thrown away as "did not return JSON".
     schema: z.string().min(1),
     system:
-      previous === undefined
+      revision.previousStory === undefined
         ? "Write the story itself. Return prose only — no preamble, no headings that the beat sheet did not ask for, no commentary."
         : "Return the revised story whole. Change what the reader asked for and leave the rest as it stands. Prose only — no preamble, no commentary.",
   });
@@ -341,7 +388,18 @@ export const runStory = async (
     type: "stage_detail",
   });
 
-  const written = { markdown: text, title: outline.title, wordCount };
+  const written = {
+    markdown: text,
+    // Every note the reader has filed is applied now, whether it was revised
+    // into an existing story or written into a new one. A note left unapplied
+    // here is a note whose key is already recorded, so nothing would ever run
+    // to apply it — the state that made a note filed before the first story
+    // vanish.
+    noteIds: notes.map((note) => note.id),
+    outlineKey,
+    title: outline.title,
+    wordCount,
+  };
   await putArtifact(context.db, {
     body: written,
     inputKey,

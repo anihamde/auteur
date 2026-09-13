@@ -66,6 +66,30 @@ is one a reader reads. The `selection` kind is gone with `revise` — replacing 
 span was `revise` with a span instead of findings, and a reader who wants the
 middle cut now says so.
 
+## What a rewrite is, exactly
+
+Three cases, and the middle one is the one that is easy to get wrong.
+`revisionFor` in `_stages/writing.ts` is the whole of it, and the story artifact
+carries the two facts it reads: the notes already applied, and the `outline`
+artifact's key when it was written.
+
+- **The beat sheet moved.** The stored prose was written from an outline that
+  has been replaced — regenerated, or restaled by a changed answer or a
+  different card. Revising it produces a careful edit of a story nobody will
+  read, so the story is written again and the reader's notes travel into the
+  writing rather than being dropped.
+- **New notes on the same beat sheet.** Revise, sending **only** the notes the
+  stored prose was not written from. Sending all of them re-applies the earlier
+  ones to a story that already has them, and "cut the second scene to half"
+  applied twice is a scene at a quarter.
+- **Nothing new.** Some other input moved, so there is nothing to revise.
+
+A note filed before the story was ever written is an instruction for writing it,
+not a revision — which is why the prompt takes the previous story and the notes
+as two inputs rather than one object requiring both. As one object, such a note
+reached the input key and not the prompt: the stage recorded a key that included
+it, looked fresh, and never ran again to use it.
+
 ## Consequences
 
 - **Two model calls fewer per story, one of them `strong`.** `story` is the only
@@ -83,6 +107,14 @@ middle cut now says so.
   by `storySchema` and returned as `story`. Renaming it buys nothing the reader
   can see and costs a migration plus a dual-read path in the change whose point
   is that there is less to read.
+- **Every run of every stage is bracketed.** `runClaimedStage` emits
+  `stage_start` before the body and a `stage_end` after it when the body emitted
+  none. The start is what separates one run's `stage_delta`s from the next's —
+  `story` streams and now runs repeatedly, and a screen joining every delta
+  showed the first story immediately followed by the second. The end is what the
+  client refetches the session on, which is what makes the loop visible at all:
+  `advance` returns before any stage runs, so the refresh a screen does after a
+  press shows the state as it was, and `outline` does not stream.
 - **The prosody drift aside stays on the story screen.** The reader's sentence
   replaced the *model's* judgement of the prose, not the measurement — the
   measurement is what this product is.

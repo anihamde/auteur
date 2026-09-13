@@ -20,13 +20,36 @@ import { NotePanel } from "./note-panel.tsx";
  * draft's critique and its revision; a reader's sentence replaced both.
  */
 
-/** The deltas so far, in order. */
-export const streamedText = (events: readonly StoredEvent[]): string =>
-  events
+/**
+ * The deltas of one stage's **latest** run, in order.
+ *
+ * From the last `stage_start` for that stage, not from the beginning of the
+ * log. `story` streams and now runs repeatedly — once to write, once per
+ * rewrite — and every delta carries a stage id and no run identity, so joining
+ * them all showed the reader the first story immediately followed by the
+ * second, at twice the word count.
+ */
+export const streamedText = (
+  events: readonly StoredEvent[],
+  stageId: string,
+): string => {
+  // Narrowed by type before the id is read: only five of the thirteen event
+  // shapes carry a stage, and the log holds all thirteen.
+  const mine = events.filter((stored) =>
+    stored.event.type === "stage_start" || stored.event.type === "stage_delta"
+      ? stored.event.stageId === stageId
+      : false,
+  );
+  const started = mine.findLastIndex(
+    (stored) => stored.event.type === "stage_start",
+  );
+  return mine
+    .slice(started + 1)
     .flatMap((stored) =>
       stored.event.type === "stage_delta" ? [stored.event.text] : [],
     )
     .join("");
+};
 
 /** The most recent reading of each live measure. */
 export const latestDrift = (
@@ -77,7 +100,7 @@ export const StoryScreen = ({
     await refresh();
   };
 
-  const streamed = streamedText(state.events);
+  const streamed = streamedText(state.events, "story");
   const stored = state.view?.story?.markdown ?? "";
   const text = streamed === "" ? stored : streamed;
   const drift = latestDrift(state.events);

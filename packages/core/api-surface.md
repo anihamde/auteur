@@ -75,6 +75,7 @@ export const revisableStageSchema = z.enum(REVISABLE_STAGES)
 export const revisionNoteSchema = z.object(
 export const sessionSchema = z.object(
 export const stepSchema = z.enum(STEPS)
+export const storedStepSchema = z.preprocess(
 export const storySchema = z.object(
 ```
 

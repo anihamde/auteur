@@ -20,6 +20,23 @@ export const STEPS = [
 export const stepSchema = z.enum(STEPS);
 export type Step = z.infer<typeof stepSchema>;
 
+/**
+ * A step as a row may still hold it.
+ *
+ * `0009_story_step.sql` admits `draft` as well as `story`, because a function
+ * still running the previous deploy writes `draft` for minutes after the
+ * migration lands and a CHECK that refused it would fail those writes. This is
+ * the read half of that expand: without it a row written in that window makes
+ * `sessionSchema` throw, and `GET /api/sessions/:id` answers 500 for that
+ * session for ever — the one state the expand exists to prevent.
+ *
+ * It goes when the contract migration drops `draft` from the CHECK.
+ */
+export const storedStepSchema = z.preprocess(
+  (value) => (value === "draft" ? "story" : value),
+  stepSchema,
+);
+
 export const LENGTH_PRESETS = ["flash", "short", "long", "novelette"] as const;
 export const lengthPresetSchema = z.enum(LENGTH_PRESETS);
 export type LengthPreset = z.infer<typeof lengthPresetSchema>;
@@ -52,7 +69,7 @@ export const sessionSchema = z.object({
   /** Verbatim. Nothing rewrites this before it reaches the pipeline. */
   idea: z.string().min(1),
   lengthPreset: lengthPresetSchema,
-  step: stepSchema,
+  step: storedStepSchema,
   updatedAt: z.coerce.date(),
 });
 export type Session = z.infer<typeof sessionSchema>;

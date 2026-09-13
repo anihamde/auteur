@@ -8,7 +8,13 @@ import {
 import { findingSchema, fitMeasureSchema } from "./fit.ts";
 import { stageSchema } from "./pipeline.ts";
 import { prosodyBlockSchema } from "./prosody.ts";
-import { questionSchema, sessionSchema, WORD_TARGET } from "./session.ts";
+import {
+  questionSchema,
+  STEPS,
+  sessionSchema,
+  storedStepSchema,
+  WORD_TARGET,
+} from "./session.ts";
 import { claimSchema, styleCardSchema } from "./style-card.ts";
 
 const uuid = (): string => crypto.randomUUID();
@@ -298,5 +304,26 @@ describe("session", () => {
       "novelette",
       "short",
     ]);
+  });
+});
+
+describe("a step as a row may still hold it", () => {
+  test("draft reads back as story", () => {
+    // `0009_story_step.sql` admits both, because a function still running the
+    // previous deploy writes `draft` for minutes after the migration lands. A
+    // row written in that window would otherwise fail `sessionSchema` and make
+    // `GET /api/sessions/:id` answer 500 for that session for ever — the one
+    // state the expand exists to prevent.
+    expect(storedStepSchema.parse("draft")).toBe("story");
+  });
+
+  test("every current step still parses to itself", () => {
+    for (const step of STEPS) {
+      expect(storedStepSchema.parse(step)).toBe(step);
+    }
+  });
+
+  test("a step nothing ever wrote is still refused", () => {
+    expect(storedStepSchema.safeParse("critique").success).toBe(false);
   });
 });

@@ -22,21 +22,6 @@ export type Exemplar = {
 
 export type Beat = { readonly index: number; readonly text: string };
 
-/**
- * The story as it stands, and what the reader said about it.
- *
- * Absent on the first attempt, which is the difference between writing and
- * rewriting and the only one. Present together or not at all: a previous
- * attempt with no note is a request to produce the same thing again, and a note
- * with no previous attempt is a note about nothing.
- */
-export type Previous = {
-  readonly story: string;
-  /** Oldest first. All of them, not the last: a reader who asked for a shorter
-   * middle and then for a longer ending asked for both. */
-  readonly notes: readonly string[];
-};
-
 export type StoryInput = {
   readonly title: string;
   readonly beats: readonly Beat[];
@@ -51,8 +36,23 @@ export type StoryInput = {
   readonly continuity?: string;
   /** Present under `sequential-scene`: the beats this call is to write. */
   readonly scope?: readonly Beat[];
-  /** Absent on the first attempt. See `Previous`. */
-  readonly previous?: Previous;
+  /**
+   * What the reader has asked for and this prompt has not yet been told.
+   *
+   * Oldest first, and only the ones not already applied: a note the story in
+   * `previousStory` was written from would be applied twice, which for "cut the
+   * second scene to half" is a scene at a quarter.
+   */
+  readonly notes?: readonly string[];
+  /**
+   * The story those notes are about, when there is one.
+   *
+   * Present without `notes` never happens — there would be nothing to change —
+   * but `notes` without this does: a note filed before the story was first
+   * written is an instruction for writing it, and dropping it would consume the
+   * note without using it.
+   */
+  readonly previousStory?: string;
 };
 
 const exemplarBlock = (exemplar: Exemplar): string =>
@@ -89,24 +89,23 @@ export const story: Prompt<StoryInput> = {
         .map((beat) => `${beat.index.toString()}. ${beat.text}`)
         .join("\n"),
       "",
-      ...(input.previous === undefined
+      ...(input.previousStory === undefined
+        ? []
+        : ["### The story as it stands", "", input.previousStory, ""]),
+      ...(input.notes === undefined || input.notes.length === 0
         ? []
         : [
-            "### The story as it stands",
-            "",
-            input.previous.story,
-            "",
             "### What the reader asked for",
             "",
             "In their words, oldest first. Every one of them: a later note adds",
             "to the earlier ones and does not replace them.",
             "",
-            ...input.previous.notes.map((note) => `- ${note}`),
+            ...input.notes.map((note) => `- ${note}`),
             "",
           ]),
       "## What to return",
       "",
-      ...(input.previous === undefined
+      ...(input.previousStory === undefined
         ? [
             "The prose, as markdown. Nothing else — no preamble, no notes on",
             "what you did, no heading naming the beats.",
@@ -158,5 +157,5 @@ export const story: Prompt<StoryInput> = {
       input.exemplars.map(exemplarBlock).join("\n\n"),
     ].join("\n"),
   id: "story",
-  version: "story@1",
+  version: "story@2",
 };

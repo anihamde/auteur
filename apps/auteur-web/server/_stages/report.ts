@@ -41,9 +41,11 @@ export const runStyleFit = async (
           ".",
         ].join("");
 
-  // Findings come from `critique` and are triaged there against what was
-  // actually measured. This stage adds none of its own: a finding invented here
-  // would be a claim with no measurement behind it.
+  // No findings, and there is no longer a stage that produces any: `critique`
+  // was a model reading the prose against the card, and the reader's note
+  // replaced it (decision 0034). This stage invents none of its own — a finding
+  // here would be a claim with no measurement behind it — so the report is the
+  // measures and the sentence that counts them.
   const report = { findings: [], measures, summary };
   await putArtifact(context.db, {
     body: report,

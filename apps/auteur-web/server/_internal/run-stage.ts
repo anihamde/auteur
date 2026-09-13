@@ -1,3 +1,4 @@
+import { DEFAULT_PIPELINE } from "@auteur/config/stages";
 import type { SessionEvent } from "@auteur/core/events";
 import type { Db } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
@@ -83,11 +84,36 @@ export const runClaimedStage = async (
   claimed: ClaimedStage,
 ): Promise<StageOutcome> => {
   const { db } = deps;
+  const startedAt = Date.now();
+  // Whether the body already said the stage ended. A stage that runs a model
+  // does — `runStage` emits it with the usage and the cost — and a
+  // deterministic one does not.
+  let ended = false;
   const emit = async (event: SessionEvent): Promise<void> => {
+    if (event.type === "stage_end") ended = true;
     // Appended before it is pushed (§7.3): the table is the truth and the
     // stream is a convenience.
     await append(deps.eventDb, claimed.sessionId, event);
   };
+
+  // The boundary between one run of a stage and the next.
+  //
+  // `stage_delta` carries a stage id and no run identity, so a screen joining
+  // the deltas for `story` joined every run of it: after one rewrite the reader
+  // saw the first story immediately followed by the second. This is the marker
+  // that separates them, and it is emitted here rather than in a stage body so
+  // that every stage has one.
+  const stage = DEFAULT_PIPELINE.stages.find(
+    (candidate) => candidate.id === claimed.stageId,
+  );
+  if (stage !== undefined) {
+    await emit({
+      role: stage.role,
+      stageId: claimed.stageId,
+      ...(stage.tier !== undefined && { tier: stage.tier }),
+      type: "stage_start",
+    });
+  }
 
   let output: unknown;
   try {
@@ -129,6 +155,18 @@ export const runClaimedStage = async (
     // state a sweep cannot distinguish from a stage still running.
     await failStage(db, claimed.queueId, claimed.claimant, newId());
     return { enqueued: [], outcome: "error" };
+  }
+
+  // Exactly one `stage_end` per run, whether or not the body ran a model. It
+  // is what the client refetches the session on, and `style-fit` — the last
+  // stage before the result screen — runs no model and emitted none, so the
+  // report arrived in the database and never on the screen.
+  if (!ended) {
+    await emit({
+      elapsedMs: Date.now() - startedAt,
+      stageId: claimed.stageId,
+      type: "stage_end",
+    });
   }
 
   // The key is recorded in the same breath as the completion, so a stage whose
