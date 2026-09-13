@@ -16,6 +16,7 @@ const recordingSaver = () => {
   const created: string[] = [];
   const revoked: string[] = [];
   const clicked: { download: string; href: string }[] = [];
+  const scheduled: (() => void)[] = [];
   const saver: Saver = {
     anchor: () => {
       const anchor = {
@@ -32,11 +33,14 @@ const recordingSaver = () => {
       created.push(url);
       return url;
     },
+    later: (task) => {
+      scheduled.push(task);
+    },
     revokeObjectUrl: (url) => {
       revoked.push(url);
     },
   };
-  return { clicked, created, revoked, saver };
+  return { clicked, created, revoked, saver, scheduled };
 };
 
 describe("a title becomes a filename that is only a filename", () => {
@@ -68,8 +72,12 @@ describe("a title becomes a filename that is only a filename", () => {
 });
 
 describe("saving hands over the bytes and keeps nothing", () => {
-  test("the anchor carries the name and the url, and the url is revoked", () => {
-    const { clicked, created, revoked, saver } = recordingSaver();
+  test("the anchor carries the name and the url, and nothing is revoked yet", () => {
+    // The defect this holds shut: `anchor.click()` *queues* the fetch of the
+    // blob. Firefox reads the URL when that fetch runs, so revoking in the same
+    // tick removes the entry first — the export succeeds, nothing throws, no
+    // alert renders, and no file is written.
+    const { clicked, created, revoked, saver, scheduled } = recordingSaver();
     saveText(
       {
         fileName: "landfall.md",
@@ -81,13 +89,18 @@ describe("saving hands over the bytes and keeps nothing", () => {
     expect(clicked).toEqual([
       { download: "landfall.md", href: created[0] ?? "" },
     ]);
+    expect(revoked).toEqual([]);
+
+    for (const task of scheduled) task();
     expect(revoked).toEqual(created);
   });
 
   test("a click that throws still revokes", () => {
-    // A `finally`, not a line after the click. Without it a failing click
-    // leaks the whole document, and nothing about the page looks wrong.
-    const { created, revoked, saver } = recordingSaver();
+    // The revoke is scheduled before the click, which is what makes the leak
+    // impossible without a `try`: a click that throws has already handed the
+    // URL to something that will free it. Without that, a failing click leaks
+    // the whole document for the life of the tab and nothing looks wrong.
+    const { created, revoked, saver, scheduled } = recordingSaver();
     const throwing: Saver = {
       ...saver,
       anchor: () => ({
@@ -104,6 +117,7 @@ describe("saving hands over the bytes and keeps nothing", () => {
         throwing,
       );
     }).toThrow("the click failed");
+    for (const task of scheduled) task();
     expect(revoked).toEqual(created);
     expect(revoked).toHaveLength(1);
   });
