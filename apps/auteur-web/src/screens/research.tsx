@@ -2,6 +2,7 @@ import { Button, Card, CardHeader } from "@auteur/component-library/core";
 import { ProsodyStat, Thinking } from "@auteur/component-library/pipeline";
 import { Exemplar } from "@auteur/component-library/prose";
 import { COPY } from "@auteur/copy/index";
+import type { Exemplar as CardExemplar } from "@auteur/core/style-card";
 import type { ReactElement } from "react";
 import type { ScreenProps } from "../shell/app.tsx";
 import { detailFor, stateFor } from "../shell/session-state.ts";
@@ -19,6 +20,65 @@ export const RESEARCH_STAGES = [
   { id: "style-fields", tier: "balanced" as const },
   { id: "style-extract", tier: "balanced" as const },
 ];
+
+/**
+ * One block per passage, with every reading that passage demonstrates.
+ *
+ * Two exemplars may cite the same passage — nothing forbids it: the extraction
+ * schema bounds the count and the gateway's strict dialect has no way to say
+ * "distinct", so a model choosing fifteen passages out of twenty and repeating
+ * one is an ordinary answer. Rendered one per exemplar that is two figures
+ * carrying a byte-identical quotation under one React key, which is a duplicate
+ * key warning and an unmount on every refetch.
+ *
+ * So the passage is the block and the readings are its caption. That is also
+ * the truer shape: the evidence is the passage, and what it demonstrates is
+ * what was read from it.
+ *
+ * A passage that is missing renders nothing at all. A block whose evidence is
+ * the sentence describing the evidence is a claim with none, which is what this
+ * screen showed fifteen of.
+ */
+export const exemplarBlocks = (
+  exemplars: readonly CardExemplar[],
+  passages: Readonly<Record<string, string>>,
+): {
+  readonly passageId: string;
+  readonly demonstrates: string;
+  readonly text: string;
+  readonly workTitle: string;
+  readonly year?: number;
+}[] => {
+  const byPassage = new Map<
+    string,
+    {
+      passageId: string;
+      demonstrates: string;
+      text: string;
+      workTitle: string;
+      year?: number;
+    }
+  >();
+  for (const exemplar of exemplars) {
+    const text = passages[exemplar.passageId];
+    if (text === undefined || text === "") continue;
+    const seen = byPassage.get(exemplar.passageId);
+    if (seen === undefined) {
+      byPassage.set(exemplar.passageId, {
+        demonstrates: exemplar.demonstrates,
+        passageId: exemplar.passageId,
+        text,
+        workTitle: exemplar.workTitle,
+        ...(exemplar.year === undefined ? {} : { year: exemplar.year }),
+      });
+      continue;
+    }
+    // Joined rather than replaced: each reading is a separate claim about the
+    // same evidence, and keeping one would drop the other from the screen.
+    seen.demonstrates = `${seen.demonstrates}; ${exemplar.demonstrates}`;
+  }
+  return [...byPassage.values()];
+};
 
 /**
  * Screen 3 — the corpus is measured, then the card is read.
@@ -103,26 +163,15 @@ export const ResearchScreen = ({
               gap: "var(--stack)",
             }}
           >
-            {card.exemplars.flatMap((exemplar) => {
-              // An exemplar whose passage is missing renders nothing. The
-              // alternative is a block whose evidence is the sentence
-              // describing the evidence, which is what this screen showed:
-              // every exemplar printed the same line twice.
-              const text = passages[exemplar.passageId];
-              return text === undefined || text === ""
-                ? []
-                : [
-                    <Exemplar
-                      demonstrates={exemplar.demonstrates}
-                      key={exemplar.passageId}
-                      text={text}
-                      work={exemplar.workTitle}
-                      {...(exemplar.year === undefined
-                        ? {}
-                        : { year: exemplar.year })}
-                    />,
-                  ];
-            })}
+            {exemplarBlocks(card.exemplars, passages).map((block) => (
+              <Exemplar
+                demonstrates={block.demonstrates}
+                key={block.passageId}
+                text={block.text}
+                work={block.workTitle}
+                {...(block.year === undefined ? {} : { year: block.year })}
+              />
+            ))}
           </div>
         </>
       )}

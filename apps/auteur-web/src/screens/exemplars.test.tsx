@@ -3,6 +3,10 @@ import { renderStyled } from "@auteur/test-support/render";
 import { DEMO_EXEMPLAR_PASSAGES, demoCard } from "../demo/card.ts";
 import { demoState, demoTransport } from "../demo/transport.ts";
 import { App } from "../shell/app.tsx";
+import { exemplarBlocks } from "./research.tsx";
+
+const A = "01a07f00-0000-7000-8000-000000000001";
+const B = "01a07f00-0000-7000-8000-000000000002";
 
 /**
  * The exemplars are the evidence, and the evidence is the passage.
@@ -79,5 +83,52 @@ describe("an exemplar whose passage is gone renders nothing", () => {
       />,
     );
     expect(container.querySelectorAll("figure")).toHaveLength(0);
+  });
+});
+
+describe("two exemplars citing one passage are one block", () => {
+  const passages = { [A]: "The lamp turned.", [B]: "The sea did not." };
+  const exemplar = (passageId: string, demonstrates: string) => ({
+    demonstrates,
+    passageId,
+    workId: "gutenberg:1",
+    workTitle: "Ward No. 6",
+    year: 1892,
+  });
+
+  test("the quotation renders once, with both readings", () => {
+    // Nothing forbids the repeat: the extraction schema bounds the count, and
+    // the gateway's strict dialect has no way to say "distinct". Rendered one
+    // per exemplar that is two figures carrying a byte-identical quotation
+    // under one React key — a duplicate-key warning, and an unmount on every
+    // refetch rather than an update.
+    const blocks = exemplarBlocks(
+      [exemplar(A, "the flat close"), exemplar(A, "plain 'said'")],
+      passages,
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.demonstrates).toBe("the flat close; plain 'said'");
+  });
+
+  test("neither reading is dropped", () => {
+    // Keeping the first would take the second off the screen entirely: each is
+    // a separate claim about the same evidence.
+    const blocks = exemplarBlocks(
+      [exemplar(A, "one"), exemplar(A, "two"), exemplar(A, "three")],
+      passages,
+    );
+    expect(blocks[0]?.demonstrates).toBe("one; two; three");
+  });
+
+  test("distinct passages stay distinct", () => {
+    expect(
+      exemplarBlocks([exemplar(A, "one"), exemplar(B, "two")], passages).map(
+        (block) => block.passageId,
+      ),
+    ).toEqual([A, B]);
+  });
+
+  test("a missing passage takes its readings with it", () => {
+    expect(exemplarBlocks([exemplar("missing", "one")], passages)).toEqual([]);
   });
 });
