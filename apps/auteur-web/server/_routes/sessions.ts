@@ -8,6 +8,7 @@ import {
   outlineSchema,
   storySchema,
 } from "@auteur/core/session";
+import { findPassages } from "@auteur/corpus-store/passages";
 import type { Db } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { newId } from "@auteur/ids/new-id";
@@ -84,6 +85,16 @@ export const sessionRoutes = (deps: { readonly db: Db }): Hono => {
         revisionNotesFor(db, id),
       ]);
 
+    // Read after the card, because which passages to read is the card's answer.
+    // An exemplar whose passage is gone is simply absent from the map and the
+    // screen renders no block for it — the same rule the drafting prompt uses,
+    // where a heading with no body is a claim with no evidence.
+    const exemplars = card?.card.exemplars ?? [];
+    const passages = await findPassages(
+      db,
+      exemplars.map((exemplar) => exemplar.passageId),
+    );
+
     return context.json({
       answers,
       // The card the session was built against, not the author's latest: a
@@ -91,6 +102,9 @@ export const sessionRoutes = (deps: { readonly db: Db }): Hono => {
       // report's numbers stop describing the draft beside them.
       card: card?.card ?? null,
       decisions: (decisions ?? []) as DecisionEntry[],
+      exemplarPassages: Object.fromEntries(
+        passages.map((passage) => [passage.id, passage.text]),
+      ),
       // Flattened and re-sorted rather than handed over grouped: the response
       // schema is a list, and the screen that wants one stage's notes filters
       // by `stageId` — which is one rule rather than a shape per consumer.

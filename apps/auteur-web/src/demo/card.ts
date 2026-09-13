@@ -19,13 +19,15 @@ const WORK_ID = "gutenberg:2350";
 const WORK_TITLE = "Ward No. 6";
 
 /** Enough real prose for MATTR and the sentence distribution to mean something. */
-const PASSAGE = [
+const SENTENCES = [
   "In the hospital yard there stands a small lodge surrounded by a perfect forest of burdocks, nettles, and wild hemp.",
   "Its roof is rusty, the chimney is tumbling down, the steps at the front-door are rotting away and overgrown with grass, and there are only traces left of the stucco.",
   "The front of the lodge faces the hospital; at the back it looks out into the open country, from which it is separated by the grey hospital fence with nails on it.",
   "These nails, with their points upwards, and the fence, and the lodge itself, have that peculiar, desolate, God-forsaken look which is only found in our hospital and prison buildings.",
   "If you are not afraid of being stung by the nettles, come by the narrow footpath that leads to the lodge, and let us see what is going on inside.",
-].join(" ");
+];
+
+const PASSAGE = SENTENCES.join(" ");
 
 const passageId = (ordinal: number): string =>
   `01a07f00-0000-7000-8000-00000000000${ordinal.toString()}`;
@@ -180,3 +182,19 @@ export const demoCard = (): StyleCard =>
   });
 
 export const DEMO_PASSAGE = PASSAGE;
+
+/**
+ * The passage behind each exemplar, by id — what the deployment reads out of
+ * `passages` and returns with the session view.
+ *
+ * One sentence of the demo's work per exemplar, so the demo shows what the
+ * research screen shows: the author's prose, with the reading it demonstrates
+ * as the caption beneath it rather than as the text itself.
+ */
+export const DEMO_EXEMPLAR_PASSAGES: Readonly<Record<string, string>> =
+  Object.fromEntries(
+    EXEMPLARS.map((_demonstrates, index) => [
+      passageId(index + 1),
+      SENTENCES[index % SENTENCES.length] ?? PASSAGE,
+    ]),
+  );
