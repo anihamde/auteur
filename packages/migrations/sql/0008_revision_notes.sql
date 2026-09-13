@@ -26,6 +26,14 @@
 -- everything downstream, with no invalidation rule written anywhere.
 CREATE TABLE IF NOT EXISTS revision_notes (
   id         uuid PRIMARY KEY,
+  -- Insertion order, and the reason it is a sequence rather than a tiebreak on
+  -- `id`. `newId()` is a UUIDv7 whose time field is milliseconds, with random
+  -- bits below it and no intra-millisecond counter — so `ORDER BY created_at,
+  -- id` gives a *stable* order and not an *insertion* order, and two notes
+  -- written in the same millisecond come back in either. The stage's prompt
+  -- would then differ between runs with no note changing, which §7.5 cannot
+  -- see, because the note set is the same set.
+  seq        bigserial NOT NULL,
   session_id uuid NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   -- The stage the note is about, not the stage that reads it. They are the
   -- same today and a note on the outline that only the prose stage read would
@@ -40,4 +48,4 @@ CREATE TABLE IF NOT EXISTS revision_notes (
 -- The read is always "this session's notes on this stage, oldest first", and
 -- the write is an insert. One index covers both.
 CREATE INDEX IF NOT EXISTS revision_notes_by_stage
-  ON revision_notes (session_id, stage_id, created_at);
+  ON revision_notes (session_id, stage_id, seq);
