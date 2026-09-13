@@ -230,3 +230,45 @@ describe("a stream holds one connection and borrows none", () => {
     }
   }, 20_000);
 });
+
+describe("a quiet stream still says it is there", () => {
+  test("a heartbeat frame arrives while nothing is appended", async () => {
+    // What tells a client that a stream carrying no events is alive. Without
+    // it, a run that says nothing for minutes — most of a research stage — is
+    // indistinguishable from a route that will never speak, and the client has
+    // to choose between giving up on a working stream and never giving up on a
+    // broken one. It chose to give up, after five quiet reconnects.
+    const app = createApp({
+      apiToken: TOKEN,
+      db: harness.db,
+      events: { budgetMs: 120, directDb: harness.db, pollMs: 20 },
+    });
+    const response = await app.request(
+      `/api/sessions/${sessionId}/events?cursor=0`,
+      { headers: { authorization: `Bearer ${TOKEN}` } },
+    );
+    const body = await response.text();
+
+    expect(body).toContain(": keep-alive");
+  });
+
+  test("a heartbeat is not an event, so it moves no cursor", async () => {
+    // SSE ignores a comment frame and so must the client: a heartbeat parsed
+    // as an event would be an event with no seq, which is fatal by design.
+    const app = createApp({
+      apiToken: TOKEN,
+      db: harness.db,
+      events: { budgetMs: 120, directDb: harness.db, pollMs: 20 },
+    });
+    const body = await (
+      await app.request(`/api/sessions/${sessionId}/events?cursor=0`, {
+        headers: { authorization: `Bearer ${TOKEN}` },
+      })
+    ).text();
+
+    for (const frame of body.split("\n\n")) {
+      if (frame.trim() === "") continue;
+      expect(frame.startsWith("data: ") || frame.startsWith(":")).toBe(true);
+    }
+  });
+});

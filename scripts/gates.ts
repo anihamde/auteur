@@ -49,7 +49,7 @@ export const GATES: readonly Gate[] = [
   },
   {
     args: [],
-    name: "no Bun-only globals on the serverless path",
+    name: "no Bun-only globals in shipped code",
     number: 16,
     script: "scripts/check-node-runtime.ts",
   },

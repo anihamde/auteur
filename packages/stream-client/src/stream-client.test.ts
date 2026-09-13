@@ -276,3 +276,121 @@ describe("a same-origin url is a url", () => {
     ).toBe("https://preview.auteur.test/api/sessions/a/events?cursor=2");
   });
 });
+
+/** Resolves on the nth connection, so a test never spins waiting for one. */
+const nth = (target: number) => {
+  let reached: (() => void) | undefined;
+  const at = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  let calls = 0;
+  return {
+    at,
+    count: () => calls,
+    tick: () => {
+      calls += 1;
+      if (calls >= target) reached?.();
+      return calls;
+    },
+  };
+};
+
+describe("a quiet pipeline is not a broken stream", () => {
+  test("a connection carrying only heartbeats does not count as empty", async () => {
+    // The defect, at the numbers it happened at. The route holds every
+    // connection open for its whole budget whether or not anything is
+    // appended, so a run that says nothing for five minutes — most of a
+    // research stage, where the card takes three and a half — reconnected
+    // five times and the client gave up for good. Every screen from then on
+    // needed a manual reload.
+    //
+    // Elapsed time cannot tell those apart: it is the same fifty seconds on a
+    // working stream and on one talking to a route that will never speak.
+    // Bytes can, which is what the heartbeat frame is for.
+    const connections = nth(9);
+    let fatal: AuteurError | undefined;
+    const stream = connectStream({
+      fetch: () => Promise.resolve(sse(": ping\n\n")),
+      maxEmptyReconnects: 2,
+      onEvent: () => undefined,
+      onFatal: (error) => {
+        fatal = error;
+      },
+      sleep: async () => {
+        connections.tick();
+      },
+      url: "https://auteur.test/api/sessions/x/events",
+    });
+    await connections.at;
+    stream.close();
+    await stream.done;
+
+    expect(fatal).toBeUndefined();
+    expect(connections.count()).toBeGreaterThan(5);
+  });
+
+  test("an endpoint that sends nothing at all still ends the stream", async () => {
+    // The condition the budget is actually for: reconnecting into something
+    // that is not there. A client that kept trying would never tell anyone.
+    let fatal: AuteurError | undefined;
+    const stream = connectStream({
+      fetch: () => Promise.resolve(sse("")),
+      maxEmptyReconnects: 2,
+      onEvent: () => undefined,
+      onFatal: (error) => {
+        fatal = error;
+      },
+      sleep: async () => undefined,
+      url: "https://auteur.test/api/sessions/x/events",
+    });
+    await stream.done;
+    expect(fatal?.message).toContain("delivered nothing");
+  });
+
+  test("a connection torn after delivering is not an empty reconnect", async () => {
+    // The other half. A stream that delivers a stage and is then cut at the
+    // function ceiling is working; counting each tear as empty ended it after
+    // six of them, which on a long run is six minutes.
+    const connections = nth(9);
+    let fatal: AuteurError | undefined;
+    const stream = connectStream({
+      fetch: () => {
+        // `pull` rather than `start`, so the frame is read before the tear.
+        // Erroring in `start` rejects the first `read()` and the event never
+        // reaches the consumer, which is a different failure.
+        let sent = false;
+        const seq = connections.count() + 1;
+        return Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              pull: (controller) => {
+                if (sent) {
+                  controller.error(new Error("the connection was torn"));
+                  return;
+                }
+                sent = true;
+                controller.enqueue(new TextEncoder().encode(frame(seq)));
+              },
+            }),
+            { headers: { "content-type": "text/event-stream" }, status: 200 },
+          ),
+        );
+      },
+      maxEmptyReconnects: 2,
+      onEvent: () => undefined,
+      onFatal: (error) => {
+        fatal = error;
+      },
+      sleep: async () => {
+        connections.tick();
+      },
+      url: "https://auteur.test/api/sessions/x/events",
+    });
+    await connections.at;
+    stream.close();
+    await stream.done;
+
+    expect(fatal).toBeUndefined();
+    expect(connections.count()).toBeGreaterThan(5);
+  });
+});

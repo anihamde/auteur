@@ -79,6 +79,15 @@ export type Transport = {
     sessionId: string,
     cursor: number,
     onEvent: (event: StoredEvent) => void,
+    /**
+     * Called when the stream gives up for good.
+     *
+     * It had nowhere to go: `liveTransport` passed `() => undefined`, so a
+     * stream that died left every screen frozen with no way to find out but a
+     * reload. The wizard is non-blocking by design (invariant 3) and that
+     * design is only true while something is delivering.
+     */
+    onFatal?: (message: string) => void,
   ) => Stream;
 };
 
@@ -103,7 +112,7 @@ export const liveTransport = (baseUrl: string, token: string): Transport => {
   });
   return {
     client,
-    openStream: (sessionId, cursor, onEvent) =>
+    openStream: (sessionId, cursor, onEvent, onFatal) =>
       connectStream({
         fetch: async (url, init) =>
           fetch(url, {
@@ -111,7 +120,9 @@ export const liveTransport = (baseUrl: string, token: string): Transport => {
             headers: { authorization: `Bearer ${token}` },
           }),
         onEvent,
-        onFatal: () => undefined,
+        onFatal: (error) => {
+          onFatal?.(error.message);
+        },
         startCursor: cursor,
         url: `${baseUrl}/api/sessions/${sessionId}/events`,
       }),
