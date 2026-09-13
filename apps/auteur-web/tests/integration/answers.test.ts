@@ -12,6 +12,7 @@ import { newId } from "@auteur/ids/new-id";
 import { putArtifact } from "@auteur/session-store/artifacts";
 import { putQuestionRound } from "@auteur/session-store/questions";
 import { createSession } from "@auteur/session-store/sessions";
+import { recordStageKey } from "@auteur/session-store/stage-keys";
 import { listQueueForSession } from "@auteur/stage-queue/queue";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
 import { createApp } from "../../server/_app.ts";
@@ -269,5 +270,44 @@ describe("regenerating the outline", () => {
       kind: "everything",
     });
     expect(response.status).toBe(400);
+  });
+
+  test("it enqueues the stages already built on the outline", async () => {
+    // §7.5 cannot see a regenerate: it changes no input, so `draft`'s key —
+    // built from `outline`'s key rather than from its output — is the same key
+    // after the new beat sheet upserts over the old. Nothing downstream is
+    // stale, and the reader keeps the story written from the beat sheet they
+    // just discarded, permanently. A finished stage no longer chains past the
+    // step, so this route is where the tail is named.
+    for (const stageId of ["outline", "draft", "critique", "revise"]) {
+      await recordStageKey(harness.db, sessionId, stageId, `${stageId}-key`);
+    }
+    const response = await post(`/api/sessions/${sessionId}/regenerate`, {
+      kind: "outline",
+    });
+
+    expect(
+      ROUTES.regenerate.response.parse(await response.json()).enqueued,
+    ).toEqual(["outline", "draft", "critique", "revise"]);
+    const queue = await listQueueForSession(harness.db, sessionId);
+    expect(queue.map((entry) => entry.stageId)).toEqual([
+      "outline",
+      "draft",
+      "critique",
+      "revise",
+    ]);
+  });
+
+  test("a stage that never ran is not started by regenerating its input", async () => {
+    // The half that separates this from the old unconditional chain: a reader
+    // regenerating the beat sheet before there is any story must not be
+    // charged for a story they have not asked for.
+    await recordStageKey(harness.db, sessionId, "outline", "outline-key");
+    const response = await post(`/api/sessions/${sessionId}/regenerate`, {
+      kind: "outline",
+    });
+    expect(
+      ROUTES.regenerate.response.parse(await response.json()).enqueued,
+    ).toEqual(["outline"]);
   });
 });

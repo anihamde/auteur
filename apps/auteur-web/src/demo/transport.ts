@@ -1,4 +1,5 @@
 import type { ResponseOf } from "@auteur/api-contract/contract";
+import { COPY } from "@auteur/copy/index";
 import type { Session, Step } from "@auteur/core/session";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import type { SessionState, Transport } from "../shell/session-state.ts";
@@ -122,6 +123,24 @@ export const demoTransport = (): Transport => {
           return viewAt(step).session;
         }
         if (name === "advance") return { enqueued: [] };
+        if (name === "exportStory") {
+          // The document the demo's story would export to, assembled here
+          // rather than by `renderExport` — the demo runs in the browser and
+          // the renderer is a server package, so importing it would put the
+          // report and the decisions renderers into the client bundle to
+          // produce four lines. The label is what §7.6 requires of an export
+          // and it is the part that must not be approximated.
+          return [
+            "# Landfall",
+            "",
+            STORY,
+            "",
+            "---",
+            "",
+            COPY.result.attribution.replace("{author}", "Anton Chekhov"),
+            "",
+          ].join("\n");
+        }
         throw new AuteurError(
           "not_found",
           `Demo mode has no recorded answer for ${name}.`,

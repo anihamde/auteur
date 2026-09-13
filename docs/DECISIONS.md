@@ -41,3 +41,4 @@ because the next reader needs the reasoning and not the outcome.
 | 0030 | [A claim about absence cannot cite a passage](decisions/0030-a-claim-about-absence-cannot-cite-a-passage.md) | accepted | 2026-09-10 |
 | 0031 | [The card is read in two passes](decisions/0031-the-card-is-read-in-two-passes.md) | accepted | 2026-09-10 |
 | 0032 | [The stages run on a worker](decisions/0032-the-stages-run-on-a-worker.md) | accepted | 2026-09-11 |
+| 0033 | [A stage never runs past the step the reader is on](decisions/0033-a-stage-never-runs-past-the-step-the-reader-is-on.md) | accepted | 2026-09-13 |

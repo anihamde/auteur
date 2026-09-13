@@ -9,3 +9,50 @@
 @import "../../../docs/design/design-system/tokens/fonts.css";
 @import "../../../docs/design/design-system/tokens/base.css";
 @import "../../../docs/design/design-system/tokens/theme-light.css";
+
+/* Printing the story.
+
+   A PDF without a PDF writer: the browser's print dialogue offers "Save as
+   PDF" everywhere it matters, and what it saves is this page. So the page is
+   made to be the story — the rail, the tabs and the controls carry
+   `data-print="chrome"` and are removed.
+
+   Only `[data-print="chrome"]` is named here. A rule that enumerated what to
+   keep would hide any element added later, which is the failure that shows up
+   as a blank page rather than as a wrong one. */
+@media print {
+  /* The theme's own tokens, forced to ink on white.
+
+     Not a `color` rule, because a `color` rule cannot reach either of the two
+     places that matter: `base.css` sets `h1,h2,h3,h4{color:var(--text-strong)}`
+     on the element, which beats anything inherited from an ancestor, and
+     `CardHeader` sets its eyebrow's colour inline, which beats every stylesheet
+     rule there is. Redefining the variables reaches both, because a `var()` is
+     resolved where it is used.
+
+     The theme resolver defaults to `auto` and returns dark after six in the
+     evening, where `--text-strong` is `--ink-050` — the story's title printed
+     as near-white on white paper.
+
+     `:root[data-theme]` matches the light theme's own selector specificity and
+     comes later in source order, so it wins in both directions. `--text-paper`
+     and `--surface-paper` are deliberately left alone: the story's card is
+     cream and ink already, and it prints as itself. */
+  :root,
+  :root[data-theme] {
+    --surface-app: #fff;
+    --surface-card: #fff;
+    --surface-panel: #fff;
+    --text-body: #000;
+    --text-muted: #333;
+    --text-strong: #000;
+  }
+
+  [data-print="chrome"] {
+    display: none;
+  }
+
+  body {
+    background: #fff;
+  }
+}

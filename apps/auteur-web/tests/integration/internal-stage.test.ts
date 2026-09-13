@@ -11,7 +11,7 @@ import { AuteurError } from "@auteur/errors/auteur-error";
 import { readSince } from "@auteur/event-store/events";
 import { newId } from "@auteur/ids/new-id";
 import { createLogger, type LogFields } from "@auteur/logger/logger";
-import { createSession } from "@auteur/session-store/sessions";
+import { createSession, updateSession } from "@auteur/session-store/sessions";
 import { readStageKeys } from "@auteur/session-store/stage-keys";
 import {
   enqueueStage,
@@ -374,6 +374,9 @@ describe("a stage that throws", () => {
 
 describe("a stage that succeeds", () => {
   test("records its key, completes its row, and enqueues its successors", async () => {
+    // On the `draft` step: the reader has asked for a draft, so the stage that
+    // finishes the beat sheet is allowed to start one.
+    await updateSession(harness.db, sessionId, { step: "draft" });
     const queueId = await queueOne("outline");
     const response = await post({ queueId, sessionId, stageId: "outline" });
     const body = ROUTES.internalStage.response.parse(await response.json());
@@ -386,6 +389,27 @@ describe("a stage that succeeds", () => {
     );
   });
 
+  test("a successor past the session's step is not enqueued", async () => {
+    // The defect this holds shut: on the worker, `clarify` finished and
+    // `outline` started in the same second — before the reader had answered a
+    // question — so the beat sheet was built from an empty answer set. The key
+    // and the completion still happen; only the successor is withheld.
+    await updateSession(harness.db, sessionId, { step: "clarify" });
+    const queueId = await queueOne("clarify");
+    const body = ROUTES.internalStage.response.parse(
+      await (await post({ queueId, sessionId, stageId: "clarify" })).json(),
+    );
+
+    expect(body.claimed).toBe(true);
+    expect(body.enqueued).toEqual([]);
+    expect((await findQueueEntry(harness.db, queueId))?.status).toBe("done");
+    expect(
+      (await listQueueForSession(harness.db, sessionId)).map(
+        (row) => row.stageId,
+      ),
+    ).not.toContain("outline");
+  });
+
   test("the last stage enqueues nothing, which is how a run ends", async () => {
     const queueId = await queueOne("style-fit");
     const body = ROUTES.internalStage.response.parse(
@@ -396,6 +420,7 @@ describe("a stage that succeeds", () => {
 
   test("it asks for the next stage to run, and only the first of them", async () => {
     const invoked: string[] = [];
+    await updateSession(harness.db, sessionId, { step: "research" });
     const queueId = await queueOne("work-fetch");
     const app = createApp({
       apiToken: TOKEN,

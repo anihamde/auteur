@@ -35,4 +35,5 @@ export const triageFindings = (
 ```ts
 export const measuresFor = (input: MeasureInput): FitMeasure[] =>
 export const scoredMeasures = (): readonly Scored[] =>
+export const targetBands = (
 ```

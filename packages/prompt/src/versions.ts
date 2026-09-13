@@ -26,7 +26,12 @@ export const PROMPT_VERSIONS = {
   clarify: "clarify@1",
   "corpus-select": "corpus-select@1",
   critique: "critique@1",
-  draft: "draft@1",
+  // 2: not a text change but a content change — `runDraft` was rendering the
+  // exemplar section from `text: ""` and the targets section from the card
+  // summary, so the prose and the numbers the template asks for never arrived.
+  // The version is what the draft's input key is built from, so bumping it is
+  // the only thing that restales a draft written without them.
+  draft: "draft@2",
   outline: "outline@1",
   revise: "revise@1",
   "style-extract": "style-extract@4",

@@ -10,7 +10,7 @@ import { AuteurError } from "@auteur/errors/auteur-error";
 import { readSince } from "@auteur/event-store/events";
 import { newId } from "@auteur/ids/new-id";
 import { createLogger } from "@auteur/logger/logger";
-import { createSession } from "@auteur/session-store/sessions";
+import { createSession, updateSession } from "@auteur/session-store/sessions";
 import { claimNext } from "@auteur/stage-queue/claim-next";
 import {
   enqueueStage,
@@ -54,6 +54,10 @@ beforeEach(async () => {
     lengthPreset: "flash",
   });
   sessionId = session.id;
+  // On the `research` step, so the fetch chain is inside what the session has
+  // asked for. A stage never enqueues a successor past the step the reader is
+  // on, and a session left on `idea` would enqueue nothing at all.
+  await updateSession(harness.db, sessionId, { step: "research" });
 });
 
 const noop: StageBody = async () => undefined;
@@ -174,8 +178,17 @@ describe("stopping waits for the stage in flight", () => {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
+    // The stage says when it has started, rather than the test guessing with a
+    // timer. Twenty milliseconds is enough on this machine and was not enough
+    // on the CI runner, where the row was still `queued` when the assertion
+    // read it — a failure about scheduling, reported as a failure about `stop`.
+    let started: (() => void) | undefined;
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
     const worker = startWorker({
       ...deps(async () => {
+        started?.();
         await held;
         return undefined;
       }),
@@ -183,9 +196,7 @@ describe("stopping waits for the stage in flight", () => {
       sleep: async () => undefined,
     });
 
-    await new Promise((resolve) => {
-      setTimeout(resolve, 20);
-    });
+    await running;
     const stopping = worker.stop();
     // Still claimed: the stage is mid-flight and `stop` has not resolved.
     expect((await findQueueEntry(harness.db, id))?.status).toBe("claimed");

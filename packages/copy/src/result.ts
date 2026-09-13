@@ -12,7 +12,19 @@ export const result = {
   decisionsNotAsked: "model chose — not asked",
   decisionsSkipped: "model chose — question skipped",
   driftAsideLabel: "Draft against corpus",
+  /**
+   * The two ways the finished story leaves.
+   *
+   * Markdown is the document `renderExport` builds — the story, the label, the
+   * fit report and the decisions log, which is more than the story view shows.
+   * The print route is the browser's, so "print" is what the dialogue that
+   * opens is called and "save as PDF" is what that dialogue offers; naming only
+   * one of them would misdescribe whichever the reader chose.
+   */
+  exportFailed: "The export could not be produced. Try again.",
   exportMarkdown: "Export markdown",
+  exportPdf: "Print or save as PDF",
+  exportWorking: "Preparing the document",
   newSession: "New session",
   reEnterable: "Every step is re-enterable from the rail.",
   regenerateSection: "Regenerate a section",

@@ -7,10 +7,12 @@ import { AuteurError } from "@auteur/errors/auteur-error";
 import { newId } from "@auteur/ids/new-id";
 import { findArtifact } from "@auteur/session-store/artifacts";
 import { requireSession } from "@auteur/session-store/sessions";
+import { readStageKeys } from "@auteur/session-store/stage-keys";
 import { enqueueForRun } from "@auteur/stage-queue/queue";
 import { snapToSentence } from "@auteur/text/snap";
 import { countWords } from "@auteur/text/tokenize";
 import { Hono } from "hono";
+import { descendantsOf } from "../_graph.ts";
 import { idOf } from "./_id.ts";
 import type { AdvanceDeps } from "./advance.ts";
 
@@ -20,6 +22,19 @@ import type { AdvanceDeps } from "./advance.ts";
  * §6.9: a selection is `revise` with a span instead of findings. Same role,
  * same tier, same model, same prompt package — so this route computes the span
  * and enqueues `revise`, and does not become a second pipeline.
+ *
+ * **It enqueues the tail as well, and it is the only route that does.** §7.5
+ * makes a stage stale when its inputs change, and a regenerate changes none of
+ * them: it asks for a different output from the same idea, the same answers and
+ * the same card. So the new beat sheet upserts over the old one, `draft`'s
+ * input key — built from `outline`'s *key*, not from its output — is unchanged,
+ * and the next `advance` finds nothing stale. The reader would keep the story
+ * written from the beat sheet they just discarded, permanently.
+ *
+ * Only descendants that have **already run** are enqueued. Regenerating an
+ * outline on a session that never drafted starts no draft; regenerating one on
+ * a finished session replaces the story and the report that scored it, which is
+ * what "replace this output" means two stages down.
  */
 
 /**
@@ -97,17 +112,35 @@ export const regenerateRoutes = (deps: RegenerateDeps): Hono => {
       await deps.recordSpan?.({ from: span.from, sessionId: id, to: span.to });
     }
 
+    const completed = await readStageKeys(db, id);
+    const rerun = [
+      stageId,
+      ...descendantsOf(stageId).filter((candidate) => completed.has(candidate)),
+    ];
+
     // Regenerating is asking a stage that has already run to run again, which
     // a plain enqueue could not do: its finished row holds the attempt-0 key.
     // The id invoked is the returned row's, which on a stage already in flight
     // is the one that exists rather than the one just minted.
-    const row = await enqueueForRun(db, {
-      id: newId(),
-      sessionId: id,
-      stageId,
-    });
-    await deps.invokeStage?.({ queueId: row.id, sessionId: id, stageId });
-    return context.json({ enqueued: [stageId] });
+    const queued = [];
+    for (const candidate of rerun) {
+      queued.push(
+        await enqueueForRun(db, {
+          id: newId(),
+          sessionId: id,
+          stageId: candidate,
+        }),
+      );
+    }
+    const first = queued[0];
+    if (first !== undefined) {
+      await deps.invokeStage?.({
+        queueId: first.id,
+        sessionId: id,
+        stageId: first.stageId,
+      });
+    }
+    return context.json({ enqueued: rerun });
   });
 
   return routes;

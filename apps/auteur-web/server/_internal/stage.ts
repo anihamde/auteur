@@ -6,8 +6,9 @@ import { newId } from "@auteur/ids/new-id";
 import type { Logger } from "@auteur/logger/logger";
 import { claimStage } from "@auteur/stage-queue/queue";
 import { Hono } from "hono";
+import { successorsOf } from "../_graph.ts";
 import type { AdvanceDeps } from "../_routes/advance.ts";
-import { runClaimedStage, type StageBody, successorsOf } from "./run-stage.ts";
+import { runClaimedStage, type StageBody } from "./run-stage.ts";
 import { requireSignature, SIGNATURE_HEADER } from "./signature.ts";
 
 /**

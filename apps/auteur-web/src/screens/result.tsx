@@ -9,6 +9,7 @@ import { Markdown } from "@auteur/component-library/prose";
 import { COPY } from "@auteur/copy/index";
 import { type ReactElement, useEffect, useState } from "react";
 import type { ScreenProps } from "../shell/app.tsx";
+import { browserSaver, fileNameFor, saveText } from "./download.ts";
 
 /**
  * Screen 7 — the story, how well it matched, and what was decided for you.
@@ -17,6 +18,14 @@ import type { ScreenProps } from "../shell/app.tsx";
  * already carries the story, the report and the decisions log (§7.1), so
  * switching tabs issues no request — which is also what stops a tab from
  * showing a different session's state than the one beside it.
+ *
+ * The story leaves by two routes. **Markdown** is `GET /api/sessions/:id/export`
+ * — the story, §7.6's label, the fit report and the decisions log, which is
+ * more than any tab shows — fetched through the client because every public
+ * route wants the bearer token, and handed over as a blob. **Print** is the
+ * browser's own dialogue, which is where a PDF comes from without this app
+ * carrying a PDF writer; `data-print="chrome"` is what the rail, the tabs and
+ * the controls are marked with so the page that prints is the story.
  */
 
 export type ResultTab = "story" | "fit" | "decisions";
@@ -64,6 +73,35 @@ export const ResultScreen = ({
     };
   }, [markdown]);
 
+  const [exporting, setExporting] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const exportMarkdown = async (): Promise<void> => {
+    if (sessionId === undefined) return;
+    setExporting(true);
+    setFailed(false);
+    try {
+      const markdown = await transport.client.call("exportStory", {
+        params: { id: sessionId },
+      });
+      saveText(
+        {
+          fileName: fileNameFor(view?.story?.title, "md"),
+          mediaType: "text/markdown;charset=utf-8",
+          text: markdown,
+        },
+        browserSaver(),
+      );
+    } catch {
+      // The reason is on the wire and in the log; the reader's move is the
+      // same for every one of them, and a code in the interface would be a
+      // code they cannot act on.
+      setFailed(true);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const regenerateSelection = async (): Promise<void> => {
     if (sessionId === undefined || selection === undefined) return;
     await transport.client.call("regenerate", {
@@ -79,7 +117,11 @@ export const ResultScreen = ({
         meta={COPY.shell.steps.result}
         title={view?.story?.title ?? COPY.shell.steps.result}
       />
-      <div role="tablist" style={{ display: "flex", gap: "var(--inline)" }}>
+      <div
+        data-print="chrome"
+        role="tablist"
+        style={{ display: "flex", gap: "var(--inline)" }}
+      >
         {(["story", "fit", "decisions"] as const).map((candidate) => (
           <Button
             aria-selected={tab === candidate}
@@ -101,13 +143,39 @@ export const ResultScreen = ({
           {/* The label renders on the story view as well as in the export.
               PRD §9 requires both, and this is the view half. */}
           <p>{attributionFor(author)}</p>
-          <Button
-            disabled={selection === undefined}
-            onClick={() => void regenerateSelection()}
-            variant="ghost"
+          <div
+            data-print="chrome"
+            style={{ display: "flex", gap: "var(--inline)" }}
           >
-            {COPY.result.regenerateSection}
-          </Button>
+            <Button
+              disabled={selection === undefined}
+              onClick={() => void regenerateSelection()}
+              variant="ghost"
+            >
+              {COPY.result.regenerateSection}
+            </Button>
+            <Button
+              disabled={exporting || view?.story === undefined}
+              onClick={() => void exportMarkdown()}
+              variant="secondary"
+            >
+              {exporting
+                ? COPY.result.exportWorking
+                : COPY.result.exportMarkdown}
+            </Button>
+            <Button
+              disabled={view?.story === undefined}
+              onClick={() => {
+                globalThis.print();
+              }}
+              variant="ghost"
+            >
+              {COPY.result.exportPdf}
+            </Button>
+          </div>
+          {/* Announced rather than only coloured: the export is the one action
+              on this screen whose failure leaves nothing behind to look at. */}
+          {failed ? <p role="alert">{COPY.result.exportFailed}</p> : undefined}
         </Card>
       ) : undefined}
 
@@ -147,7 +215,7 @@ export const ResultScreen = ({
         </Card>
       ) : undefined}
 
-      <p>{COPY.result.reEnterable}</p>
+      <p data-print="chrome">{COPY.result.reEnterable}</p>
     </>
   );
 };

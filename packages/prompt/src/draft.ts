@@ -108,5 +108,5 @@ export const draft: Prompt<DraftInput> = {
       input.exemplars.map(exemplarBlock).join("\n\n"),
     ].join("\n"),
   id: "draft",
-  version: "draft@1",
+  version: "draft@2",
 };
