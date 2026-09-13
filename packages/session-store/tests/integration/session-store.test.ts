@@ -182,7 +182,7 @@ describe("a patch touches the fields it names and no others", () => {
 
   test("patching a session that does not exist is not_found, not a silent no-op", async () => {
     await expect(
-      updateSession(harness.db, newId(), { step: "draft" }),
+      updateSession(harness.db, newId(), { step: "story" }),
     ).rejects.toThrow("does not exist");
   });
 });

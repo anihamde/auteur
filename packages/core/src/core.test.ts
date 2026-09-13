@@ -246,7 +246,7 @@ describe("the event vocabulary is closed and total", () => {
     // beginning"; a seq of 0 would collide with it.
     const base = {
       createdAt: new Date(),
-      event: { step: "draft" as const, type: "step" as const },
+      event: { step: "story" as const, type: "step" as const },
       sessionId: uuid(),
     };
     expect(storedEventSchema.safeParse({ ...base, seq: 0 }).success).toBe(

@@ -6,6 +6,7 @@ import type { StoredEvent } from "@auteur/core/events";
 import { WORD_TARGET } from "@auteur/core/session";
 import type { ReactElement } from "react";
 import type { ScreenProps } from "../shell/app.tsx";
+import { NotePanel } from "./note-panel.tsx";
 
 /**
  * Screen 6 — the prose streams on paper, the drift reads on ink.
@@ -13,6 +14,10 @@ import type { ScreenProps } from "../shell/app.tsx";
  * Both grounds in one view, which is the design's central claim made visible:
  * the artifact is on paper and the instrument measuring it is not. A drift
  * aside on paper would read as part of the story.
+ *
+ * The same loop as the outline: read it, say what you want changed, read it
+ * again. There was a screen between this one and the result that showed a
+ * draft's critique and its revision; a reader's sentence replaced both.
  */
 
 /** The deltas so far, in order. */
@@ -43,28 +48,33 @@ export const latestDrift = (
   return drift;
 };
 
-export const DraftScreen = ({
+export const StoryScreen = ({
   sessionId,
   setState,
   state,
   transport,
 }: ScreenProps): ReactElement => {
+  const refresh = async (): Promise<void> => {
+    if (sessionId === undefined) return;
+    const view = await transport.client.call("session", {
+      params: { id: sessionId },
+    });
+    setState((previous) => ({ ...previous, view }));
+  };
+
   /**
-   * Read the result.
+   * Approve it and read the result.
    *
-   * Disabled until there is prose: `style-fit` measures the draft, and a
+   * Disabled until there is prose: `style-fit` measures the story, and a
    * result screen with nothing to measure is a screen of empty readings.
    */
-  const next = async (): Promise<void> => {
+  const approve = async (): Promise<void> => {
     if (sessionId === undefined) return;
     await transport.client.call("advance", {
       body: { to: "result" },
       params: { id: sessionId },
     });
-    const view = await transport.client.call("session", {
-      params: { id: sessionId },
-    });
-    setState((previous) => ({ ...previous, view }));
+    await refresh();
   };
 
   const streamed = streamedText(state.events);
@@ -76,7 +86,7 @@ export const DraftScreen = ({
 
   return (
     <>
-      <CardHeader meta={COPY.shell.steps.draft} title={COPY.draft.title} />
+      <CardHeader meta={COPY.shell.steps.story} title={COPY.story.title} />
       <div style={{ display: "flex", gap: "var(--gutter-panel)" }}>
         <Card ground="paper" padding="lg" style={{ flex: "1" }}>
           <Markdown ground="paper" streaming={streamed !== ""}>
@@ -85,9 +95,9 @@ export const DraftScreen = ({
         </Card>
         {/* Ink: a measurement is the instrument, never the artifact. */}
         <Card ground="ink" padding="md" style={{ width: "var(--rail-width)" }}>
-          <h3>{COPY.draft.driftLabel}</h3>
+          <h3>{COPY.story.driftLabel}</h3>
           <p>
-            {words.toLocaleString("en-US")} {COPY.draft.wordsOf}{" "}
+            {words.toLocaleString("en-US")} {COPY.story.wordsOf}{" "}
             {target.toLocaleString("en-US")}
           </p>
           {[...drift.entries()].map(([label, measure]) => (
@@ -101,12 +111,27 @@ export const DraftScreen = ({
         </Card>
       </div>
 
+      <NotePanel
+        copy={{
+          hint: COPY.story.noteHint,
+          notesLabel: COPY.story.notesLabel,
+          placeholder: COPY.story.notePlaceholder,
+          rewrite: COPY.story.rewrite,
+        }}
+        notes={state.view?.notes ?? []}
+        onDone={refresh}
+        {...(sessionId === undefined ? {} : { sessionId })}
+        stageId="story"
+        step="story"
+        transport={transport}
+      />
+
       <Button
         disabled={text === ""}
-        onClick={() => void next()}
+        onClick={() => void approve()}
         variant="primary"
       >
-        {COPY.draft.next}
+        {COPY.story.approve}
       </Button>
     </>
   );

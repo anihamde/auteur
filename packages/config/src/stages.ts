@@ -5,13 +5,21 @@ import type { Pipeline } from "@auteur/core/pipeline";
  *
  * Data rather than code, so an alternative pipeline is a configuration file and
  * not a fork of the engine — which is what `PRD.md` §7 asks for and what makes
- * `single-pass` one `draft` stage plus the two measures it needs, with no
+ * `single-pass` one `story` stage plus the two measures it needs, with no
  * engine work at all.
  *
- * Ten stages, three more than the PRD's table, and all three extras are
- * deterministic: fetching and cleaning, computing prosody, and computing the
- * report. Naming them costs nothing and buys the research screen its progress
- * rows and the report its own place in the graph.
+ * Nine stages. Three of them are deterministic — fetching and cleaning,
+ * computing prosody, and computing the report — which costs nothing to name and
+ * buys the research screen its progress rows and the report its own place in
+ * the graph.
+ *
+ * **There is no `critique` and no `revise`.** They were an automated pass over
+ * the prose: a model read the draft against the card, a second model applied
+ * what it found, and the reader saw the result. Two model calls of the
+ * strongest tier, spent on a judgement the reader was about to make anyway and
+ * could state in a sentence. `revision_notes` is what replaced them — the
+ * reader says what is wrong in their own words and the stage writes the story
+ * again. Decision 0034.
  *
  * **`reads` is the whole of §7.5's staleness.** Changing an answer changes the
  * answer set, so `outline` and everything downstream goes stale and the card
@@ -96,8 +104,12 @@ export const DEFAULT_PIPELINE: Pipeline = {
       typed: true,
     },
     {
-      id: "draft",
-      promptId: "draft",
+      id: "story",
+      promptId: "story",
+      // The outline, and the notes the reader wrote about the story that was
+      // written from it. `reads` is what makes a note restale this stage: the
+      // note set is a direct input (`_staleness.ts`), so filing one and
+      // pressing the button writes the story again with the note in the prompt.
       reads: ["style-extract", "outline"],
       role: "draft",
       // The one stage the reader watches produce text.
@@ -106,26 +118,8 @@ export const DEFAULT_PIPELINE: Pipeline = {
       typed: false,
     },
     {
-      id: "critique",
-      promptId: "critique",
-      reads: ["style-extract", "draft"],
-      role: "critique",
-      streams: false,
-      tier: "balanced",
-      typed: true,
-    },
-    {
-      id: "revise",
-      promptId: "revise",
-      reads: ["draft", "critique"],
-      role: "revise",
-      streams: true,
-      tier: "strong",
-      typed: true,
-    },
-    {
       id: "style-fit",
-      reads: ["style-extract", "revise"],
+      reads: ["style-extract", "story"],
       role: "measure",
       streams: false,
       typed: false,

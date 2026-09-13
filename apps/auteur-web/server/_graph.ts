@@ -16,7 +16,7 @@ import type { Step } from "@auteur/core/session";
 /**
  * The last stage each wizard step needs finished.
  *
- * §3.2's seven steps and §6.2's eleven stages are different lists on purpose: a
+ * §3.2's seven steps and §6.2's nine stages are different lists on purpose: a
  * step is a screen and a stage is a unit of work. `idea` and `author` need no
  * stage — reaching them runs nothing, which is why they map to `undefined`
  * rather than to the first stage.
@@ -24,11 +24,11 @@ import type { Step } from "@auteur/core/session";
 export const LAST_STAGE_FOR_STEP: Readonly<Record<Step, string | undefined>> = {
   author: undefined,
   clarify: "clarify",
-  draft: "draft",
   idea: undefined,
   outline: "outline",
   research: "style-extract",
   result: "style-fit",
+  story: "story",
 };
 
 /** The stages the pipeline would run immediately after this one, in graph order. */

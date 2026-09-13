@@ -1,4 +1,4 @@
-import type { Beat } from "@auteur/prompt/draft";
+import type { Beat } from "@auteur/prompt/story";
 
 /**
  * `sequential-scene`: one call per beat, with a running summary between them.

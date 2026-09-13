@@ -122,7 +122,6 @@ describe("every stage is asked, and none is asked twice", () => {
     expect(Object.keys(STAGE_SCHEMAS).sort()).toEqual([
       "clarify",
       "corpus-select",
-      "critique",
       "outline",
       // Two, because the card is read in two passes.
       "style-extract",

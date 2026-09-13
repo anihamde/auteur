@@ -30,11 +30,13 @@ export const shell = {
   steps: {
     author: "Author",
     clarify: "Questions",
-    draft: "Draft",
     idea: "Idea",
     outline: "Outline",
     research: "Research",
     result: "Result",
+    story: "Story",
   },
   wordmark: "auteur",
+  /** On a button while the request it started is in flight. A label. */
+  working: "Working",
 } as const;

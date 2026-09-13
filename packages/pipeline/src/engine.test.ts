@@ -15,8 +15,8 @@ const MODEL = SCRIPTED_MODELS[0];
 if (MODEL === undefined) throw new Error("no scripted model");
 
 const stage = (overrides: Partial<Stage> = {}): Stage => ({
-  id: "draft",
-  promptId: "draft",
+  id: "story",
+  promptId: "story",
   reads: [],
   role: "draft",
   streams: true,

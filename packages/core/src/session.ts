@@ -1,13 +1,20 @@
 import { z } from "zod";
 
-/** The seven wizard steps, in order. `docs/ARCHITECTURE.md` §3.2. */
+/**
+ * The seven wizard steps, in order. `docs/ARCHITECTURE.md` §3.2.
+ *
+ * `story` where `draft` was. A draft is a thing you make before the thing, and
+ * there is no longer a stage after it that turns one into the other — the
+ * reader reads the story, says what they want changed, and the same stage
+ * writes it again.
+ */
 export const STEPS = [
   "idea",
   "author",
   "research",
   "clarify",
   "outline",
-  "draft",
+  "story",
   "result",
 ] as const;
 export const stepSchema = z.enum(STEPS);
@@ -113,7 +120,7 @@ export type DecisionEntry = z.infer<typeof decisionEntrySchema>;
  * typo in a request body is a 400 rather than a note filed against a stage id
  * that will never look for one.
  */
-export const REVISABLE_STAGES = ["outline", "draft"] as const;
+export const REVISABLE_STAGES = ["outline", "story"] as const;
 export const revisableStageSchema = z.enum(REVISABLE_STAGES);
 export type RevisableStage = z.infer<typeof revisableStageSchema>;
 

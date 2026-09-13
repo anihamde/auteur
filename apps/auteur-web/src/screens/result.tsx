@@ -7,7 +7,7 @@ import {
 import { ProsodyStat } from "@auteur/component-library/pipeline";
 import { Markdown } from "@auteur/component-library/prose";
 import { COPY } from "@auteur/copy/index";
-import { type ReactElement, useEffect, useState } from "react";
+import { type ReactElement, useState } from "react";
 import type { ScreenProps } from "../shell/app.tsx";
 import { browserSaver, fileNameFor, saveText } from "./download.ts";
 
@@ -40,38 +40,8 @@ export const ResultScreen = ({
   transport,
 }: ScreenProps): ReactElement => {
   const [tab, setTab] = useState<ResultTab>("story");
-  const [selection, setSelection] = useState<
-    { readonly from: number; readonly to: number } | undefined
-  >(undefined);
-
   const view = state.view;
   const author = view?.card?.author.displayName ?? "";
-  const markdown = view?.story?.markdown ?? "";
-
-  // `selectionchange` on the document rather than `onMouseUp` on the prose: a
-  // selection made with the keyboard, or extended after the mouse is released,
-  // is a selection too — and a handler on a static element is an interaction
-  // a keyboard user cannot reach at all.
-  //
-  // The offsets are found by locating the selected text in the markdown, not
-  // by reading DOM ranges: the API's span is a range into `stories.markdown`,
-  // and the rendered DOM has inserted elements the source does not.
-  useEffect(() => {
-    const onSelectionChange = (): void => {
-      const active = globalThis.getSelection?.();
-      const text = active?.toString() ?? "";
-      if (text.trim() === "") {
-        setSelection(undefined);
-        return;
-      }
-      const from = markdown.indexOf(text);
-      setSelection(from === -1 ? undefined : { from, to: from + text.length });
-    };
-    document.addEventListener("selectionchange", onSelectionChange);
-    return () => {
-      document.removeEventListener("selectionchange", onSelectionChange);
-    };
-  }, [markdown]);
 
   const [exporting, setExporting] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -100,15 +70,6 @@ export const ResultScreen = ({
     } finally {
       setExporting(false);
     }
-  };
-
-  const regenerateSelection = async (): Promise<void> => {
-    if (sessionId === undefined || selection === undefined) return;
-    await transport.client.call("regenerate", {
-      body: { from: selection.from, kind: "selection", to: selection.to },
-      params: { id: sessionId },
-    });
-    setSelection(undefined);
   };
 
   return (
@@ -147,13 +108,6 @@ export const ResultScreen = ({
             data-print="chrome"
             style={{ display: "flex", gap: "var(--inline)" }}
           >
-            <Button
-              disabled={selection === undefined}
-              onClick={() => void regenerateSelection()}
-              variant="ghost"
-            >
-              {COPY.result.regenerateSection}
-            </Button>
             <Button
               disabled={exporting || view?.story === undefined}
               onClick={() => void exportMarkdown()}

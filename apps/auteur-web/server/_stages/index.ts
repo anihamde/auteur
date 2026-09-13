@@ -23,14 +23,7 @@ import {
   runProsodyCompute,
   runWorkFetch,
 } from "./research.ts";
-import {
-  requireCard,
-  runClarify,
-  runCritique,
-  runDraft,
-  runOutline,
-  runRevise,
-} from "./writing.ts";
+import { requireCard, runClarify, runOutline, runStory } from "./writing.ts";
 
 /**
  * The dispatcher: stage id in, side effects and an output out.
@@ -71,7 +64,7 @@ const cardFor = async (
   return requireCard(stored?.card);
 };
 
-/** The current draft, or a stated failure. */
+/** The story as it stands, or a stated failure. */
 const storyFor = async (
   db: Parameters<typeof findArtifact>[0],
   sessionId: string,
@@ -177,43 +170,18 @@ export const createStageBody =
         await runOutline(context, await cardFor(db, sessionId), key);
         return undefined;
       }
-      case "draft": {
+      case "story": {
         const stored = await findArtifact(db, sessionId, "outline");
         if (stored === undefined) {
           throw new AuteurError(
             "invalid_input",
-            "There is no outline to draft from.",
+            "There is no outline to write from.",
           );
         }
-        await runDraft(
+        await runStory(
           context,
           await cardFor(db, sessionId),
           outlineSchema.parse(stored.body),
-          key,
-        );
-        return undefined;
-      }
-      case "critique": {
-        return runCritique(
-          context,
-          await cardFor(db, sessionId),
-          await storyFor(db, sessionId),
-        );
-      }
-      case "revise": {
-        const findings = await readStageOutput(
-          db,
-          sessionId,
-          "critique",
-          (value) => z.object({ findings: z.array(z.unknown()) }).parse(value),
-        );
-        await runRevise(
-          context,
-          await cardFor(db, sessionId),
-          await storyFor(db, sessionId),
-          // A critique that found nothing is not a reason to skip the stage:
-          // the revision is still what writes the draft the report scores.
-          findingsOf(findings),
           key,
         );
         return undefined;
@@ -235,27 +203,3 @@ export const createStageBody =
       }
     }
   };
-
-const findingSchema = z.object({
-  path: z.string().min(1),
-  remedy: z.string().optional(),
-  status: z.enum(["pass", "drift", "fail"]),
-  text: z.string(),
-});
-
-/**
- * The findings `critique` stored, re-parsed.
- *
- * Re-parsed rather than trusted because they came back through jsonb: the row
- * was written by this code, and by a version of it that may not be this one.
- * Anything that no longer parses is dropped rather than failing the revision —
- * a stale finding is a lost improvement, and a thrown error here would be a
- * lost draft.
- */
-const findingsOf = (
-  stored: { readonly findings: readonly unknown[] } | undefined,
-): z.infer<typeof findingSchema>[] =>
-  (stored?.findings ?? []).flatMap((candidate) => {
-    const parsed = findingSchema.safeParse(candidate);
-    return parsed.success ? [parsed.data] : [];
-  });

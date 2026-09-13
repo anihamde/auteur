@@ -3,12 +3,12 @@ import { DEFAULT_PIPELINE, STAGE_IDS } from "./stages.ts";
 import { TIER_CANDIDATES } from "./tiers.ts";
 
 describe("the pipeline is data, so an alternative is a config file", () => {
-  test("eleven stages, and the ids are unique", () => {
-    // Ten until the card was read in two passes: one call taking the
-    // twenty-two readings *and* the exemplars needed more than the sixty
-    // seconds an invocation gets (decision 0031).
-    expect(STAGE_IDS).toHaveLength(11);
-    expect(new Set(STAGE_IDS).size).toBe(11);
+  test("nine stages, and the ids are unique", () => {
+    // Eleven until `critique` and `revise` went: an automated pass over the
+    // prose, two strong-tier calls spent on a judgement the reader was about
+    // to make and could state in a sentence (decision 0034).
+    expect(STAGE_IDS).toHaveLength(9);
+    expect(new Set(STAGE_IDS).size).toBe(9);
   });
 
   test("every stage reads only stages that come before it in the list", () => {
@@ -45,23 +45,25 @@ describe("the tier lists", () => {
     }
   });
 
-  test("corpus-select and critique ship at balanced, not cheap", () => {
-    // §4/S1's conservative default: both are typed, and the table ships so
-    // that the pipeline is correct if no cheap model accepts a strict schema
-    // and merely more expensive than necessary if one does. WP-X0 moves them
-    // down if the measurement allows it.
-    const tierOf = (id: string) =>
-      DEFAULT_PIPELINE.stages.find((stage) => stage.id === id)?.tier;
-    expect(tierOf("corpus-select")).toBe("balanced");
-    expect(tierOf("critique")).toBe("balanced");
+  test("every typed stage ships at balanced, not cheap", () => {
+    // §4/S1's conservative default: the table ships so that the pipeline is
+    // correct if no cheap model accepts a strict schema and merely more
+    // expensive than necessary if one does. WP-X0 moves them down if the
+    // measurement allows it. Asserted over the set rather than by name, so a
+    // typed stage added at `cheap` fails here instead of shipping.
+    const cheap = DEFAULT_PIPELINE.stages
+      .filter((stage) => stage.typed && stage.tier !== "balanced")
+      .map((stage) => stage.id);
+    expect(cheap).toEqual([]);
   });
 
-  test("draft and revise are the strong-tier stages", () => {
-    // A tier declares how much a mistake at this stage costs. A bad draft is
-    // the session; a revision that made the draft worse is the session twice.
+  test("the story is the one strong-tier stage", () => {
+    // A tier declares how much a mistake at this stage costs, and a bad story
+    // is the session. It was two — `revise` ran at `strong` as well, so a
+    // revision that made the prose worse cost the session twice.
     const strong = DEFAULT_PIPELINE.stages
       .filter((stage) => stage.tier === "strong")
       .map((stage) => stage.id);
-    expect(strong).toEqual(["draft", "revise"]);
+    expect(strong).toEqual(["story"]);
   });
 });

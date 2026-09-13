@@ -2,10 +2,16 @@ import type { LengthPreset } from "@auteur/core/session";
 import type { Prompt } from "./versions.ts";
 
 /**
- * `draft` — the prose. The one untyped stage.
+ * `story` — the prose. The one untyped stage.
  *
  * Untyped because prose is not a schema, and asking for it inside a JSON string
  * would put an escaping problem between the model and the story.
+ *
+ * It writes the story **and it rewrites it**. There is no separate revision
+ * prompt, because a revision differs from a first attempt in exactly one way:
+ * there is a previous attempt and there is something the reader said about it.
+ * Both are inputs here, and the stage that had been `draft`, `critique` and
+ * `revise` is this one call.
  */
 
 export type Exemplar = {
@@ -16,7 +22,22 @@ export type Exemplar = {
 
 export type Beat = { readonly index: number; readonly text: string };
 
-export type DraftInput = {
+/**
+ * The story as it stands, and what the reader said about it.
+ *
+ * Absent on the first attempt, which is the difference between writing and
+ * rewriting and the only one. Present together or not at all: a previous
+ * attempt with no note is a request to produce the same thing again, and a note
+ * with no previous attempt is a note about nothing.
+ */
+export type Previous = {
+  readonly story: string;
+  /** Oldest first. All of them, not the last: a reader who asked for a shorter
+   * middle and then for a longer ending asked for both. */
+  readonly notes: readonly string[];
+};
+
+export type StoryInput = {
   readonly title: string;
   readonly beats: readonly Beat[];
   readonly authorName: string;
@@ -30,6 +51,8 @@ export type DraftInput = {
   readonly continuity?: string;
   /** Present under `sequential-scene`: the beats this call is to write. */
   readonly scope?: readonly Beat[];
+  /** Absent on the first attempt. See `Previous`. */
+  readonly previous?: Previous;
 };
 
 const exemplarBlock = (exemplar: Exemplar): string =>
@@ -39,7 +62,7 @@ const exemplarBlock = (exemplar: Exemplar): string =>
     exemplar.text,
   ].join("\n");
 
-export const draft: Prompt<DraftInput> = {
+export const story: Prompt<StoryInput> = {
   build: (input) =>
     [
       `You are writing prose in the measured style of ${input.authorName}.`,
@@ -66,10 +89,37 @@ export const draft: Prompt<DraftInput> = {
         .map((beat) => `${beat.index.toString()}. ${beat.text}`)
         .join("\n"),
       "",
+      ...(input.previous === undefined
+        ? []
+        : [
+            "### The story as it stands",
+            "",
+            input.previous.story,
+            "",
+            "### What the reader asked for",
+            "",
+            "In their words, oldest first. Every one of them: a later note adds",
+            "to the earlier ones and does not replace them.",
+            "",
+            ...input.previous.notes.map((note) => `- ${note}`),
+            "",
+          ]),
       "## What to return",
       "",
-      "The prose, as markdown. Nothing else — no preamble, no notes on what you",
-      "did, no heading naming the beats.",
+      ...(input.previous === undefined
+        ? [
+            "The prose, as markdown. Nothing else — no preamble, no notes on",
+            "what you did, no heading naming the beats.",
+          ]
+        : [
+            "The story again, whole, as markdown. Change what the reader asked",
+            "for and leave the rest as it stands — this is a revision and not a",
+            "second attempt, and a sentence they did not mention is a sentence",
+            "they were content with.",
+            "",
+            "Nothing else — no preamble, no notes on what you changed, no",
+            "heading naming the beats.",
+          ]),
       "",
       "## The targets describe a corpus, not a quota",
       "",
@@ -107,6 +157,6 @@ export const draft: Prompt<DraftInput> = {
       "",
       input.exemplars.map(exemplarBlock).join("\n\n"),
     ].join("\n"),
-  id: "draft",
-  version: "draft@2",
+  id: "story",
+  version: "story@1",
 };

@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import type { Pipeline, Stage } from "@auteur/core/pipeline";
-import type { Session } from "@auteur/core/session";
+import type {
+  RevisableStage,
+  RevisionNote,
+  Session,
+} from "@auteur/core/session";
 import { PROMPT_VERSIONS, type PromptId } from "@auteur/prompt/versions";
 
 /**
@@ -28,6 +32,14 @@ export type StalenessInput = {
   readonly models: ReadonlyMap<string, string>;
   /** What each stage last completed with. Absent means never completed. */
   readonly completed: ReadonlyMap<string, string>;
+  /**
+   * What the reader wrote about each revisable stage's output, oldest first.
+   *
+   * A direct input rather than something a route acts on: filing a note is the
+   * one way to ask for a different output from the same idea, the same answers
+   * and the same card, and §7.5 can only see it if it is in the key.
+   */
+  readonly notes: ReadonlyMap<RevisableStage, readonly RevisionNote[]>;
 };
 
 const hash = (parts: readonly string[]): string =>
@@ -51,6 +63,10 @@ export const directInputsOf = (
     input.answers
       .map((entry) => `${entry.id}=${entry.answer ?? "<skipped>"}`)
       .join("|");
+  // The ids and not the text: a note is never edited, so the set of ids is the
+  // set of notes, and hashing the prose would only make the key longer.
+  const noteSet = (stageId: RevisableStage): string =>
+    (input.notes.get(stageId) ?? []).map((note) => note.id).join("|");
 
   switch (stage.id) {
     case "corpus-select": {
@@ -73,14 +89,16 @@ export const directInputsOf = (
         `constraints=${session.constraints ?? ""}`,
         `preset=${session.lengthPreset}`,
         `answers=${answerSet()}`,
+        `notes=${noteSet("outline")}`,
         `card=${session.cardId ?? "<none>"}`,
       ];
     }
-    case "draft": {
+    case "story": {
       // The preset is here as well as on `outline` because it changes the draft
       // strategy (§6.6) and not only the beat count.
       return [
         `preset=${session.lengthPreset}`,
+        `notes=${noteSet("story")}`,
         `card=${session.cardId ?? "<none>"}`,
       ];
     }

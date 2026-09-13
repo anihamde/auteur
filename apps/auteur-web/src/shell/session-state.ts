@@ -125,7 +125,7 @@ export const STEP_ORDER: readonly Step[] = [
   "research",
   "clarify",
   "outline",
-  "draft",
+  "story",
   "result",
 ];
 

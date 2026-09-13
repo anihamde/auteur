@@ -17,28 +17,16 @@ export const clarify: Prompt<ClarifyInput> =
 export const corpusSelect: Prompt<CorpusSelectInput> =
 ```
 
-## `@auteur/prompt/critique`
-
-```ts
-export const critique: Prompt<CritiqueInput> =
-```
-
-## `@auteur/prompt/draft`
-
-```ts
-export const draft: Prompt<DraftInput> =
-```
-
 ## `@auteur/prompt/outline`
 
 ```ts
 export const outline: Prompt<OutlineInput> =
 ```
 
-## `@auteur/prompt/revise`
+## `@auteur/prompt/story`
 
 ```ts
-export const revise: Prompt<ReviseInput> =
+export const story: Prompt<StoryInput> =
 ```
 
 ## `@auteur/prompt/style-extract`

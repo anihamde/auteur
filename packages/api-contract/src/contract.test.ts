@@ -158,23 +158,28 @@ describe("bodies and queries are parsed, never trusted", () => {
   });
 });
 
-describe("the regenerate body is a discriminated union", () => {
-  test("an outline regeneration needs no offsets", () => {
-    expect(parseBody("regenerate", { kind: "outline" })).toEqual({
-      kind: "outline",
+describe("the regenerate body names a stage", () => {
+  test("a revisable stage is accepted", () => {
+    expect(parseBody("regenerate", { stageId: "outline" })).toEqual({
+      stageId: "outline",
     });
   });
 
-  test("a selection needs both offsets", () => {
+  test("a stage nothing revises is refused", () => {
+    // `style-extract` is a stage and is not one a reader regenerates: the card
+    // is measured from the corpus, and running it again would spend two model
+    // calls to produce the same readings.
     expect(() =>
-      parseBody("regenerate", { from: 0, kind: "selection" }),
+      parseBody("regenerate", { stageId: "style-extract" }),
     ).toThrow();
-    expect(
-      parseBody("regenerate", { from: 0, kind: "selection", to: 100 }),
-    ).toEqual({ from: 0, kind: "selection", to: 100 });
   });
 
-  test("an unknown kind is refused rather than defaulted", () => {
-    expect(() => parseBody("regenerate", { kind: "everything" })).toThrow();
+  test("the old selection body is refused rather than ignored", () => {
+    // Replacing one span was `revise` with a span instead of findings, and
+    // `revise` is gone. A client still sending it must fail rather than
+    // regenerate something it did not name.
+    expect(() =>
+      parseBody("regenerate", { from: 0, kind: "selection", to: 100 }),
+    ).toThrow();
   });
 });

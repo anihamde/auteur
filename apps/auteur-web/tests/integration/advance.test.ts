@@ -15,6 +15,7 @@ import {
   answerQuestion,
   putQuestionRound,
 } from "@auteur/session-store/questions";
+import { addRevisionNote } from "@auteur/session-store/revision-notes";
 import {
   createSession,
   requireSession,
@@ -107,9 +108,7 @@ describe("§7.5's six consequences", () => {
 
     const stale = await staleNow(sessionId);
     expect(stale).toContain("outline");
-    expect(stale).toContain("draft");
-    expect(stale).toContain("critique");
-    expect(stale).toContain("revise");
+    expect(stale).toContain("story");
     expect(stale).toContain("style-fit");
     // The corpus and the card were not built from the answers.
     expect(stale).not.toContain("corpus-select");
@@ -133,12 +132,12 @@ describe("§7.5's six consequences", () => {
     expect(session.idea).toBe("a lighthouse keeper who has never seen the sea");
   });
 
-  test("changing the preset restales outline and draft, and not the card", async () => {
+  test("changing the preset restales outline and story, and not the card", async () => {
     await updateSession(harness.db, sessionId, { lengthPreset: "short" });
 
     const stale = await staleNow(sessionId);
     expect(stale).toContain("outline");
-    expect(stale).toContain("draft");
+    expect(stale).toContain("story");
     expect(stale).not.toContain("style-extract");
     expect(stale).not.toContain("corpus-select");
     expect(stale).not.toContain("clarify");
@@ -151,10 +150,72 @@ describe("§7.5's six consequences", () => {
 
     const stale = await staleNow(sessionId);
     expect(stale).toContain("outline");
-    expect(stale).toContain("draft");
+    expect(stale).toContain("story");
     expect(stale).toContain("style-fit");
     expect(stale).not.toContain("corpus-select");
     expect(stale).not.toContain("style-extract");
+  });
+
+  test("a note on the outline restales the outline onward, and not the card", async () => {
+    // The whole of the feedback loop: a note is a direct input, so saying what
+    // is wrong with the beat sheet is what makes the beat sheet stale. Nothing
+    // in a route decides this, which is why a note can be filed without
+    // starting anything and `advance` still knows what to run.
+    await addRevisionNote(harness.db, {
+      id: newId(),
+      note: "Start at the letter. The lamp can come later.",
+      sessionId,
+      stageId: "outline",
+    });
+
+    const stale = await staleNow(sessionId);
+    expect(stale).toContain("outline");
+    expect(stale).toContain("story");
+    expect(stale).toContain("style-fit");
+    expect(stale).not.toContain("clarify");
+    expect(stale).not.toContain("style-extract");
+  });
+
+  test("a note on the story restales the story and not the outline", async () => {
+    // The half that makes iterating on the prose cheap: asking for a shorter
+    // middle must not rebuild the beat sheet the reader already approved.
+    await addRevisionNote(harness.db, {
+      id: newId(),
+      note: "The middle drags. Cut the second scene to half.",
+      sessionId,
+      stageId: "story",
+    });
+
+    const stale = await staleNow(sessionId);
+    expect(stale).toEqual(["story", "style-fit"]);
+  });
+
+  test("a second note restales again, so iterating is not a no-op", async () => {
+    // The failure this catches: a key built from the notes' *count*, or from
+    // the latest note alone. Either leaves the second note's key equal to the
+    // first's, `advance` finds nothing stale, and pressing the button does
+    // nothing at all.
+    await addRevisionNote(harness.db, {
+      id: newId(),
+      note: "Cut the second scene to half.",
+      sessionId,
+      stageId: "story",
+    });
+    const first = inputKeys(await stalenessInputFor(harness.db, sessionId)).get(
+      "story",
+    );
+
+    await addRevisionNote(harness.db, {
+      id: newId(),
+      note: "And give the ending more room.",
+      sessionId,
+      stageId: "story",
+    });
+    const second = inputKeys(
+      await stalenessInputFor(harness.db, sessionId),
+    ).get("story");
+
+    expect(second).not.toBe(first);
   });
 
   test("re-entering a step and changing nothing restales nothing", async () => {
@@ -167,7 +228,7 @@ describe("§7.5's six consequences", () => {
     const app = createApp({ apiToken: TOKEN, db: harness.db });
 
     const response = await app.request(`/api/sessions/${sessionId}/advance`, {
-      body: JSON.stringify({ to: "draft" satisfies Step }),
+      body: JSON.stringify({ to: "story" satisfies Step }),
       headers: {
         authorization: `Bearer ${TOKEN}`,
         "content-type": "application/json",
@@ -176,11 +237,11 @@ describe("§7.5's six consequences", () => {
     });
     expect(response.status).toBe(200);
     const body = ROUTES.advance.response.parse(await response.json());
-    expect(body.enqueued).toEqual(["outline", "draft"]);
+    expect(body.enqueued).toEqual(["outline", "story"]);
 
     // The response arrived with every row still queued: nothing ran.
     const queue = await listQueueForSession(harness.db, sessionId);
-    expect(queue.map((entry) => entry.stageId)).toEqual(["outline", "draft"]);
+    expect(queue.map((entry) => entry.stageId)).toEqual(["outline", "story"]);
     expect(queue.every((entry) => entry.status === "queued")).toBe(true);
   });
 });
@@ -203,13 +264,13 @@ describe("a stage whose stored shape changed is stale", () => {
     expect(after.get("corpus-select")).not.toBe(before.get("corpus-select"));
     // Downstream follows, because a stage's key includes the keys it reads.
     expect(after.get("work-fetch")).not.toBe(before.get("work-fetch"));
-    expect(after.get("draft")).not.toBe(before.get("draft"));
+    expect(after.get("story")).not.toBe(before.get("story"));
     // And it points one way: a stage downstream changing shape leaves the
-    // stages that produced its inputs alone, so bumping `draft` does not
+    // stages that produced its inputs alone, so bumping `story` does not
     // re-fetch a corpus.
-    const draftBumped = inputKeys(input, { ...OUTPUT_VERSIONS, draft: 99 });
-    expect(draftBumped.get("draft")).not.toBe(before.get("draft"));
-    expect(draftBumped.get("corpus-select")).toBe(before.get("corpus-select"));
+    const storyBumped = inputKeys(input, { ...OUTPUT_VERSIONS, story: 99 });
+    expect(storyBumped.get("story")).not.toBe(before.get("story"));
+    expect(storyBumped.get("corpus-select")).toBe(before.get("corpus-select"));
   });
 });
 
@@ -257,7 +318,7 @@ describe("advance's scope", () => {
       },
     });
     await app.request(`/api/sessions/${sessionId}/advance`, {
-      body: JSON.stringify({ to: "draft" satisfies Step }),
+      body: JSON.stringify({ to: "story" satisfies Step }),
       headers: {
         authorization: `Bearer ${TOKEN}`,
         "content-type": "application/json",

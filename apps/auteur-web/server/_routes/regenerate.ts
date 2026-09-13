@@ -1,92 +1,37 @@
 import { parseBody } from "@auteur/api-contract/contract";
 import { ROUTES } from "@auteur/api-contract/routes";
-import type { Story } from "@auteur/core/session";
-import { storySchema } from "@auteur/core/session";
 import type { Db } from "@auteur/db/db";
-import { AuteurError } from "@auteur/errors/auteur-error";
 import { newId } from "@auteur/ids/new-id";
-import { findArtifact } from "@auteur/session-store/artifacts";
 import { requireSession } from "@auteur/session-store/sessions";
 import { readStageKeys } from "@auteur/session-store/stage-keys";
 import { enqueueForRun } from "@auteur/stage-queue/queue";
-import { snapToSentence } from "@auteur/text/snap";
-import { countWords } from "@auteur/text/tokenize";
 import { Hono } from "hono";
 import { descendantsOf } from "../_graph.ts";
 import { idOf } from "./_id.ts";
 import type { AdvanceDeps } from "./advance.ts";
 
 /**
- * `POST /api/sessions/:id/regenerate` — the outline again, or one selection.
+ * `POST /api/sessions/:id/regenerate` — the same inputs, a different sample.
  *
- * §6.9: a selection is `revise` with a span instead of findings. Same role,
- * same tier, same model, same prompt package — so this route computes the span
- * and enqueues `revise`, and does not become a second pipeline.
+ * The other way to change an output is to say what is wrong with it, which is
+ * a note and reaches the stage through §7.5. This is the case where nothing is
+ * wrong with it in particular: run it again and see what comes back.
  *
  * **It enqueues the tail as well, and it is the only route that does.** §7.5
  * makes a stage stale when its inputs change, and a regenerate changes none of
- * them: it asks for a different output from the same idea, the same answers and
- * the same card. So the new beat sheet upserts over the old one, `draft`'s
- * input key — built from `outline`'s *key*, not from its output — is unchanged,
- * and the next `advance` finds nothing stale. The reader would keep the story
- * written from the beat sheet they just discarded, permanently.
+ * them. So the new beat sheet upserts over the old one, `story`'s input key —
+ * built from `outline`'s *key*, not from its output — is unchanged, and the
+ * next `advance` finds nothing stale. The reader would keep the story written
+ * from the beat sheet they just discarded, permanently.
  *
  * Only descendants that have **already run** are enqueued. Regenerating an
- * outline on a session that never drafted starts no draft; regenerating one on
- * a finished session replaces the story and the report that scored it, which is
+ * outline on a session that has no story starts no story; regenerating one on a
+ * finished session replaces the story and the report that scored it, which is
  * what "replace this output" means two stages down.
  */
-
-/**
- * The largest share of a story one selection may replace (§6.9).
- *
- * Above it the request is a re-draft, not a regeneration, and the rail already
- * offers re-entering step 6.
- */
-export const MAX_SELECTION_SHARE = 0.6;
-
-/**
- * Validate and snap a selection.
- *
- * The order matters: **snap first, then measure.** Snapping widens the span, so
- * measuring the raw selection would let a request through that, once widened,
- * rewrites more than the limit allows — and the value the prompt sees is the
- * snapped one, so the snapped one is what the limit is about.
- */
-export const selectionSpan = (
-  story: Story,
-  selection: { readonly from: number; readonly to: number },
-): { readonly from: number; readonly to: number } => {
-  if (selection.to <= selection.from) {
-    throw new AuteurError(
-      "invalid_input",
-      "A selection must cover at least one character.",
-    );
-  }
-  const snapped = snapToSentence(story.markdown, selection.from, selection.to);
-  const total = countWords(story.markdown);
-  const selected = countWords(story.markdown.slice(snapped.from, snapped.to));
-  if (total === 0 || selected / total > MAX_SELECTION_SHARE) {
-    throw new AuteurError(
-      "invalid_input",
-      "That selection covers too much of the story to regenerate. Re-enter the draft step instead.",
-    );
-  }
-  return snapped;
-};
-
 export type RegenerateDeps = {
   readonly db: Db;
   readonly invokeStage?: AdvanceDeps["invokeStage"];
-  /**
-   * Where the span is handed to `revise`. Injected so a test asserts what
-   * reached the prompt, which is the only place the snapping is observable.
-   */
-  readonly recordSpan?: (input: {
-    readonly sessionId: string;
-    readonly from: number;
-    readonly to: number;
-  }) => Promise<void>;
 };
 
 export const regenerateRoutes = (deps: RegenerateDeps): Hono => {
@@ -98,24 +43,12 @@ export const regenerateRoutes = (deps: RegenerateDeps): Hono => {
     const body = parseBody("regenerate", await context.req.json());
     await requireSession(db, id);
 
-    const stageId = body.kind === "outline" ? "outline" : "revise";
-
-    if (body.kind === "selection") {
-      const stored = await findArtifact(db, id, "draft");
-      if (stored === undefined) {
-        throw new AuteurError(
-          "invalid_input",
-          "There is no draft to regenerate a selection of.",
-        );
-      }
-      const span = selectionSpan(storySchema.parse(stored.body), body);
-      await deps.recordSpan?.({ from: span.from, sessionId: id, to: span.to });
-    }
-
     const completed = await readStageKeys(db, id);
     const rerun = [
-      stageId,
-      ...descendantsOf(stageId).filter((candidate) => completed.has(candidate)),
+      body.stageId,
+      ...descendantsOf(body.stageId).filter((candidate) =>
+        completed.has(candidate),
+      ),
     ];
 
     // Regenerating is asking a stage that has already run to run again, which

@@ -22,7 +22,7 @@ import { healthRoutes } from "./_routes/health.ts";
 import { modelRoutes } from "./_routes/models.ts";
 import { noteRoutes } from "./_routes/notes.ts";
 import { pinRoutes } from "./_routes/pins.ts";
-import { type RegenerateDeps, regenerateRoutes } from "./_routes/regenerate.ts";
+import { regenerateRoutes } from "./_routes/regenerate.ts";
 import { selectAuthorRoutes } from "./_routes/select-author.ts";
 import { sessionRoutes } from "./_routes/sessions.ts";
 
@@ -42,8 +42,6 @@ export type AppDeps = {
   readonly logger?: Logger;
   /** Asks the platform to run a stage now. See `_routes/advance.ts`. */
   readonly invokeStage?: AdvanceDeps["invokeStage"];
-  /** Where a regenerated selection's span is handed on. See `regenerate.ts`. */
-  readonly recordSpan?: RegenerateDeps["recordSpan"];
   /**
    * `POST /internal/stage`'s secret and stage body. Absent in a test that does
    * not exercise the pipeline, and the route is then not mounted at all —
@@ -256,7 +254,6 @@ export const createApp = (deps: AppDeps): Hono => {
     regenerateRoutes({
       db: deps.db,
       ...(deps.invokeStage !== undefined && { invokeStage: deps.invokeStage }),
-      ...(deps.recordSpan !== undefined && { recordSpan: deps.recordSpan }),
     }),
   );
   app.route(

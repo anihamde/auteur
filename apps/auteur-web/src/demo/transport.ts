@@ -85,6 +85,17 @@ const viewAt = (step: Step): ResponseOf<"session"> => ({
       reason: "You chose 'Only at the end' when asked whether he ever sees it.",
     },
   ],
+  // Two notes, because the loop is the product: the reader read the beat
+  // sheet, said what they wanted changed, and read it again.
+  notes: [
+    {
+      createdAt: new Date(1_770_000_300_000),
+      id: "01a07f00-0000-7000-8000-0000000000n1",
+      note: "Start at the letter. The lamp can come later.",
+      sessionId: RECORDED_SESSION_ID,
+      stageId: "outline" as const,
+    },
+  ],
   outline: OUTLINE,
   report: null,
   session: session(step),
@@ -123,6 +134,7 @@ export const demoTransport = (): Transport => {
           return viewAt(step).session;
         }
         if (name === "advance") return { enqueued: [] };
+        if (name === "notes") return { notes: viewAt(step).notes };
         if (name === "exportStory") {
           // The document the demo's story would export to, assembled here
           // rather than by `renderExport` — the demo runs in the browser and

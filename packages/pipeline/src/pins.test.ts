@@ -25,11 +25,11 @@ describe("a pin is validated against exactly the check the tier map used", () =>
     expect(verdict.reason).toContain("strict json_schema");
   });
 
-  test("the same pin on draft is accepted, because draft is untyped", () => {
+  test("the same pin on the story is accepted, because the story is untyped", () => {
     expect(
       validatePin({
         catalogue: CATALOG,
-        pin: { modelId: UNTYPED, stageId: "draft" },
+        pin: { modelId: UNTYPED, stageId: "story" },
         stages,
       }).accepted,
     ).toBe(true);
@@ -82,19 +82,23 @@ describe("what cannot be pinned", () => {
 });
 
 describe("use one model for every stage", () => {
-  test("a strict model pins all eight", () => {
+  test("a strict model pins every stage that runs one", () => {
     // The control the design does not have, and the commoner case: someone
-    // with one model they trust who wants the whole pipeline on it.
+    // with one model they trust who wants the whole pipeline on it. Counted
+    // from the stage list rather than written down, so a stage added with a
+    // tier is covered without an edit here.
+    const withModel = stages.filter((entry) => entry.tier !== undefined).length;
     const result = pinAll(TYPED, stages, CATALOG);
-    expect(result.accepted).toHaveLength(8);
+    expect(result.accepted).toHaveLength(withModel);
     expect(result.refused).toEqual([]);
   });
 
-  test("a non-strict model is refused for the seven typed stages, with reasons", () => {
-    // Rather than silently applied to draft alone.
+  test("a non-strict model is refused for every typed stage, with reasons", () => {
+    // Rather than silently applied to the story alone.
+    const typed = stages.filter((entry) => entry.typed).length;
     const result = pinAll(UNTYPED, stages, CATALOG);
-    expect(result.accepted.map((pin) => pin.stageId)).toEqual(["draft"]);
-    expect(result.refused).toHaveLength(7);
+    expect(result.accepted.map((pin) => pin.stageId)).toEqual(["story"]);
+    expect(result.refused).toHaveLength(typed);
     for (const refusal of result.refused) {
       expect(refusal.reason).toContain("strict json_schema");
     }

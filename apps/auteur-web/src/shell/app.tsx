@@ -9,12 +9,12 @@ import type { Step } from "@auteur/core/session";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { AuthorScreen } from "../screens/author.tsx";
 import { ClarifyScreen } from "../screens/clarify.tsx";
-import { DraftScreen } from "../screens/draft.tsx";
 import { IdeaScreen } from "../screens/idea.tsx";
 import { ModelsOverlay } from "../screens/models.tsx";
 import { OutlineScreen } from "../screens/outline.tsx";
 import { ResearchScreen } from "../screens/research.tsx";
 import { ResultScreen } from "../screens/result.tsx";
+import { StoryScreen } from "../screens/story.tsx";
 import {
   EMPTY,
   type SessionState,
@@ -267,7 +267,7 @@ export const noteFor = (
         ? undefined
         : `${view.outline.beats.length.toString()} beats`;
     }
-    case "draft": {
+    case "story": {
       return view.story === null
         ? undefined
         : `${view.story.wordCount.toLocaleString("en-US")} words`;
@@ -304,8 +304,8 @@ const Screen = (props: ScreenProps): ReactElement => {
     case "outline": {
       return <OutlineScreen {...props} />;
     }
-    case "draft": {
-      return <DraftScreen {...props} />;
+    case "story": {
+      return <StoryScreen {...props} />;
     }
     default: {
       return <ResultScreen {...props} />;

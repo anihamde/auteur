@@ -1,12 +1,13 @@
 import { author } from "./author.ts";
 import { clarify } from "./clarify.ts";
-import { draft } from "./draft.ts";
+
 import { idea } from "./idea.ts";
 import { models } from "./models.ts";
 import { outline } from "./outline.ts";
 import { research } from "./research.ts";
 import { result } from "./result.ts";
 import { shell } from "./shell.ts";
+import { story } from "./story.ts";
 
 /**
  * The barrel, and the reason there is one.
@@ -23,13 +24,13 @@ import { shell } from "./shell.ts";
 export const COPY = {
   author,
   clarify,
-  draft,
   idea,
   models,
   outline,
   research,
   result,
   shell,
+  story,
 } as const;
 
 export type Copy = typeof COPY;

@@ -17,12 +17,6 @@ export const author =
 export const clarify =
 ```
 
-## `@auteur/copy/draft`
-
-```ts
-export const draft =
-```
-
 ## `@auteur/copy/idea`
 
 ```ts
@@ -64,4 +58,10 @@ export const result =
 
 ```ts
 export const shell =
+```
+
+## `@auteur/copy/story`
+
+```ts
+export const story =
 ```

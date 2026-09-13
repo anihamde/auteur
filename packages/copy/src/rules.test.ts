@@ -51,7 +51,7 @@ describe("the app addresses you, and never says we, I or Let's", () => {
 describe("labels do not end in a period; sentences do", () => {
   /** A label is a button, a column head, a tab, a badge, an eyebrow. */
   const LABEL_PATHS =
-    /\.(next|back|title|eyebrow|.*Label|tabs\..*|columns\..*|steps\..*|tier.*|strategy\..*|wordmark|themeAuto|themeLight|themeDark|regenerate|changeModel|exportMarkdown|exportPdf|exportWorking|newSession|regenerateSection|generateNow|followUpReveal|skipped|followDefaults|oneModelLabel|paperEyebrow|titlePrefix|searchPlaceholder|exemplarsRule|whyAsked|round|wordsOf|stepOf|pinRefused|secondaryReason|decisions.*|modelsByTier|modelsPinned)$/;
+    /\.(next|back|title|eyebrow|.*Label|tabs\..*|columns\..*|steps\..*|tier.*|strategy\..*|wordmark|themeAuto|themeLight|themeDark|regenerate|changeModel|exportMarkdown|exportPdf|exportWorking|working|approve|rewrite|notesLabel|newSession|generateNow|followUpReveal|skipped|followDefaults|oneModelLabel|paperEyebrow|titlePrefix|searchPlaceholder|exemplarsRule|whyAsked|round|wordsOf|stepOf|pinRefused|secondaryReason|decisions.*|modelsByTier|modelsPinned)$/;
 
   test("no label carries a terminal period", () => {
     const offenders = strings.filter(

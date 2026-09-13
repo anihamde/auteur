@@ -80,6 +80,15 @@ export const sessionViewSchema = z.object({
   answers: z.array(questionSchema),
   card: styleCardSchema.nullable(),
   decisions: z.array(decisionEntrySchema),
+  /**
+   * Every note the reader has written, oldest first, across both stages.
+   *
+   * Here rather than on a route of its own because invariant 3 says every step
+   * is re-enterable: a reader who reloads on the outline screen has to see what
+   * they already asked for, and a client that fetched them separately would
+   * have a second chance to render a half-loaded screen.
+   */
+  notes: z.array(revisionNoteSchema),
   outline: outlineSchema.nullable(),
   report: styleFitReportSchema.nullable(),
   session: sessionSchema,
@@ -277,15 +286,17 @@ export const ROUTES = {
       pins: z.record(z.string().min(1), z.string().min(1)),
     }),
   },
+  /**
+   * `POST /api/sessions/:id/regenerate` — the same inputs, a different sample.
+   *
+   * The stage, by name. There is no `selection` kind any more: replacing one
+   * span of prose was `revise` with a span instead of findings, and `revise` is
+   * gone — a reader who wants the middle cut says so in a note, which the
+   * `story` stage reads along with the story it is rewriting. That is the same
+   * affordance in one mechanism instead of two.
+   */
   regenerate: {
-    body: z.discriminatedUnion("kind", [
-      z.object({ kind: z.literal("outline") }),
-      z.object({
-        from: z.number().int().nonnegative(),
-        kind: z.literal("selection"),
-        to: z.number().int().nonnegative(),
-      }),
-    ]),
+    body: z.object({ stageId: revisableStageSchema }),
     method: "POST",
     params: idParam,
     path: "/api/sessions/:id/regenerate",

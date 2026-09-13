@@ -3,10 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { clarify } from "./clarify.ts";
 import { corpusSelect } from "./corpus-select.ts";
-import { critique } from "./critique.ts";
-import { draft } from "./draft.ts";
 import { outline } from "./outline.ts";
-import { revise } from "./revise.ts";
+import { story } from "./story.ts";
 import { styleExtract } from "./style-extract.ts";
 import { styleFields } from "./style-fields.ts";
 import { summarizeBeat } from "./summarize-beat.ts";
@@ -15,17 +13,15 @@ import { PROMPT_VERSIONS, type Prompt } from "./versions.ts";
 /**
  * The properties every prompt has, asserted once rather than per module.
  *
- * A per-module copy of these would be eight copies to keep in agreement, and
- * the ninth prompt would arrive with seven of them.
+ * A per-module copy of these would be one copy per prompt to keep in
+ * agreement, and the next prompt would arrive with all but one of them.
  */
 
 const PROMPTS = [
   clarify,
   corpusSelect,
-  critique,
-  draft,
   outline,
-  revise,
+  story,
   styleExtract,
   styleFields,
   summarizeBeat,

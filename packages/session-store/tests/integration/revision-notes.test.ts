@@ -37,7 +37,7 @@ const aSession = async (): Promise<string> => {
   return session.id;
 };
 
-const note = (sessionId: string, stageId: "outline" | "draft", text: string) =>
+const note = (sessionId: string, stageId: "outline" | "story", text: string) =>
   addRevisionNote(harness.db, { id: newId(), note: text, sessionId, stageId });
 
 describe("notes accumulate rather than replace", () => {
@@ -79,16 +79,16 @@ describe("notes accumulate rather than replace", () => {
 });
 
 describe("a note belongs to one stage of one session", () => {
-  test("the outline's notes are not the draft's", async () => {
+  test("the outline's notes are not the story's", async () => {
     const sessionId = await aSession();
     await note(sessionId, "outline", "shorter in the middle");
-    await note(sessionId, "draft", "the dialogue is too clean");
+    await note(sessionId, "story", "the dialogue is too clean");
 
     expect(
-      await listRevisionNotes(harness.db, sessionId, "draft"),
+      await listRevisionNotes(harness.db, sessionId, "story"),
     ).toHaveLength(1);
     const grouped = await revisionNotesFor(harness.db, sessionId);
-    expect([...grouped.keys()].toSorted()).toEqual(["draft", "outline"]);
+    expect([...grouped.keys()].toSorted()).toEqual(["outline", "story"]);
     expect(grouped.get("outline")?.map((entry) => entry.note)).toEqual([
       "shorter in the middle",
     ]);
