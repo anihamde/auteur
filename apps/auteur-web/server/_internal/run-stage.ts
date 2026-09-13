@@ -1,4 +1,3 @@
-import { DEFAULT_PIPELINE } from "@auteur/config/stages";
 import type { SessionEvent } from "@auteur/core/events";
 import type { Db } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
@@ -13,6 +12,7 @@ import {
   enqueueForRun,
   failStage,
 } from "@auteur/stage-queue/queue";
+import { successorsWithin } from "../_graph.ts";
 import { stalenessInputFor } from "../_routes/advance.ts";
 import { inputKeys } from "../_staleness.ts";
 
@@ -78,12 +78,6 @@ export type StageOutcome = {
   readonly enqueued: readonly string[];
 };
 
-/** The stages the pipeline would run after this one, in graph order. */
-export const successorsOf = (stageId: string): string[] =>
-  DEFAULT_PIPELINE.stages
-    .filter((stage) => stage.reads.includes(stageId))
-    .map((stage) => stage.id);
-
 export const runClaimedStage = async (
   deps: RunStageDeps,
   claimed: ClaimedStage,
@@ -140,14 +134,18 @@ export const runClaimedStage = async (
   // The key is recorded in the same breath as the completion, so a stage whose
   // output was written and whose key was not cannot exist — that state presents
   // as a stage that re-runs for ever.
-  const keys = inputKeys(await stalenessInputFor(db, claimed.sessionId));
+  const stalenessInput = await stalenessInputFor(db, claimed.sessionId);
+  const keys = inputKeys(stalenessInput);
   const key = keys.get(claimed.stageId);
   if (key !== undefined) {
     await recordStageKey(db, claimed.sessionId, claimed.stageId, key, output);
   }
   await completeStage(db, claimed.queueId, claimed.claimant);
 
-  const next = successorsOf(claimed.stageId);
+  // Read after the body ran, not before: a stage body can be the thing that
+  // moves the session on, and the successors that matter are the ones the
+  // session wants now.
+  const next = successorsWithin(claimed.stageId, stalenessInput.session.step);
   // `enqueueForRun`, not `enqueueStage`: on a second run of a session — a
   // changed author, a regenerate — each successor still carries the finished
   // row from the first, and a plain enqueue collides with it. Without this the
