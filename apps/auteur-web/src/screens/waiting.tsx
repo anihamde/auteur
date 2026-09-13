@@ -18,6 +18,23 @@ import { detailFor, stateFor } from "../shell/session-state.ts";
  * detail lines, read from the same events. A second way of saying "running"
  * would be a second thing to keep true.
  */
+/**
+ * One sentence per state, and `done` is the one that is easy to forget.
+ *
+ * A stage can finish and produce nothing: `clarify` is asked to judge whether
+ * the idea leaves anything open, and "no" is a legitimate answer — it writes no
+ * questions, emits `stage_end`, and nothing else ever runs on that step. With
+ * `done` falling through to the queued sentence, the screen told the reader the
+ * step had not started, under a row whose dot was already green, on a session
+ * that was ready to move on.
+ */
+const SENTENCE: Readonly<Record<ReturnType<typeof stateFor>, string>> = {
+  done: COPY.shell.stageEmpty,
+  failed: COPY.shell.stageFailed,
+  pending: COPY.shell.stageQueued,
+  running: COPY.shell.stageRunning,
+};
+
 export type WaitingProps = {
   readonly events: readonly StoredEvent[];
   readonly stageId: string;
@@ -32,13 +49,7 @@ export const Waiting = ({ events, stageId }: WaitingProps): ReactElement => {
         stage={stageId}
         state={state}
       />
-      <p>
-        {state === "failed"
-          ? COPY.shell.stageFailed
-          : state === "running"
-            ? COPY.shell.stageRunning
-            : COPY.shell.stageQueued}
-      </p>
+      <p>{SENTENCE[state]}</p>
     </div>
   );
 };

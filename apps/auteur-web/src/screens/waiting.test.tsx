@@ -84,6 +84,45 @@ describe("a step with no output says which of three things is true", () => {
   });
 });
 
+describe("a stage that finished and produced nothing", () => {
+  const finished = (stageId: "clarify" | "outline") => [
+    event(1, { role: "question" as const, stageId, type: "stage_start" }),
+    event(2, { elapsedMs: 900, stageId, type: "stage_end" }),
+  ];
+
+  test("it says so, rather than saying it has not started", () => {
+    // `clarify` is asked to judge whether the idea leaves anything open, and
+    // "no" is a legitimate answer: it writes no questions, emits `stage_end`,
+    // and nothing else ever runs on that step. `done` fell through to the
+    // queued sentence, so the screen told the reader the step had not started
+    // — under a row whose dot was already green.
+    const { container } = render(emptyAt("clarify", finished("clarify")));
+    expect(container.textContent).toContain(COPY.shell.stageEmpty);
+    expect(container.textContent).not.toContain(COPY.shell.stageQueued);
+  });
+
+  test("and the way forward is open", () => {
+    // The other half: the one control off this screen was gated on a question
+    // existing, so a session clarify had finished with nothing to ask had no
+    // way out of the step at all.
+    const { container } = render(emptyAt("clarify", finished("clarify")));
+    const forward = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === COPY.clarify.generateNow,
+    );
+    expect(forward?.disabled).toBe(false);
+  });
+
+  test("with nothing recorded at all it is still gated", () => {
+    // A session whose stream has delivered nothing yet must not offer to skip
+    // past a step that has not run.
+    const { container } = render(emptyAt("clarify"));
+    const forward = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === COPY.clarify.generateNow,
+    );
+    expect(forward?.disabled).toBe(true);
+  });
+});
+
 describe("every screen that can be empty has one", () => {
   test.each([
     ["clarify", "clarify"],

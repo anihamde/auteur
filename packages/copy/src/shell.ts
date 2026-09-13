@@ -32,6 +32,7 @@ export const shell = {
    * wait, wait, and look at what went wrong. A single "Loading" would be the
    * same word over a stage that has failed.
    */
+  stageEmpty: "This step finished and produced nothing. Carry on.",
   stageFailed: "This step did not finish. The reason is in the row above.",
   stageQueued: "Queued. It starts when the step before it finishes.",
   stageRunning: "Running. This page updates itself when it finishes.",
