@@ -10,6 +10,7 @@ import { COPY } from "@auteur/copy/index";
 import { type ReactElement, useState } from "react";
 import type { ScreenProps } from "../shell/app.tsx";
 import { browserSaver, fileNameFor, saveText } from "./download.ts";
+import { Waiting } from "./waiting.tsx";
 
 /**
  * Screen 7 — the story, how well it matched, and what was decided for you.
@@ -133,10 +134,17 @@ export const ResultScreen = ({
         </Card>
       ) : undefined}
 
-      {tab === "fit" ? (
+      {tab === "fit" && view?.report == null ? (
+        // The report is `style-fit`'s, and it runs no model — so on a slow
+        // session this tab was a heading over nothing, with no way to tell
+        // whether it was coming.
+        <Waiting events={state.events} stageId="style-fit" />
+      ) : undefined}
+
+      {tab === "fit" && view?.report != null ? (
         <Card ground="ink" padding="lg">
-          <p>{view?.report?.summary ?? ""}</p>
-          {(view?.report?.measures ?? []).map((measure) => (
+          <p>{view.report.summary}</p>
+          {view.report.measures.map((measure) => (
             <ProsodyStat
               band={measure.band}
               key={measure.path}

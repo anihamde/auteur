@@ -4,6 +4,8 @@ import { COPY } from "@auteur/copy/index";
 import { MAX_QUESTIONS, MAX_ROUNDS } from "@auteur/pipeline/clarify";
 import { type ReactElement, useState } from "react";
 import type { ScreenProps } from "../shell/app.tsx";
+import { stateFor } from "../shell/session-state.ts";
+import { Waiting } from "./waiting.tsx";
 
 /**
  * Screen 4 — resolve what the idea left open, without ever blocking.
@@ -67,6 +69,13 @@ export const ClarifyScreen = ({
         {asked.length.toString()}/{MAX_QUESTIONS.toString()}
       </p>
 
+      {/* No questions is not a state with nothing to say: `clarify` is either
+          queued, running, or it failed, and the three call for different
+          things from the reader. It read as "there is nothing to answer". */}
+      {questions.length === 0 ? (
+        <Waiting events={state.events} stageId="clarify" />
+      ) : undefined}
+
       {questions.map((question) => (
         <Card ground="ink" key={question.id} padding="sm">
           <Field
@@ -111,7 +120,13 @@ export const ClarifyScreen = ({
       <p>{COPY.clarify.skipNeverBlocked}</p>
       {/* Live from the end of round 1, not from the end of the budget. */}
       <Button
-        disabled={rounds.size === 0}
+        // Open once `clarify` has finished, not once it has asked something.
+        // "Nothing here is ambiguous" is a legitimate answer, and gating the
+        // one control forward on a question existing left such a session with
+        // no way out of the step at all.
+        disabled={
+          rounds.size === 0 && stateFor(state.events, "clarify") !== "done"
+        }
         onClick={() => void generateNow()}
         variant="primary"
       >
