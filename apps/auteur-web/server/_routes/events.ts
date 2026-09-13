@@ -72,6 +72,11 @@ export const eventRoutes = (deps: EventRoutesDeps): Hono => {
   const poll = deps.pollMs ?? POLL_INTERVAL_MS;
 
   routes.get(ROUTES.events.path, async (context) => {
+    // Before anything else. The budget is the whole request's, and it was
+    // started after `requireSession`, the direct `LISTEN` connect and the
+    // first replay — so a cold connection or a long replay spent the margin
+    // the budget exists to hold, and the platform killed the function anyway.
+    const deadline = Date.now() + budget;
     const id = idOf(context.req.param("id") ?? "");
     const { cursor } = parseQuery("events", {
       cursor: context.req.query("cursor") ?? "0",
@@ -119,17 +124,29 @@ export const eventRoutes = (deps: EventRoutesDeps): Hono => {
           // every missed event before anything new arrives, in order.
           await drain();
 
-          const deadline = Date.now() + budget;
           while (!closed && Date.now() < deadline) {
             // Woken by a notification, or by the poll — whichever comes first.
             // The poll is not a fallback for correctness, only for latency:
             // the next drain reads the table either way.
+            //
+            // Never past the deadline: waiting a full second on top of it is
+            // how a budget under the ceiling still overshoots it.
+            const wait = Math.min(poll, Math.max(0, deadline - Date.now()));
             await new Promise<void>((resolve) => {
               wake = resolve;
-              setTimeout(resolve, poll);
+              setTimeout(resolve, wait);
             });
             wake = undefined;
             await drain();
+            // A comment frame, which SSE ignores and every proxy forwards.
+            //
+            // It is what tells the client the connection is alive while the
+            // pipeline is quiet. Without it a stream that says nothing for
+            // minutes — most of a research stage — is indistinguishable from
+            // one talking to a route that will never speak, and the client has
+            // to choose between giving up on a working stream and never giving
+            // up on a broken one.
+            if (!closed) controller.enqueue(encoder.encode(": keep-alive\n\n"));
           }
         } finally {
           await finish();

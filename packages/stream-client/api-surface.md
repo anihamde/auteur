@@ -8,7 +8,6 @@ change and needs a contract review, per the implementation plan's gate 4.
 ## `@auteur/stream-client/stream-client`
 
 ```ts
-export const HEALTHY_CONNECTION_MS = 5000
 export const MAX_EMPTY_RECONNECTS = 5
 export const connectStream = (config: StreamConfig): Stream =>
 export const splitFrames = (
