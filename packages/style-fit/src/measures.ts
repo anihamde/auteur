@@ -101,6 +101,39 @@ const pointsFor = (
   return Object.values(block.perWork).map(scored.of);
 };
 
+/**
+ * One measure's corpus value and band, with no draft to compare against.
+ *
+ * The drafting prompt has a "Measured targets" section and was being handed the
+ * card summary a second time — the numbers this product exists to measure never
+ * reached the stage that writes the prose, and the report then scored the draft
+ * against bands it had never been shown. The bands are computed here by the
+ * same `bandFor` over the same points as `measuresFor`, so the target the draft
+ * is given and the target it is scored against cannot come apart.
+ */
+export type TargetBand = {
+  readonly path: string;
+  readonly label: string;
+  readonly corpusValue: number;
+  readonly band: readonly [number, number];
+};
+
+export const targetBands = (
+  card: StyleCard,
+  corpusSentenceLengths?: readonly number[],
+): TargetBand[] =>
+  scoredMeasures().map((scored) => {
+    const { band } = bandFor(
+      pointsFor(scored, card.prosody, corpusSentenceLengths),
+    );
+    return {
+      band: [band[0], band[1]] as const,
+      corpusValue: scored.of(card.prosody),
+      label: scored.label,
+      path: scored.path,
+    };
+  });
+
 export type MeasureInput = {
   readonly card: StyleCard;
   /** The draft's own prosody, measured with the same functions. */

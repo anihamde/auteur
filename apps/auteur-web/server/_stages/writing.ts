@@ -1,6 +1,7 @@
 import type { Finding } from "@auteur/core/fit";
 import { outlineSchema, WORD_TARGET } from "@auteur/core/session";
-import type { StyleCard } from "@auteur/core/style-card";
+import type { Exemplar, StyleCard } from "@auteur/core/style-card";
+import { findPassages } from "@auteur/corpus-store/passages";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import {
   type ProsodyUnit,
@@ -10,7 +11,10 @@ import { newId } from "@auteur/ids/new-id";
 import { applyBudget, clarifyResultSchema } from "@auteur/pipeline/clarify";
 import { clarify as clarifyPrompt } from "@auteur/prompt/clarify";
 import { critique as critiquePrompt } from "@auteur/prompt/critique";
-import { draft as draftPrompt } from "@auteur/prompt/draft";
+import {
+  type Exemplar as DraftExemplar,
+  draft as draftPrompt,
+} from "@auteur/prompt/draft";
 import { outline as outlinePrompt } from "@auteur/prompt/outline";
 import { revise as revisePrompt } from "@auteur/prompt/revise";
 import { measureWork } from "@auteur/prosody/prosody";
@@ -21,7 +25,7 @@ import {
   putQuestionRound,
 } from "@auteur/session-store/questions";
 import { triageFindings } from "@auteur/style-fit/findings";
-import { measuresFor } from "@auteur/style-fit/measures";
+import { measuresFor, targetBands } from "@auteur/style-fit/measures";
 import { detectDialogueMarker } from "@auteur/text/dialogue-marker";
 import { countWords } from "@auteur/text/tokenize";
 import { z } from "zod";
@@ -66,6 +70,55 @@ const unitFor = (path: string): ProsodyUnit => {
   if (path.endsWith("Ratio") || path.endsWith("mattr")) return "ratio";
   return "words";
 };
+
+/**
+ * Exemplars carrying the passage each one points at.
+ *
+ * The card stores an exemplar as a `passageId` and what it demonstrates — the
+ * passage itself lives in `passages`, where it is shared with every other card
+ * that cites it. The drafting stage was building its prompt straight from the
+ * card and passing `text: ""`, so the "Passages from the author's own work,
+ * verbatim" section was fifteen headings over nothing: the one place in the
+ * pipeline where the author's actual prose reaches the model had none of it.
+ *
+ * An exemplar whose passage is gone — or stored empty — is dropped rather than
+ * rendered blank. A heading with no body is not weaker evidence, it is a claim
+ * with none, and it is the state this function exists to make impossible.
+ */
+export const attachPassageText = (
+  exemplars: readonly Exemplar[],
+  passages: readonly { readonly id: string; readonly text: string }[],
+): DraftExemplar[] => {
+  const byId = new Map(passages.map((passage) => [passage.id, passage.text]));
+  return exemplars.flatMap((exemplar) => {
+    const text = byId.get(exemplar.passageId);
+    return text === undefined || text.length === 0
+      ? []
+      : [
+          {
+            demonstrates: exemplar.demonstrates,
+            text,
+            workTitle: exemplar.workTitle,
+          },
+        ];
+  });
+};
+
+/**
+ * The measured targets, as the draft is asked to aim at them.
+ *
+ * The same bands `style-fit` will score the draft against, rendered in the same
+ * units the report renders them in. `runDraft` was passing the card summary
+ * here — the prompt's "Measured targets" section repeated its "style card"
+ * section word for word, and the numbers never arrived.
+ */
+export const renderTargets = (card: StyleCard): string =>
+  targetBands(card)
+    .map((target) => {
+      const unit = unitFor(target.path);
+      return `- ${target.label}: ${prosodyValue(target.corpusValue, unit)} (corpus range ${prosodyValue(target.band[0], unit)}–${prosodyValue(target.band[1], unit)})`;
+    })
+    .join("\n");
 
 const priorAnswers = async (context: StageContext) => {
   const [answered, questions] = await Promise.all([
@@ -237,19 +290,22 @@ export const runDraft = async (
   inputKey: string,
 ) => {
   const target = WORD_TARGET[context.session.lengthPreset];
+  const exemplars = attachPassageText(
+    card.exemplars,
+    await findPassages(
+      context.db,
+      card.exemplars.map((exemplar) => exemplar.passageId),
+    ),
+  );
   const text = await callModel(context, {
     prompt: draftPrompt.build({
       antiPatterns: card.antiPatterns.value,
       authorName: card.author.displayName,
       beats: outline.beats,
       cardSummary: summariseCard(card),
-      exemplars: card.exemplars.map((exemplar) => ({
-        demonstrates: exemplar.demonstrates,
-        text: "",
-        workTitle: exemplar.workTitle,
-      })),
+      exemplars,
       lengthPreset: context.session.lengthPreset,
-      targets: summariseCard(card),
+      targets: renderTargets(card),
       title: outline.title,
       wordTarget: target,
     }),

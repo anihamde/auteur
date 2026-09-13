@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { latinateGate } from "@auteur/prosody/latinate-gate";
 import { cardWith, corpusBlock, workProsody } from "./fixtures.ts";
-import { measuresFor, scoredMeasures } from "./measures.ts";
+import { measuresFor, scoredMeasures, targetBands } from "./measures.ts";
 
 const card = cardWith(corpusBlock());
 const measures = measuresFor({ card, draft: workProsody() });
@@ -160,5 +160,37 @@ describe("the verdict compares the draft to the corpus", () => {
       }),
     })[0];
     expect(far?.status).toBe("fail");
+  });
+});
+
+describe("the targets a draft is given are the targets it is scored against", () => {
+  test("every band matches the one measuresFor scores with", () => {
+    // The failure this catches: a second band computation for the drafting
+    // prompt, drifting from the report's. The draft is then asked to aim at
+    // one range and marked against another, and every reading of the report
+    // is wrong in a way no test of either half would show.
+    const targets = targetBands(card);
+    expect(targets.map((target) => target.path)).toEqual(paths);
+    for (const target of targets) {
+      const scored = measures.find((measure) => measure.path === target.path);
+      expect(scored?.band).toEqual([target.band[0], target.band[1]]);
+      expect(scored?.corpusValue).toBe(target.corpusValue);
+    }
+  });
+
+  test("the sentence-length band uses the corpus sentences when given", () => {
+    // The one measure whose band is not built from per-work means. Passing the
+    // sentences must reach `targetBands` too, or the drafting prompt states a
+    // band far narrower than the one the report will use.
+    const sentences = Array.from(
+      { length: 200 },
+      (_, index) => 6 + (index % 60),
+    );
+    const withSentences = targetBands(card, sentences);
+    const plain = targetBands(card);
+    const path = "prosody.sentenceLength.mean";
+    expect(
+      withSentences.find((target) => target.path === path)?.band,
+    ).not.toEqual(plain.find((target) => target.path === path)?.band);
   });
 });

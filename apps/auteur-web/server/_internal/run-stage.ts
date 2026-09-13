@@ -1,5 +1,6 @@
-import { DEFAULT_PIPELINE } from "@auteur/config/stages";
+import { DEFAULT_PIPELINE, STAGE_IDS } from "@auteur/config/stages";
 import type { SessionEvent } from "@auteur/core/events";
+import type { Step } from "@auteur/core/session";
 import type { Db } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { detailLine } from "@auteur/errors/detail-line";
@@ -13,7 +14,7 @@ import {
   enqueueForRun,
   failStage,
 } from "@auteur/stage-queue/queue";
-import { stalenessInputFor } from "../_routes/advance.ts";
+import { LAST_STAGE_FOR_STEP, stalenessInputFor } from "../_routes/advance.ts";
 import { inputKeys } from "../_staleness.ts";
 
 /**
@@ -84,6 +85,31 @@ export const successorsOf = (stageId: string): string[] =>
     .filter((stage) => stage.reads.includes(stageId))
     .map((stage) => stage.id);
 
+/**
+ * The successors the session has actually asked for, in graph order.
+ *
+ * §7.1 says `advance` is the only route that *starts* work, and on the
+ * serverless path that was true by accident: a finished stage enqueued its
+ * successors, one invocation was asked for, and the rest sat in the queue until
+ * the reader pressed a button. The worker drains the queue, so the accident
+ * ended — `clarify` wrote its questions and `outline` started in the same
+ * second, read an empty answer set, and built the beat sheet from the idea
+ * alone. The reader's answers were never read by anything.
+ *
+ * So the bound is stated rather than inherited, and it is the same bound
+ * `enqueueStaleUpTo` uses: nothing past the last stage the current step needs.
+ * A step that needs no stage (`idea`, `author`) enqueues nothing at all.
+ */
+export const successorsWithin = (stageId: string, step: Step): string[] => {
+  const limit = LAST_STAGE_FOR_STEP[step];
+  if (limit === undefined) return [];
+  const bound = STAGE_IDS.indexOf(limit);
+  return successorsOf(stageId).filter((id) => {
+    const at = STAGE_IDS.indexOf(id);
+    return at !== -1 && at <= bound;
+  });
+};
+
 export const runClaimedStage = async (
   deps: RunStageDeps,
   claimed: ClaimedStage,
@@ -140,14 +166,18 @@ export const runClaimedStage = async (
   // The key is recorded in the same breath as the completion, so a stage whose
   // output was written and whose key was not cannot exist — that state presents
   // as a stage that re-runs for ever.
-  const keys = inputKeys(await stalenessInputFor(db, claimed.sessionId));
+  const stalenessInput = await stalenessInputFor(db, claimed.sessionId);
+  const keys = inputKeys(stalenessInput);
   const key = keys.get(claimed.stageId);
   if (key !== undefined) {
     await recordStageKey(db, claimed.sessionId, claimed.stageId, key, output);
   }
   await completeStage(db, claimed.queueId, claimed.claimant);
 
-  const next = successorsOf(claimed.stageId);
+  // Read after the body ran, not before: a stage body can be the thing that
+  // moves the session on, and the successors that matter are the ones the
+  // session wants now.
+  const next = successorsWithin(claimed.stageId, stalenessInput.session.step);
   // `enqueueForRun`, not `enqueueStage`: on a second run of a session — a
   // changed author, a regenerate — each successor still carries the finished
   // row from the first, and a plain enqueue collides with it. Without this the

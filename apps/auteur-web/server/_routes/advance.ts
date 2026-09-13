@@ -173,12 +173,18 @@ export const advanceRoutes = (deps: AdvanceDeps): Hono => {
   routes.post(ROUTES.advance.path, async (context) => {
     const id = idOf(context.req.param("id") ?? "");
     const body = parseBody("advance", await context.req.json());
-    const enqueued = await enqueueStaleUpTo(deps, id, body.to);
+    // The step moves **before** the work is enqueued, as `selectAuthor` does
+    // it. A finished stage enqueues its successors only up to the step the
+    // session is on, so a stage that completed inside the window between the
+    // enqueue and the update would read the step the reader has left and stop
+    // the chain one stage in.
+    //
     // Asking to advance to a step is how the wizard moves. The rail offers
     // only steps already behind you, so without this a screen starts work and
     // stays where it was — `outline`'s "Draft" button enqueued the draft and
     // left the reader looking at the beat sheet.
     await updateSession(deps.db, id, { step: body.to });
+    const enqueued = await enqueueStaleUpTo(deps, id, body.to);
     return context.json({ enqueued });
   });
 

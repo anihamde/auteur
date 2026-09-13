@@ -10,7 +10,7 @@ import { AuteurError } from "@auteur/errors/auteur-error";
 import { readSince } from "@auteur/event-store/events";
 import { newId } from "@auteur/ids/new-id";
 import { createLogger } from "@auteur/logger/logger";
-import { createSession } from "@auteur/session-store/sessions";
+import { createSession, updateSession } from "@auteur/session-store/sessions";
 import { claimNext } from "@auteur/stage-queue/claim-next";
 import {
   enqueueStage,
@@ -54,6 +54,10 @@ beforeEach(async () => {
     lengthPreset: "flash",
   });
   sessionId = session.id;
+  // On the `research` step, so the fetch chain is inside what the session has
+  // asked for. A stage never enqueues a successor past the step the reader is
+  // on, and a session left on `idea` would enqueue nothing at all.
+  await updateSession(harness.db, sessionId, { step: "research" });
 });
 
 const noop: StageBody = async () => undefined;
