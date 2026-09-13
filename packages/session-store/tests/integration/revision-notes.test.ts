@@ -53,28 +53,32 @@ describe("notes accumulate rather than replace", () => {
     ).toEqual(["shorter in the middle", "and give the ending more room"]);
   });
 
-  test("two written in the same millisecond still have an order", async () => {
-    // `created_at` defaults to `now()`, which is the transaction's clock and
-    // is identical for two inserts a microsecond apart. Ordering by it alone
-    // leaves the pair free to swap between reads, so the stage's prompt would
-    // change without any note changing — and §7.5 would not restale it,
-    // because the note set is the same set.
+  test("three written inside one millisecond come back in insertion order", async () => {
+    // The defect this holds shut, and the reason the order is a sequence.
+    // `created_at` is `now()` — the transaction's clock, identical for inserts
+    // a microsecond apart — and `newId()` is a millisecond-precision UUIDv7
+    // with random bits below it. Ordering by either gives a *stable* order and
+    // not an *insertion* order, so the stage's prompt would differ between runs
+    // with no note changing, and §7.5 would not restale it because the note set
+    // is the same set.
     const sessionId = await aSession();
-    const written = await Promise.all([
-      note(sessionId, "outline", "first"),
-      note(sessionId, "outline", "second"),
-      note(sessionId, "outline", "third"),
-    ]);
-    const ids = new Set(written.map((entry) => entry.id));
-
-    const reads = await Promise.all([
-      listRevisionNotes(harness.db, sessionId, "outline"),
-      listRevisionNotes(harness.db, sessionId, "outline"),
-    ]);
-    expect(reads[0]?.map((entry) => entry.id)).toEqual(
-      reads[1]?.map((entry) => entry.id) ?? [],
+    for (const text of ["first", "second", "third"]) {
+      await note(sessionId, "outline", text);
+    }
+    // The tie, forced: three rows on one timestamp is what two inserts in the
+    // same millisecond produce, and what a test of sequential awaits cannot
+    // reach. On `ORDER BY created_at, id` this returns them in UUID order,
+    // which is random.
+    await harness.db.query(
+      `UPDATE revision_notes SET created_at = now() WHERE session_id = $1`,
+      [sessionId],
     );
-    expect(new Set(reads[0]?.map((entry) => entry.id))).toEqual(ids);
+
+    expect(
+      (await listRevisionNotes(harness.db, sessionId, "outline")).map(
+        (entry) => entry.note,
+      ),
+    ).toEqual(["first", "second", "third"]);
   });
 });
 

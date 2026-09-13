@@ -18,6 +18,13 @@ import { columns } from "@auteur/db/sql";
  * Rows accumulate and are never edited, which is what makes "and also" work
  * without a round counter: a reader who asks for a shorter middle and then for
  * a longer ending has said two things, and the stage reads both in order.
+ *
+ * **The order is `seq`, a sequence, and not `created_at`.** `now()` is the
+ * transaction's clock and is identical for two inserts a microsecond apart, and
+ * `newId()` is a millisecond-precision UUIDv7 with random bits below — so
+ * ordering by either gives a stable order that is not the insertion order. The
+ * prompt would then differ between runs with no note changing, which §7.5
+ * cannot see: the note set is the same set.
  */
 
 type Row = {
@@ -28,6 +35,13 @@ type Row = {
   created_at: Date;
 };
 
+/**
+ * `seq` is read but never returned.
+ *
+ * It orders the rows and nothing else: a sequence number is a fact about this
+ * table's insert history, and putting it in `RevisionNote` would make it
+ * something a screen or a prompt could come to depend on.
+ */
 const COLUMNS = ["id", "session_id", "stage_id", "note", "created_at"];
 
 /**
@@ -83,7 +97,7 @@ export const listRevisionNotes = async (
   const result = await db.query<Row>(
     `SELECT ${columns(COLUMNS)} FROM revision_notes
      WHERE session_id = $1 AND stage_id = $2
-     ORDER BY created_at, id`,
+     ORDER BY seq`,
     [sessionId, stageId],
   );
   return result.rows.map(toNote);
@@ -102,7 +116,7 @@ export const revisionNotesFor = async (
   const result = await db.query<Row>(
     `SELECT ${columns(COLUMNS)} FROM revision_notes
      WHERE session_id = $1
-     ORDER BY created_at, id`,
+     ORDER BY seq`,
     [sessionId],
   );
   const byStage = new Map<RevisableStage, RevisionNote[]>();
