@@ -9,3 +9,28 @@
 @import "../../../docs/design/design-system/tokens/fonts.css";
 @import "../../../docs/design/design-system/tokens/base.css";
 @import "../../../docs/design/design-system/tokens/theme-light.css";
+
+/* Printing the story.
+
+   A PDF without a PDF writer: the browser's print dialogue offers "Save as
+   PDF" everywhere it matters, and what it saves is this page. So the page is
+   made to be the story — the rail, the tabs and the controls carry
+   `data-print="chrome"` and are removed, the screen's gutter goes with them,
+   and the ink grounds are dropped so a dark theme does not print as a solid
+   block of toner.
+
+   Only `[data-print="chrome"]` is named here. A rule that enumerated what to
+   keep would hide any element added later, which is the failure that shows up
+   as a blank page rather than as a wrong one. */
+@media print {
+  [data-print="chrome"] {
+    display: none;
+  }
+
+  body,
+  main {
+    background: #fff;
+    color: #000;
+    padding: 0;
+  }
+}
