@@ -16,8 +16,9 @@ import {
   findQueueEntry,
 } from "@auteur/stage-queue/queue";
 import { createTestDb, type TestDb } from "@auteur/test-db/test-db";
-import { CRONS } from "../../../../scripts/build-vercel.ts";
+import { CRONS, MAX_DURATION } from "../../../../scripts/build-vercel.ts";
 import { createApp } from "../../server/_app.ts";
+import { STREAM_BUDGET_MS } from "../../server/_routes/events.ts";
 
 /**
  * The cron path `vercel.json` names must be answerable.
@@ -258,5 +259,20 @@ describe("the schema is brought up to date on access", () => {
       migrateOnBoot: true,
     });
     expect((await app.request("/api/health")).status).toBe(200);
+  });
+});
+
+describe("the stream closes itself before the platform closes it", () => {
+  test("its budget is under the function's ceiling", () => {
+    // It was four minutes against a sixty-second ceiling, so it never fired:
+    // every stream ended torn at the ceiling instead of closing cleanly, and
+    // the two look different to every proxy in between.
+    expect(STREAM_BUDGET_MS).toBeLessThan(MAX_DURATION * 1000);
+  });
+
+  test("and not so far under it that it reconnects for nothing", () => {
+    // A budget of a few seconds would reconnect constantly and spend a round
+    // trip each time. Most of the ceiling, with room to close.
+    expect(STREAM_BUDGET_MS).toBeGreaterThan(MAX_DURATION * 500);
   });
 });

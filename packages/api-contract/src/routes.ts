@@ -81,6 +81,20 @@ export const sessionViewSchema = z.object({
   card: styleCardSchema.nullable(),
   decisions: z.array(decisionEntrySchema),
   /**
+   * The text of each exemplar's passage, by passage id.
+   *
+   * A card's exemplar is a `passageId` and a sentence about what it
+   * demonstrates; the passage itself lives in `passages`, shared with every
+   * other card that cites it. The research screen was rendering the sentence in
+   * the place the passage goes — so each exemplar printed the same line twice,
+   * once as the evidence and once as the caption describing it, and the
+   * author's own prose never reached the screen the product exists to show.
+   *
+   * A map rather than a list, because it is read by id from inside a `map` over
+   * the card's exemplars.
+   */
+  exemplarPassages: z.record(z.uuid(), z.string()),
+  /**
    * Every note the reader has written, oldest first, across both stages.
    *
    * Here rather than on a route of its own because invariant 3 says every step

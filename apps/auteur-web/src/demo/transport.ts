@@ -3,7 +3,7 @@ import { COPY } from "@auteur/copy/index";
 import type { Session, Step } from "@auteur/core/session";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import type { SessionState, Transport } from "../shell/session-state.ts";
-import { demoCard } from "./card.ts";
+import { DEMO_EXEMPLAR_PASSAGES, demoCard } from "./card.ts";
 import { RECORDED_LOG, RECORDED_SESSION_ID } from "./recorded-log.ts";
 
 /**
@@ -85,6 +85,7 @@ const viewAt = (step: Step): ResponseOf<"session"> => ({
       reason: "You chose 'Only at the end' when asked whether he ever sees it.",
     },
   ],
+  exemplarPassages: DEMO_EXEMPLAR_PASSAGES,
   // Two notes, because the loop is the product: the reader read the beat
   // sheet, said what they wanted changed, and read it again.
   notes: [
