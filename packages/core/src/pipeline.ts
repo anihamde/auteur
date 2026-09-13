@@ -4,6 +4,15 @@ export const TIERS = ["cheap", "balanced", "strong"] as const;
 export const tierSchema = z.enum(TIERS);
 export type Tier = z.infer<typeof tierSchema>;
 
+/**
+ * What a stage is for.
+ *
+ * `revise` and `critique` are gone with the stages that held them: the reader's
+ * note is what a revision now is, and the critique it replaced was a model
+ * judging prose the reader was about to judge themselves. A role no stage
+ * carries is a role a pipeline file could still name, which is a stage the
+ * dispatcher has no branch for.
+ */
 export const ROLES = [
   "research",
   "fetch",
@@ -11,8 +20,6 @@ export const ROLES = [
   "question",
   "outline",
   "draft",
-  "revise",
-  "critique",
 ] as const;
 export const roleSchema = z.enum(ROLES);
 export type Role = z.infer<typeof roleSchema>;

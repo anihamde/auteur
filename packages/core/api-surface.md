@@ -61,7 +61,7 @@ export const ARTIFACT_KINDS = [
 export const DECISION_ORIGINS = [
 export const LENGTH_PRESETS = ["flash", "short", "long", "novelette"] as const
 export const NOTE_LONGEST = 2000
-export const REVISABLE_STAGES = ["outline", "draft"] as const
+export const REVISABLE_STAGES = ["outline", "story"] as const
 export const STEPS = [
 export const WORD_TARGET: Readonly<Record<LengthPreset, number>> =
 export const answerStateSchema = z.enum(ANSWER_STATES)
@@ -75,6 +75,7 @@ export const revisableStageSchema = z.enum(REVISABLE_STAGES)
 export const revisionNoteSchema = z.object(
 export const sessionSchema = z.object(
 export const stepSchema = z.enum(STEPS)
+export const storedStepSchema = z.preprocess(
 export const storySchema = z.object(
 ```
 

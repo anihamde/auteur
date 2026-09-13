@@ -7,7 +7,6 @@ import {
 import { CORPUS_JSON_SCHEMA } from "../../server/_stages/research.ts";
 import {
   CLARIFY_JSON_SCHEMA,
-  FINDINGS_JSON_SCHEMA,
   OUTLINE_JSON_SCHEMA,
 } from "../../server/_stages/writing.ts";
 
@@ -35,7 +34,6 @@ const SCHEMAS = {
   CORPUS_JSON_SCHEMA,
   EXEMPLARS_JSON_SCHEMA: exemplarsJsonSchema(PASSAGE_IDS),
   FIELDS_JSON_SCHEMA: fieldsJsonSchema(PASSAGE_IDS),
-  FINDINGS_JSON_SCHEMA,
   OUTLINE_JSON_SCHEMA,
 } as const;
 

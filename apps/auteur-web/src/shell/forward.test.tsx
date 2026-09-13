@@ -38,9 +38,9 @@ const atStep = (step: Step) => {
  * which is a different thing from having none.
  */
 const forwardLabels: Partial<Record<Step, string>> = {
-  draft: COPY.draft.next,
-  outline: COPY.outline.next,
+  outline: COPY.outline.approve,
   research: COPY.research.next,
+  story: COPY.story.approve,
 };
 
 const forwardIn = (container: HTMLElement, label: string) =>

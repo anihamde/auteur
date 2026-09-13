@@ -244,7 +244,6 @@ export const PACKAGES: readonly PackageSpec[] = [
     exports: {
       author: src("author.ts"),
       clarify: src("clarify.ts"),
-      draft: src("draft.ts"),
       idea: src("idea.ts"),
       index: src("index.ts"),
       models: src("models.ts"),
@@ -252,6 +251,7 @@ export const PACKAGES: readonly PackageSpec[] = [
       research: src("research.ts"),
       result: src("result.ts"),
       shell: src("shell.ts"),
+      story: src("story.ts"),
     },
     layer: "foundation",
     name: "copy",
@@ -515,10 +515,8 @@ export const PACKAGES: readonly PackageSpec[] = [
     exports: {
       clarify: src("clarify.ts"),
       "corpus-select": src("corpus-select.ts"),
-      critique: src("critique.ts"),
-      draft: src("draft.ts"),
       outline: src("outline.ts"),
-      revise: src("revise.ts"),
+      story: src("story.ts"),
       "style-extract": src("style-extract.ts"),
       "style-fields": src("style-fields.ts"),
       "summarize-beat": src("summarize-beat.ts"),

@@ -29,7 +29,7 @@ describe("a finished stage never runs past the step the session is on", () => {
     expect(successorsWithin("clarify", "clarify")).toEqual([]);
   });
 
-  test("the outline does not start the draft", () => {
+  test("the outline does not start the story", () => {
     expect(successorsWithin("outline", "outline")).toEqual([]);
   });
 
@@ -53,8 +53,8 @@ describe("the chain inside a step still runs without the reader", () => {
   });
 
   test("the result step runs the whole tail", () => {
-    expect(successorsWithin("draft", "result")).toEqual(["critique", "revise"]);
-    expect(successorsWithin("revise", "result")).toEqual(["style-fit"]);
+    expect(successorsWithin("outline", "result")).toEqual(["story"]);
+    expect(successorsWithin("story", "result")).toEqual(["style-fit"]);
   });
 });
 
@@ -72,15 +72,10 @@ describe("the bound is the same one advance uses", () => {
 
 describe("a regenerate replaces everything built on what it replaces", () => {
   test("the outline's descendants are the whole tail, transitively", () => {
-    // Two hops matter: `style-fit` reads `revise`, which reads `draft`, which
-    // reads the outline. A one-hop answer would leave the report scoring a
-    // story that no longer exists.
-    expect(descendantsOf("outline")).toEqual([
-      "draft",
-      "critique",
-      "revise",
-      "style-fit",
-    ]);
+    // Two hops matter: `style-fit` reads `story`, which reads the outline. A
+    // one-hop answer would leave the report scoring a story that no longer
+    // exists.
+    expect(descendantsOf("outline")).toEqual(["story", "style-fit"]);
   });
 
   test("the last stage has none, which is how a regenerate of it ends", () => {

@@ -55,7 +55,7 @@ describe("GET /api/models", () => {
     const response = await get(ROUTES.models.path);
     expect(response.status).toBe(200);
     const body = ROUTES.models.response.parse(await response.json());
-    expect(body.stages.map((stage) => stage.stageId)).toContain("draft");
+    expect(body.stages.map((stage) => stage.stageId)).toContain("story");
     const measure = body.stages.find(
       (stage) => stage.stageId === "prosody-compute",
     );

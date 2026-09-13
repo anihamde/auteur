@@ -41,9 +41,7 @@ describe("the default pipeline is runnable", () => {
       "style-extract",
       "clarify",
       "outline",
-      "draft",
-      "critique",
-      "revise",
+      "story",
       "style-fit",
     ]);
   });
@@ -58,21 +56,21 @@ describe("the default pipeline is runnable", () => {
     expect(modelless).toEqual(["work-fetch", "prosody-compute", "style-fit"]);
   });
 
-  test("draft is the one untyped model stage", () => {
+  test("the story is the one untyped model stage", () => {
     // Prose is not a schema, and asking for it inside a JSON string would put
     // an escaping problem between the model and the story.
     const untyped = DEFAULT_PIPELINE.stages
       .filter((entry) => entry.tier !== undefined && !entry.typed)
       .map((entry) => entry.id);
-    expect(untyped).toEqual(["draft"]);
+    expect(untyped).toEqual(["story"]);
   });
 
-  test("draft and revise are the streaming stages", () => {
+  test("the story is the one streaming stage", () => {
     expect(
       DEFAULT_PIPELINE.stages
         .filter((entry) => entry.streams)
         .map((entry) => entry.id),
-    ).toEqual(["draft", "revise"]);
+    ).toEqual(["story"]);
   });
 });
 
@@ -81,12 +79,12 @@ describe("staleness falls out of reads", () => {
 
   test("changing the author restales everything after corpus-select", () => {
     // Nothing codes this. It is the transitive closure of `reads`.
-    expect([...upstreamOf(index, "draft")]).toContain("corpus-select");
+    expect([...upstreamOf(index, "story")]).toContain("corpus-select");
     expect([...upstreamOf(index, "style-fit")]).toContain("corpus-select");
   });
 
   test("the card does not depend on the answers", () => {
-    // So changing an answer restales the outline and the draft, and leaves the
+    // So changing an answer restales the outline and the story, and leaves the
     // card — which is §7.5's first consequence, and it is not written anywhere
     // as a rule.
     expect([...upstreamOf(index, "style-extract")]).not.toContain("clarify");

@@ -145,8 +145,13 @@ describe("a tier with no eligible candidate fails at startup", () => {
     } catch (thrown) {
       const failures = (thrown as { detail?: { failures?: string[] } }).detail
         ?.failures;
-      // Seven stages carry a tier.
-      expect(failures).toHaveLength(8);
+      // Every stage that carries a tier, counted from the pipeline rather
+      // than written down: a stage added with a tier must appear here too, and
+      // a literal would pass while naming the wrong number of them.
+      expect(failures).toHaveLength(
+        DEFAULT_PIPELINE.stages.filter((stage) => stage.tier !== undefined)
+          .length,
+      );
     }
   });
 });
@@ -158,7 +163,10 @@ describe("the real config resolves against the real catalogue", () => {
       TIER_CANDIDATES,
       CATALOG,
     );
-    expect(resolved.size).toBe(8);
+    expect(resolved.size).toBe(
+      DEFAULT_PIPELINE.stages.filter((stage) => stage.tier !== undefined)
+        .length,
+    );
   });
 
   test("a deterministic stage is not in the map", () => {

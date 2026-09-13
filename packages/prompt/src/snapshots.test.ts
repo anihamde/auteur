@@ -2,10 +2,8 @@ import { describe, expect, test } from "bun:test";
 import type { WorkProsody } from "@auteur/core/prosody";
 import { clarify } from "./clarify.ts";
 import { corpusSelect } from "./corpus-select.ts";
-import { critique } from "./critique.ts";
-import { draft } from "./draft.ts";
 import { outline } from "./outline.ts";
-import { revise } from "./revise.ts";
+import { story } from "./story.ts";
 import { styleExtract } from "./style-extract.ts";
 import { styleFields } from "./style-fields.ts";
 import { summarizeBeat } from "./summarize-beat.ts";
@@ -152,9 +150,9 @@ describe("rendered prompts", () => {
     ).toMatchSnapshot();
   });
 
-  test("draft, single call", () => {
+  test("story, single call", () => {
     expect(
-      draft.build({
+      story.build({
         antiPatterns: ["no dream reveals", "no twist in the final line"],
         authorName: "Jorge Luis Borges",
         beats: [
@@ -178,9 +176,30 @@ describe("rendered prompts", () => {
     ).toMatchSnapshot();
   });
 
-  test("draft, sequential scene", () => {
+  test("story, rewritten from notes", () => {
     expect(
-      draft.build({
+      story.build({
+        antiPatterns: [],
+        authorName: "Jorge Luis Borges",
+        beats: [{ index: 1, text: "The catalogue names a comet." }],
+        cardSummary: CARD,
+        exemplars: [],
+        lengthPreset: "flash",
+        notes: [
+          "The middle drags. Cut the second scene to half.",
+          "And give the ending more room.",
+        ],
+        previousStory: "The lamp turned. The sea did not.",
+        targets: "sentence length mean 28.4",
+        title: "The Return of the Comet",
+        wordTarget: 1000,
+      }),
+    ).toMatchSnapshot();
+  });
+
+  test("story, sequential scene", () => {
+    expect(
+      story.build({
         antiPatterns: [],
         authorName: "Jorge Luis Borges",
         beats: [
@@ -195,61 +214,6 @@ describe("rendered prompts", () => {
         targets: "sentence length mean 28.4",
         title: "The Return of the Comet",
         wordTarget: 12_000,
-      }),
-    ).toMatchSnapshot();
-  });
-
-  test("critique", () => {
-    expect(
-      critique.build({
-        authorName: "Jorge Luis Borges",
-        cardSummary: CARD,
-        draft: "The lamp turned. The sea did not.",
-        measures: [
-          {
-            path: "prosodyTarget.sentenceLength.mean",
-            status: "drift",
-            target: "28.4",
-            value: "18.2",
-          },
-          {
-            path: "prosodyTarget.punctuation.semicolon",
-            status: "pass",
-            target: "11.2",
-            value: "10.4",
-          },
-        ],
-      }),
-    ).toMatchSnapshot();
-  });
-
-  test("revise, whole draft", () => {
-    expect(
-      revise.build({
-        authorName: "Jorge Luis Borges",
-        cardSummary: CARD,
-        draft: "The lamp turned. The sea did not.",
-        remedies: [
-          {
-            finding: "sentences run 18.2 against 28.4",
-            path: "prosodyTarget.sentenceLength.mean",
-            remedy: "join three candidate pairs with a semicolon",
-          },
-        ],
-      }),
-    ).toMatchSnapshot();
-  });
-
-  test("revise, marked span", () => {
-    expect(
-      revise.build({
-        after: "The sea did not.",
-        authorName: "Jorge Luis Borges",
-        before: "Once, in the year of the catalogue.",
-        cardSummary: CARD,
-        draft: "ignored on this path",
-        remedies: [],
-        span: "The lamp turned.",
       }),
     ).toMatchSnapshot();
   });

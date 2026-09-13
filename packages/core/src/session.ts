@@ -1,17 +1,41 @@
 import { z } from "zod";
 
-/** The seven wizard steps, in order. `docs/ARCHITECTURE.md` §3.2. */
+/**
+ * The seven wizard steps, in order. `docs/ARCHITECTURE.md` §3.2.
+ *
+ * `story` where `draft` was. A draft is a thing you make before the thing, and
+ * there is no longer a stage after it that turns one into the other — the
+ * reader reads the story, says what they want changed, and the same stage
+ * writes it again.
+ */
 export const STEPS = [
   "idea",
   "author",
   "research",
   "clarify",
   "outline",
-  "draft",
+  "story",
   "result",
 ] as const;
 export const stepSchema = z.enum(STEPS);
 export type Step = z.infer<typeof stepSchema>;
+
+/**
+ * A step as a row may still hold it.
+ *
+ * `0009_story_step.sql` admits `draft` as well as `story`, because a function
+ * still running the previous deploy writes `draft` for minutes after the
+ * migration lands and a CHECK that refused it would fail those writes. This is
+ * the read half of that expand: without it a row written in that window makes
+ * `sessionSchema` throw, and `GET /api/sessions/:id` answers 500 for that
+ * session for ever — the one state the expand exists to prevent.
+ *
+ * It goes when the contract migration drops `draft` from the CHECK.
+ */
+export const storedStepSchema = z.preprocess(
+  (value) => (value === "draft" ? "story" : value),
+  stepSchema,
+);
 
 export const LENGTH_PRESETS = ["flash", "short", "long", "novelette"] as const;
 export const lengthPresetSchema = z.enum(LENGTH_PRESETS);
@@ -45,7 +69,7 @@ export const sessionSchema = z.object({
   /** Verbatim. Nothing rewrites this before it reaches the pipeline. */
   idea: z.string().min(1),
   lengthPreset: lengthPresetSchema,
-  step: stepSchema,
+  step: storedStepSchema,
   updatedAt: z.coerce.date(),
 });
 export type Session = z.infer<typeof sessionSchema>;
@@ -113,7 +137,7 @@ export type DecisionEntry = z.infer<typeof decisionEntrySchema>;
  * typo in a request body is a 400 rather than a note filed against a stage id
  * that will never look for one.
  */
-export const REVISABLE_STAGES = ["outline", "draft"] as const;
+export const REVISABLE_STAGES = ["outline", "story"] as const;
 export const revisableStageSchema = z.enum(REVISABLE_STAGES);
 export type RevisableStage = z.infer<typeof revisableStageSchema>;
 

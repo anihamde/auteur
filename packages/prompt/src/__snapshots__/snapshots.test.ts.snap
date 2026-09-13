@@ -287,7 +287,7 @@ longer beats at flash length; more at novelette. A beat sheet with
 twenty beats for a thousand words is a synopsis, not an outline."
 `;
 
-exports[`rendered prompts draft, single call 1`] = `
+exports[`rendered prompts story, single call 1`] = `
 "You are writing prose in the measured style of Jorge Luis Borges.
 
 ## What you are given
@@ -311,8 +311,8 @@ sentence length mean 28.4 (p10 9, p90 52); semicolons 11.2/1k
 
 ## What to return
 
-The prose, as markdown. Nothing else — no preamble, no notes on what you
-did, no heading naming the beats.
+The prose, as markdown. Nothing else — no preamble, no notes on
+what you did, no heading naming the beats.
 
 ## The targets describe a corpus, not a quota
 
@@ -354,13 +354,13 @@ their sentences, do not lift their images.
 The lamp turned. The sea did not."
 `;
 
-exports[`rendered prompts draft, sequential scene 1`] = `
+exports[`rendered prompts story, rewritten from notes 1`] = `
 "You are writing prose in the measured style of Jorge Luis Borges.
 
 ## What you are given
 
 - title: The Return of the Comet
-- length: long, about 12,000 words
+- length: flash, about 1,000 words
 
 ### The style card
 
@@ -371,18 +371,31 @@ diction.register: Latinate abstraction beside a concrete noun
 
 sentence length mean 28.4
 
-### What earlier scenes established
-
-The keeper is called Ansel. It is late autumn.
-
 ### Beats
 
-2. The keeper reads the entry.
+1. The catalogue names a comet.
+
+### The story as it stands
+
+The lamp turned. The sea did not.
+
+### What the reader asked for
+
+In their words, oldest first. Every one of them: a later note adds
+to the earlier ones and does not replace them.
+
+- The middle drags. Cut the second scene to half.
+- And give the ending more room.
 
 ## What to return
 
-The prose, as markdown. Nothing else — no preamble, no notes on what you
-did, no heading naming the beats.
+The story again, whole, as markdown. Change what the reader asked
+for and leave the rest as it stands — this is a revision and not a
+second attempt, and a sentence they did not mention is a sentence
+they were content with.
+
+Nothing else — no preamble, no notes on what you changed, no
+heading naming the beats.
 
 ## The targets describe a corpus, not a quota
 
@@ -420,131 +433,70 @@ their sentences, do not lift their images.
 "
 `;
 
-exports[`rendered prompts critique 1`] = `
-"You are reading a draft against a measured style card for Jorge Luis Borges.
+exports[`rendered prompts story, sequential scene 1`] = `
+"You are writing prose in the measured style of Jorge Luis Borges.
 
 ## What you are given
 
-The card, the measures already computed against the corpus, and the
-draft.
+- title: The Return of the Comet
+- length: long, about 12,000 words
 
 ### The style card
 
 voice.pov: close third, one consciousness per story
 diction.register: Latinate abstraction beside a concrete noun
 
-### Measures
+### Measured targets
 
-- prosodyTarget.sentenceLength.mean: 18.2 against 28.4 — drift
-- prosodyTarget.punctuation.semicolon: 10.4 against 11.2 — pass
+sentence length mean 28.4
 
-### The draft
+### What earlier scenes established
 
-The lamp turned. The sea did not.
+The keeper is called Ansel. It is late autumn.
 
-## What to return
+### Beats
 
-Findings. Each names a path, states a number and its consequence, and
-says what a revision would do about it.
-
-## Every finding states a number and its consequence
-
-A finding without a digit in it is dropped by the engine, so one without
-a number is a wasted finding. Not "the sentences feel short" — "sentences
-run a mean of 18.2 against 28.4 in the corpus; the corpus holds two
-clauses in one breath where this draft takes two sentences, so the
-rhythm the card describes never arrives."
-
-The number is the argument. The consequence is what makes it worth
-acting on: say what the prose loses, not that a value differs.
-
-## Cite a path that exists
-
-Every finding names a path from the card or from the measures above —
-\`voice.narratorDistance\`, \`prosodyTarget.sentenceLength.mean\`. A path
-nothing carries cannot be rendered beside the value it is about, and the
-reader gets a claim with nothing to check it against."
-`;
-
-exports[`rendered prompts revise, whole draft 1`] = `
-"You are revising prose against measured findings for Jorge Luis Borges.
-
-### The style card
-
-voice.pov: close third, one consciousness per story
-diction.register: Latinate abstraction beside a concrete noun
-
-### What to fix
-
-- prosodyTarget.sentenceLength.mean: sentences run 18.2 against 28.4
-  remedy: join three candidate pairs with a semicolon
-
-### The draft
-
-The lamp turned. The sea did not.
+2. The keeper reads the entry.
 
 ## What to return
 
-The revised markdown, and the list of findings you actually acted on.
+The prose, as markdown. Nothing else — no preamble, no notes on
+what you did, no heading naming the beats.
 
-## Revise against these measures, not toward better writing
+## The targets describe a corpus, not a quota
 
-Each finding above names a path and a number. Change what those name and
-leave the rest alone. "Improve the style" is not the instruction and is
-not an improvement that can be checked: the report will re-measure, and a
-revision that moved a number nobody asked about is drift you introduced.
+The numbers above were measured across this author's works. They are what
+the prose should aim at, and they are not a budget to spend. Where
+hitting a target would cost the story its coherence at this length — not
+enough words to carry sentences of that length, a beat that cannot be
+told in the sentence count available — the story wins, and the drift is
+expected and will be reported.
 
-A finding you did not act on is reported as not acted on. That is a
-legitimate outcome — a remedy can cost more than the drift — and it is
-better than a change nobody can trace to a reason."
-`;
+Do not pad to reach a mean. Do not split a sentence that wants to be one.
+The report exists to say where the prose departed from the corpus and
+why; it does not exist to be satisfied.
 
-exports[`rendered prompts revise, marked span 1`] = `
-"You are revising prose against measured findings for Jorge Luis Borges.
+## The anti-patterns are prohibitions
 
-### The style card
-
-voice.pov: close third, one consciousness per story
-diction.register: Latinate abstraction beside a concrete noun
-
-### What to fix
+These are not suggestions and not a stylistic preference. They are what
+the measured author does not do, and a draft that does them is not in
+this style however well it reads:
 
 
+## Do not write the provenance label
 
-### Before the marked span
+Every story this product renders carries a line saying it was generated
+and by whom. That line is added when the document is rendered, and it is
+required there. Writing your own version of it here produces two, and the
+one you write is not the one the export guarantees.
 
-Once, in the year of the catalogue.
+## Exemplars
 
-### The marked span
+Passages from the author's own work, verbatim. They are evidence of what
+the card describes, not text to reuse: do not quote them, do not echo
+their sentences, do not lift their images.
 
-The lamp turned.
-
-### After the marked span
-
-The sea did not.
-
-## What to return
-
-The revised markdown, and the list of findings you actually acted on.
-
-## Revise against these measures, not toward better writing
-
-Each finding above names a path and a number. Change what those name and
-leave the rest alone. "Improve the style" is not the instruction and is
-not an improvement that can be checked: the report will re-measure, and a
-revision that moved a number nobody asked about is drift you introduced.
-
-A finding you did not act on is reported as not acted on. That is a
-legitimate outcome — a remedy can cost more than the drift — and it is
-better than a change nobody can trace to a reason.
-
-## Replace only the marked span
-
-The text before and after it is given so the replacement joins
-cleanly. Return the whole document with the span replaced and every
-other sentence identical, character for character. A revision that
-touched a paragraph the reader did not select is one they cannot
-undo."
+"
 `;
 
 exports[`rendered prompts summarize-beat 1`] = `

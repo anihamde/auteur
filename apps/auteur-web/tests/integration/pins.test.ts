@@ -66,7 +66,7 @@ describe("writing every pin at once", () => {
   });
 
   test("a model that cannot emit a strict schema is refused for the typed stages", async () => {
-    // §6.3: refused with the reason, never silently applied to `draft` alone.
+    // §6.3: refused with the reason, never silently applied to `story` alone.
     // The fixture is read from the catalogue rather than named, so a model that
     // gains structured output at WP-X0 does not silently make this test vacuous
     // — it fails on the assertion below instead.
@@ -90,8 +90,8 @@ describe("writing every pin at once", () => {
     // chose together, which is worse than not writing at all because nobody
     // would think to look for it.
     const response = await put({
-      draft: "claude-sonnet-5",
       outline: "no-such-model",
+      story: "claude-sonnet-5",
     });
     expect(response.status).toBe(400);
     const body = errorResponseSchema.parse(await response.json());
@@ -113,14 +113,14 @@ describe("writing every pin at once", () => {
 
 describe("the set is replaced, not merged", () => {
   test("a later write removes the pins it omits", async () => {
-    await put({ draft: "claude-sonnet-5", outline: "gpt-5" });
-    const response = await put({ draft: "gpt-5" });
+    await put({ outline: "gpt-5", story: "claude-sonnet-5" });
+    const response = await put({ story: "gpt-5" });
     const body = ROUTES.pins.response.parse(await response.json());
-    expect(body.pins).toEqual({ draft: "gpt-5" });
+    expect(body.pins).toEqual({ story: "gpt-5" });
   });
 
   test("an empty set clears every pin", async () => {
-    await put({ draft: "claude-sonnet-5" });
+    await put({ story: "claude-sonnet-5" });
     const body = ROUTES.pins.response.parse(await (await put({})).json());
     expect(body.pins).toEqual({});
   });
@@ -132,7 +132,7 @@ describe("the session must exist", () => {
     const response = await app.request(
       "/api/sessions/b1c9f2e0-0000-4000-8000-abcdefabcdef/pins",
       {
-        body: JSON.stringify({ pins: { draft: "gpt-5" } }),
+        body: JSON.stringify({ pins: { story: "gpt-5" } }),
         headers: {
           authorization: `Bearer ${TOKEN}`,
           "content-type": "application/json",

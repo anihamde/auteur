@@ -138,13 +138,13 @@ describe("the signature is verified before anything is written", () => {
 
   test("the signature covers the body, so a swapped queue id fails", async () => {
     const queueId = await queueOne();
-    const other = await queueOne("draft");
+    const other = await queueOne("story");
     const signed = signPayload(
       SECRET,
       JSON.stringify({ queueId, sessionId, stageId: "outline" }),
     );
     const response = await post(
-      { queueId: other, sessionId, stageId: "draft" },
+      { queueId: other, sessionId, stageId: "story" },
       { signature: signed },
     );
     expect(response.status).toBe(401);
@@ -376,13 +376,13 @@ describe("a stage that succeeds", () => {
   test("records its key, completes its row, and enqueues its successors", async () => {
     // On the `draft` step: the reader has asked for a draft, so the stage that
     // finishes the beat sheet is allowed to start one.
-    await updateSession(harness.db, sessionId, { step: "draft" });
+    await updateSession(harness.db, sessionId, { step: "story" });
     const queueId = await queueOne("outline");
     const response = await post({ queueId, sessionId, stageId: "outline" });
     const body = ROUTES.internalStage.response.parse(await response.json());
 
     expect(body.claimed).toBe(true);
-    expect(body.enqueued).toEqual(["draft"]);
+    expect(body.enqueued).toEqual(["story"]);
     expect((await findQueueEntry(harness.db, queueId))?.status).toBe("done");
     expect((await readStageKeys(harness.db, sessionId)).has("outline")).toBe(
       true,

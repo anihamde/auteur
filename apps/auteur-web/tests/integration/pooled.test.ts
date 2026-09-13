@@ -81,10 +81,10 @@ describe("a stage records its events on the handle that can hold them", () => {
     await enqueueStage(harness.db, {
       id: queueId,
       sessionId,
-      stageId: "draft",
+      stageId: "story",
     });
 
-    const raw = JSON.stringify({ queueId, sessionId, stageId: "draft" });
+    const raw = JSON.stringify({ queueId, sessionId, stageId: "story" });
     const response = await app().request(ROUTES.internalStage.path, {
       body: raw,
       headers: {
@@ -113,7 +113,7 @@ describe("replacing a session's pins runs on the handle that can hold it", () =>
     const response = await app().request(
       ROUTES.pins.path.replace(":id", sessionId),
       {
-        body: JSON.stringify({ pins: { draft: "gpt-5" } }),
+        body: JSON.stringify({ pins: { story: "gpt-5" } }),
         headers: {
           authorization: `Bearer ${TOKEN}`,
           "content-type": "application/json",
@@ -124,7 +124,7 @@ describe("replacing a session's pins runs on the handle that can hold it", () =>
 
     expect(response.status).toBe(200);
     expect([...(await readPins(harness.db, sessionId))]).toEqual([
-      ["draft", "gpt-5"],
+      ["story", "gpt-5"],
     ]);
   });
 });

@@ -3,14 +3,20 @@ import { Markdown } from "@auteur/component-library/prose";
 import { COPY } from "@auteur/copy/index";
 import type { ReactElement } from "react";
 import type { ScreenProps } from "../shell/app.tsx";
+import { NotePanel } from "./note-panel.tsx";
 
 /**
- * Screen 5 — the beat sheet, on paper.
+ * Screen 5 — the beat sheet, on paper, until you approve it.
  *
- * The footer caption names the model and tier the **draft** will run on, read
+ * The loop is the screen: read it, say what you want changed, read it again.
+ * Approving is moving on — there is no approval flag anywhere, because a
+ * session on the `story` step is a session whose outline was approved, and two
+ * facts that say the same thing are two facts that can disagree.
+ *
+ * The footer caption names the model and tier the **story** will run on, read
  * from what `/api/models` resolved rather than from the tier map. They differ
  * whenever a stage is pinned, and the caption is where a reader finds out
- * before the draft rather than after it.
+ * before the story rather than after it.
  */
 export const OutlineScreen = ({
   onOpenModels,
@@ -21,24 +27,29 @@ export const OutlineScreen = ({
 }: ScreenProps): ReactElement => {
   const outline = state.view?.outline ?? undefined;
 
-  const regenerate = async (): Promise<void> => {
+  const refresh = async (): Promise<void> => {
     if (sessionId === undefined) return;
-    await transport.client.call("regenerate", {
-      body: { kind: "outline" },
-      params: { id: sessionId },
-    });
-  };
-
-  const draft = async (): Promise<void> => {
-    if (sessionId === undefined) return;
-    await transport.client.call("advance", {
-      body: { to: "draft" },
-      params: { id: sessionId },
-    });
     const view = await transport.client.call("session", {
       params: { id: sessionId },
     });
     setState((previous) => ({ ...previous, view }));
+  };
+
+  const regenerate = async (): Promise<void> => {
+    if (sessionId === undefined) return;
+    await transport.client.call("regenerate", {
+      body: { stageId: "outline" },
+      params: { id: sessionId },
+    });
+  };
+
+  const approve = async (): Promise<void> => {
+    if (sessionId === undefined) return;
+    await transport.client.call("advance", {
+      body: { to: "story" },
+      params: { id: sessionId },
+    });
+    await refresh();
   };
 
   return (
@@ -58,6 +69,22 @@ export const OutlineScreen = ({
               ].join("\n\n")}
         </Markdown>
       </Card>
+
+      <NotePanel
+        copy={{
+          hint: COPY.outline.noteHint,
+          notesLabel: COPY.outline.notesLabel,
+          placeholder: COPY.outline.notePlaceholder,
+          rewrite: COPY.outline.rewrite,
+        }}
+        notes={state.view?.notes ?? []}
+        onDone={refresh}
+        {...(sessionId === undefined ? {} : { sessionId })}
+        stageId="outline"
+        step="outline"
+        transport={transport}
+      />
+
       <div style={{ display: "flex", gap: "var(--inline)" }}>
         <Button onClick={() => void regenerate()} variant="ghost">
           {COPY.outline.regenerate}
@@ -65,8 +92,12 @@ export const OutlineScreen = ({
         <Button onClick={onOpenModels} variant="ghost">
           {COPY.outline.changeModel}
         </Button>
-        <Button onClick={() => void draft()} variant="primary">
-          {COPY.outline.next}
+        <Button
+          disabled={outline === undefined}
+          onClick={() => void approve()}
+          variant="primary"
+        >
+          {COPY.outline.approve}
         </Button>
       </div>
     </>

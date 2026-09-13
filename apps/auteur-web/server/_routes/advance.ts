@@ -9,6 +9,7 @@ import { resolveAll } from "@auteur/pipeline/resolve-tier";
 import { CATALOGUE, toDescriptor } from "@auteur/provider-router/models";
 import { readPins } from "@auteur/session-store/pins";
 import { answerSetFor } from "@auteur/session-store/questions";
+import { revisionNotesFor } from "@auteur/session-store/revision-notes";
 import { requireSession, updateSession } from "@auteur/session-store/sessions";
 import { readStageKeys } from "@auteur/session-store/stage-keys";
 import { enqueueForRun } from "@auteur/stage-queue/queue";
@@ -75,16 +76,18 @@ export const stalenessInputFor = async (
   db: Db,
   sessionId: string,
 ): Promise<StalenessInput> => {
-  const [session, answers, pins, completed] = await Promise.all([
+  const [session, answers, pins, completed, notes] = await Promise.all([
     requireSession(db, sessionId),
     answerSetFor(db, sessionId),
     readPins(db, sessionId),
     readStageKeys(db, sessionId),
+    revisionNotesFor(db, sessionId),
   ]);
   return {
     answers,
     completed,
     models: modelsForStages(pins),
+    notes,
     pipeline: DEFAULT_PIPELINE,
     session,
   };

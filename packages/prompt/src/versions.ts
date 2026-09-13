@@ -25,15 +25,16 @@
 export const PROMPT_VERSIONS = {
   clarify: "clarify@1",
   "corpus-select": "corpus-select@1",
-  critique: "critique@1",
-  // 2: not a text change but a content change — `runDraft` was rendering the
-  // exemplar section from `text: ""` and the targets section from the card
-  // summary, so the prose and the numbers the template asks for never arrived.
-  // The version is what the draft's input key is built from, so bumping it is
-  // the only thing that restales a draft written without them.
-  draft: "draft@2",
   outline: "outline@1",
-  revise: "revise@1",
+  // `story@1` and not `draft@3`: this is a different prompt, not a new version
+  // of the old one. It writes the prose and it rewrites it, which is what
+  // `critique` and `revise` were for, and a session holding a `draft@2` key
+  // finds no stage that answers to it — which is the correct answer, because
+  // the stage no longer exists.
+  // 2: the previous story and the notes are separate inputs. They were one
+  // object requiring both, so a note filed before the story existed reached
+  // the key and not the prompt — consumed without being used.
+  story: "story@2",
   "style-extract": "style-extract@4",
   "style-fields": "style-fields@1",
   "summarize-beat": "summarize-beat@1",

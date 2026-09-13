@@ -78,14 +78,14 @@ describe("a note is written and read back whole", () => {
     ]);
   });
 
-  test("the outline's notes and the draft's do not mix", async () => {
+  test("the outline's notes and the story's do not mix", async () => {
     await post(sessionId, {
       note: "shorter in the middle",
       stageId: "outline",
     });
     const response = await post(sessionId, {
       note: "the dialogue is too clean",
-      stageId: "draft",
+      stageId: "story",
     });
     const body = ROUTES.notes.response.parse(await response.json());
     expect(body.notes).toHaveLength(1);

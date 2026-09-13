@@ -21,7 +21,6 @@ import {
 import { CORPUS_JSON_SCHEMA } from "../apps/auteur-web/server/_stages/research.ts";
 import {
   CLARIFY_JSON_SCHEMA,
-  FINDINGS_JSON_SCHEMA,
   OUTLINE_JSON_SCHEMA,
 } from "../apps/auteur-web/server/_stages/writing.ts";
 import type { JsonSchema } from "../packages/model-provider/src/request.ts";
@@ -35,7 +34,6 @@ const SAMPLE_PASSAGE_IDS = [
 export const STAGE_SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   clarify: CLARIFY_JSON_SCHEMA,
   "corpus-select": CORPUS_JSON_SCHEMA,
-  critique: FINDINGS_JSON_SCHEMA,
   outline: OUTLINE_JSON_SCHEMA,
   "style-extract": exemplarsJsonSchema(SAMPLE_PASSAGE_IDS),
   "style-fields": fieldsJsonSchema(SAMPLE_PASSAGE_IDS),

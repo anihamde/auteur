@@ -308,19 +308,17 @@ describe("the stages that need a card say so", () => {
     ).rejects.toThrow(/style card/i);
   });
 
-  test("draft without an outline is invalid_input", async () => {
-    await expect(run("draft", [{ deltas: ["prose"] }])).rejects.toThrow(
+  test("the story without an outline is invalid_input", async () => {
+    await expect(run("story", [{ deltas: ["prose"] }])).rejects.toThrow(
       /no outline/i,
     );
   });
 
-  test("critique on a session with neither card nor draft names the card first", async () => {
-    // The card is read before the draft, so that is the failure a session with
+  test("style-fit on a session with neither card nor story names the card first", async () => {
+    // The card is read before the story, so that is the failure a session with
     // neither gets. Naming which one is missing is the point; which comes first
     // is arbitrary and this pins it so a reorder is a visible change.
-    await expect(
-      run("critique", [respondingWith({ findings: [] })]),
-    ).rejects.toThrow(/style card/i);
+    await expect(run("style-fit", [])).rejects.toThrow(/style card/i);
   });
 });
 

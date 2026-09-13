@@ -256,7 +256,9 @@ Three things this buys back, each of which was a cost in the SQLite draft:
 CREATE TABLE sessions (
   id            uuid PRIMARY KEY,
   step          text NOT NULL CHECK (step IN
-                  ('idea','author','research','clarify','outline','draft','result')),
+                  -- `draft` is `story` since decision 0034; `0009_story_step.sql`
+                  -- admits both and the contract dropping `draft` is later.
+                  ('idea','author','research','clarify','outline','draft','story','result')),
   idea          text NOT NULL,              -- verbatim, never rewritten
   constraints   text,                       -- the "hard constraints" field
   length_preset text NOT NULL CHECK (length_preset IN
@@ -1073,11 +1075,17 @@ style-fields     research  balanced   The twenty-two readings, cited to passages
 style-extract    research  balanced   The exemplars, and the card
 clarify          question  balanced   Questions with suggestions; re-enters (§6.5)
 outline          outline   balanced   Beat sheet
-draft            draft     strong     The prose (§6.6)
-critique         critique  cheap      Style-fit findings vs card and prosody
-revise           revise    strong     Targeted revision
+story            draft     strong     The prose, written and rewritten (§6.6)
 style-fit        measure   —          The deterministic report (§9)
 ```
+
+**Nine, and `critique`/`revise` are gone — decision 0034.** They were an
+automated pass over the prose: a model read the draft against the card, a second
+model applied what it found, and the reader saw the result. Two model calls, one
+of them at the strongest tier, spent on a judgement the reader was about to make
+and could state in a sentence. `revision_notes` is what replaced them, and
+`story` is the stage that reads a note along with the story it is rewriting. The
+rest of this section still describes the arrangement they were part of.
 
 **Eleven, where this section names ten.** `style-fields` and `style-extract`
 were one stage returning both halves, and that call needed more than the sixty

@@ -9,12 +9,12 @@ import type { Step } from "@auteur/core/session";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { AuthorScreen } from "../screens/author.tsx";
 import { ClarifyScreen } from "../screens/clarify.tsx";
-import { DraftScreen } from "../screens/draft.tsx";
 import { IdeaScreen } from "../screens/idea.tsx";
 import { ModelsOverlay } from "../screens/models.tsx";
 import { OutlineScreen } from "../screens/outline.tsx";
 import { ResearchScreen } from "../screens/research.tsx";
 import { ResultScreen } from "../screens/result.tsx";
+import { StoryScreen } from "../screens/story.tsx";
 import {
   EMPTY,
   type SessionState,
@@ -123,6 +123,14 @@ export const App = ({
 
   // One stream per session, resumed from the highest seq already held — so a
   // reload replays what it missed and nothing it already has.
+  //
+  // A stage finishing refetches the view, and that is what makes the wizard's
+  // loop work at all. `POST /advance` returns **before** any stage runs
+  // (invariant 3), so the refresh a screen does after pressing a button shows
+  // the state as it was — the old beat sheet with the new note listed under it.
+  // `outline` does not stream, so without this the rewritten beat sheet never
+  // appeared at all; the reader pressed the button and the screen did not
+  // change.
   useEffect(() => {
     if (sessionId === undefined) return;
     const stream = transport.openStream(sessionId, cursor.current, (event) => {
@@ -130,6 +138,15 @@ export const App = ({
         ...previous,
         events: [...previous.events, event],
       }));
+      if (event.event.type !== "stage_end") return;
+      void transport.client
+        .call("session", { params: { id: sessionId } })
+        .then((view) => {
+          setState((previous) => ({ ...previous, view }));
+        })
+        // A refetch that fails leaves the screen as it was, which is what it
+        // would have been anyway. The next stage's end tries again.
+        .catch(() => undefined);
     });
     return () => {
       stream.close();
@@ -267,7 +284,7 @@ export const noteFor = (
         ? undefined
         : `${view.outline.beats.length.toString()} beats`;
     }
-    case "draft": {
+    case "story": {
       return view.story === null
         ? undefined
         : `${view.story.wordCount.toLocaleString("en-US")} words`;
@@ -304,8 +321,8 @@ const Screen = (props: ScreenProps): ReactElement => {
     case "outline": {
       return <OutlineScreen {...props} />;
     }
-    case "draft": {
-      return <DraftScreen {...props} />;
+    case "story": {
+      return <StoryScreen {...props} />;
     }
     default: {
       return <ResultScreen {...props} />;

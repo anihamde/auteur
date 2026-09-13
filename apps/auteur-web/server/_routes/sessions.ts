@@ -13,6 +13,7 @@ import { AuteurError } from "@auteur/errors/auteur-error";
 import { newId } from "@auteur/ids/new-id";
 import { findArtifact } from "@auteur/session-store/artifacts";
 import { listQuestions } from "@auteur/session-store/questions";
+import { revisionNotesFor } from "@auteur/session-store/revision-notes";
 import {
   createSession,
   deleteSession,
@@ -72,7 +73,7 @@ export const sessionRoutes = (deps: { readonly db: Db }): Hono => {
     const id = idOf(context.req.param("id") ?? "");
     // Throws `not_found` for an unknown id, which the app maps to a 404.
     const session = await requireSession(db, id);
-    const [answers, decisions, outline, report, story, card] =
+    const [answers, decisions, outline, report, story, card, notes] =
       await Promise.all([
         listQuestions(db, id),
         artifactBody(db, id, "decisions", z.array(decisionEntrySchema)),
@@ -80,6 +81,7 @@ export const sessionRoutes = (deps: { readonly db: Db }): Hono => {
         artifactBody(db, id, "report", styleFitReportSchema),
         artifactBody(db, id, "draft", storySchema),
         session.cardId === null ? undefined : findCard(db, session.cardId),
+        revisionNotesFor(db, id),
       ]);
 
     return context.json({
@@ -89,6 +91,14 @@ export const sessionRoutes = (deps: { readonly db: Db }): Hono => {
       // report's numbers stop describing the draft beside them.
       card: card?.card ?? null,
       decisions: (decisions ?? []) as DecisionEntry[],
+      // Flattened and re-sorted rather than handed over grouped: the response
+      // schema is a list, and the screen that wants one stage's notes filters
+      // by `stageId` — which is one rule rather than a shape per consumer.
+      notes: [...notes.values()]
+        .flat()
+        .toSorted(
+          (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
+        ),
       outline,
       report,
       session,

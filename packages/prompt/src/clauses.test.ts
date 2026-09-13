@@ -2,10 +2,8 @@ import { describe, expect, test } from "bun:test";
 import type { WorkProsody } from "@auteur/core/prosody";
 import { clarify } from "./clarify.ts";
 import { corpusSelect } from "./corpus-select.ts";
-import { critique } from "./critique.ts";
-import { draft } from "./draft.ts";
 import { outline } from "./outline.ts";
-import { revise } from "./revise.ts";
+import { story } from "./story.ts";
 import { styleExtract } from "./style-extract.ts";
 import { styleFields } from "./style-fields.ts";
 import { summarizeBeat } from "./summarize-beat.ts";
@@ -142,7 +140,7 @@ const CASES = [
   },
   {
     build: () =>
-      draft.build({
+      story.build({
         antiPatterns: ["no dream reveals"],
         authorName: "Borges",
         beats: [{ index: 1, text: "the comet returns" }],
@@ -164,45 +162,7 @@ const CASES = [
       "no-label": "Writing your own version of it here produces two",
       precedence: "the story wins, and the drift is",
     },
-    name: "draft",
-  },
-  {
-    build: () =>
-      critique.build({
-        authorName: "Borges",
-        cardSummary: "a card",
-        draft: "The lamp turned.",
-        measures: [
-          {
-            path: "prosodyTarget.sentenceLength.mean",
-            status: "drift",
-            target: "28.4",
-            value: "18.2",
-          },
-        ],
-      }),
-    clauses: {
-      number: "dropped by the engine",
-      path: "names a path from the card",
-    },
-    name: "critique",
-  },
-  {
-    build: () =>
-      revise.build({
-        authorName: "Borges",
-        cardSummary: "a card",
-        draft: "The lamp turned.",
-        remedies: [
-          {
-            finding: "sentences run short",
-            path: "prosodyTarget.sentenceLength.mean",
-            remedy: "join three candidate pairs",
-          },
-        ],
-      }),
-    clauses: { targeted: "is not the instruction" },
-    name: "revise",
+    name: "story",
   },
   {
     build: () =>
@@ -232,12 +192,12 @@ for (const testCase of CASES) {
   });
 }
 
-describe("draft's precedence clause is §4.6's sentence, not a paraphrase", () => {
+describe("the precedence clause is §4.6's sentence, not a paraphrase", () => {
   test("it says the targets describe a corpus and not a quota", () => {
     // The clause exists instead of an overlay that lowers a target. If it
     // weakened to "try to hit these", the drift would stop being explained and
     // the report would argue with itself.
-    const built = draft.build({
+    const built = story.build({
       antiPatterns: [],
       authorName: "Borges",
       beats: [{ index: 1, text: "b" }],
@@ -255,33 +215,65 @@ describe("draft's precedence clause is §4.6's sentence, not a paraphrase", () =
   });
 });
 
-describe("revise's two paths", () => {
+describe("writing and rewriting are the same prompt", () => {
   const base = {
+    antiPatterns: [],
     authorName: "Borges",
-    cardSummary: "a card",
-    draft: "The lamp turned. The sea did not.",
-    remedies: [],
-  } as const;
+    beats: [{ index: 1, text: "the comet returns" }],
+    cardSummary: "c",
+    exemplars: [],
+    lengthPreset: "flash" as const,
+    targets: "t",
+    title: "T",
+    wordTarget: 1000,
+  };
 
-  test("the whole-draft path does not mention a marked span", () => {
-    expect(revise.build(base)).not.toContain("marked span");
+  test("a first attempt mentions neither a previous story nor a note", () => {
+    const built = story.build(base);
+    expect(built).not.toContain("The story as it stands");
+    expect(built).not.toContain("What the reader asked for");
   });
 
-  test("the selection path replaces only the span, character for character", () => {
-    // A revision that touched a paragraph the reader did not select is one
-    // they cannot undo.
-    const built = revise.build({
+  test("a note with no previous story is an instruction for writing it", () => {
+    // A note filed before the story existed. Requiring a previous story
+    // alongside it dropped the note from the prompt while its id stayed in the
+    // input key — consumed without being used.
+    const built = story.build({ ...base, notes: ["start at the letter"] });
+    expect(built).toContain("What the reader asked for");
+    expect(built).toContain("start at the letter");
+    expect(built).not.toContain("The story as it stands");
+    expect(built).toContain("The prose, as markdown");
+  });
+
+  test("a rewrite carries the story and every note, oldest first", () => {
+    // Every one of them. A reader who asked for a shorter middle and then for
+    // a longer ending asked for both, and a prompt carrying only the last note
+    // silently undoes the first request.
+    const built = story.build({
       ...base,
-      after: "The sea did not.",
-      before: "Once.",
-      span: "The lamp turned.",
+      notes: ["shorter in the middle", "and give the ending more room"],
+      previousStory: "The lamp turned. The sea did not.",
     });
-    expect(built).toContain("Replace only the marked span");
-    expect(built).toContain("identical, character for character");
+    expect(built).toContain("The lamp turned. The sea did not.");
+    expect(built.indexOf("shorter in the middle")).toBeLessThan(
+      built.indexOf("and give the ending more room"),
+    );
+  });
+
+  test("a rewrite asks for the whole story back, not a patch", () => {
+    // The stage overwrites the artifact with what comes back, so a reply that
+    // was only the changed paragraph would store that paragraph as the story.
+    const built = story.build({
+      ...base,
+      notes: ["shorter in the middle"],
+      previousStory: "The lamp turned.",
+    });
+    expect(built).toContain("The story again, whole");
+    expect(built).toContain("leave the rest as it stands");
   });
 });
 
-describe("draft under sequential-scene", () => {
+describe("the story under sequential-scene", () => {
   const base = {
     antiPatterns: [],
     authorName: "Borges",
@@ -298,8 +290,8 @@ describe("draft under sequential-scene", () => {
   };
 
   test("continuity and scope appear only when they are given", () => {
-    expect(draft.build(base)).not.toContain("What earlier scenes established");
-    const scened = draft.build({
+    expect(story.build(base)).not.toContain("What earlier scenes established");
+    const scened = story.build({
       ...base,
       continuity: "The keeper is called Ansel.",
       scope: [{ index: 2, text: "two" }],
@@ -309,7 +301,7 @@ describe("draft under sequential-scene", () => {
   });
 
   test("scope narrows the beats, so a scene call is not handed the whole sheet", () => {
-    const scened = draft.build({ ...base, scope: [{ index: 2, text: "two" }] });
+    const scened = story.build({ ...base, scope: [{ index: 2, text: "two" }] });
     expect(scened).toContain("2. two");
     expect(scened).not.toContain("1. one");
   });

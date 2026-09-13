@@ -7,14 +7,14 @@
   "exports": {
     "./author": "./src/author.ts",
     "./clarify": "./src/clarify.ts",
-    "./draft": "./src/draft.ts",
     "./idea": "./src/idea.ts",
     "./index": "./src/index.ts",
     "./models": "./src/models.ts",
     "./outline": "./src/outline.ts",
     "./research": "./src/research.ts",
     "./result": "./src/result.ts",
-    "./shell": "./src/shell.ts"
+    "./shell": "./src/shell.ts",
+    "./story": "./src/story.ts"
   },
   "files": [
     "src/**/*"

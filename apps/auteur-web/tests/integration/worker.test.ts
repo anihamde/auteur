@@ -229,3 +229,54 @@ describe("a claim from a worker that died is released", () => {
     expect((await findQueueEntry(harness.db, id))?.status).toBe("claimed");
   });
 });
+
+describe("every run of a stage is bracketed in the log", () => {
+  test("one start and one end, even for a stage that runs no model", async () => {
+    // `stage_end` is what the client refetches the session on, and `runStage`
+    // emits it only for a stage that called a model. `style-fit` — the last
+    // stage before the result screen — runs none, so the report reached the
+    // database and never the screen.
+    await queue("prosody-compute");
+    expect(await tick(deps())).toBe("ran");
+
+    const types = (await readSince(harness.db, sessionId, 0)).map(
+      (stored) => stored.event.type,
+    );
+    expect(types.filter((type) => type === "stage_start")).toHaveLength(1);
+    expect(types.filter((type) => type === "stage_end")).toHaveLength(1);
+    expect(types.at(0)).toBe("stage_start");
+    expect(types.at(-1)).toBe("stage_end");
+  });
+
+  test("a stage that ended itself is not ended twice", async () => {
+    // A model stage's own `stage_end` carries the usage and the cost. A second
+    // one behind it would double every count `bun run stats` reads.
+    await queue("prosody-compute");
+    await tick(
+      deps(async ({ emit, stageId }) => {
+        await emit({ elapsedMs: 12, stageId, type: "stage_end" });
+        return undefined;
+      }),
+    );
+
+    expect(
+      (await readSince(harness.db, sessionId, 0)).filter(
+        (stored) => stored.event.type === "stage_end",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("a stage that failed is bracketed by its start and its error", async () => {
+    await queue("prosody-compute");
+    await tick(
+      deps(async () => {
+        throw new AuteurError("provider_error", "The gateway refused.");
+      }),
+    );
+
+    const types = (await readSince(harness.db, sessionId, 0)).map(
+      (stored) => stored.event.type,
+    );
+    expect(types).toEqual(["stage_start", "stage_error"]);
+  });
+});

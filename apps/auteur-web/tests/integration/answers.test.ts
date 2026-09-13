@@ -6,10 +6,9 @@ import {
   expect,
   test,
 } from "bun:test";
-import { errorResponseSchema, ROUTES } from "@auteur/api-contract/routes";
+import { ROUTES } from "@auteur/api-contract/routes";
 import type { Question } from "@auteur/core/session";
 import { newId } from "@auteur/ids/new-id";
-import { putArtifact } from "@auteur/session-store/artifacts";
 import { putQuestionRound } from "@auteur/session-store/questions";
 import { createSession } from "@auteur/session-store/sessions";
 import { recordStageKey } from "@auteur/session-store/stage-keys";
@@ -30,18 +29,8 @@ afterAll(async () => {
   await harness.close();
 });
 
-const post = async (
-  path: string,
-  body: unknown,
-  spans: { from: number; to: number }[] = [],
-): Promise<Response> => {
-  const app = createApp({
-    apiToken: TOKEN,
-    db: harness.db,
-    recordSpan: async ({ from, to }) => {
-      spans.push({ from, to });
-    },
-  });
+const post = async (path: string, body: unknown): Promise<Response> => {
+  const app = createApp({ apiToken: TOKEN, db: harness.db });
   return app.request(path, {
     body: JSON.stringify(body),
     headers: {
@@ -149,115 +138,10 @@ describe("editing an answer invalidates its descendants and keeps the rows", () 
   });
 });
 
-describe("regenerating a selection", () => {
-  const STORY = [
-    "The lamp turned through the fog.",
-    "He had never once walked down to the water.",
-    "His father had, and had not come back.",
-    "The bell rang the hours whether or not anyone counted them.",
-  ].join(" ");
-
-  const seedDraft = async (markdown = STORY): Promise<void> => {
-    await putArtifact(harness.db, {
-      body: { markdown, title: "Landfall", wordCount: 40 },
-      inputKey: "draft-key",
-      kind: "draft",
-      sessionId,
-    });
-  };
-
-  test("a selection is snapped outward to sentence boundaries before it reaches the prompt", async () => {
-    // Regenerating half a sentence produces a splice that reads as a splice.
-    await seedDraft();
-    const spans: { from: number; to: number }[] = [];
-    // Mid-word inside the second sentence.
-    const from = STORY.indexOf("never");
-    const to = STORY.indexOf("walked") + 3;
-
-    const response = await post(
-      `/api/sessions/${sessionId}/regenerate`,
-      { from, kind: "selection", to },
-      spans,
-    );
-    expect(response.status).toBe(200);
-
-    const span = spans[0];
-    expect(span).toBeDefined();
-    expect(span?.from).toBeLessThanOrEqual(from);
-    expect(span?.to).toBeGreaterThanOrEqual(to);
-    const snapped = STORY.slice(span?.from ?? 0, span?.to ?? 0).trim();
-    // Widened, never narrowed: the whole sentence, not the fragment.
-    expect(snapped).toContain("He had never once walked down to the water.");
-  });
-
-  test("a selection above 60% of the word count is refused with invalid_input", async () => {
-    await seedDraft();
+describe("regenerating a stage", () => {
+  test("it enqueues the outline and needs no story", async () => {
     const response = await post(`/api/sessions/${sessionId}/regenerate`, {
-      from: 0,
-      kind: "selection",
-      to: STORY.length,
-    });
-    expect(response.status).toBe(400);
-    expect(errorResponseSchema.parse(await response.json()).error.code).toBe(
-      "invalid_input",
-    );
-  });
-
-  test("the limit is measured after snapping, not before", async () => {
-    // Snapping widens, so measuring the raw selection would let a request
-    // through that, once widened, rewrites more than the limit allows.
-    // Ten words in two very unequal sentences. Selecting four of them is 40%
-    // — under the limit. Snapped outward it becomes the whole first sentence,
-    // eight of ten, which is over it.
-    const lopsided = "One two three four five six seven eight. Nine ten.";
-    await seedDraft(lopsided);
-    const response = await post(`/api/sessions/${sessionId}/regenerate`, {
-      from: 0,
-      kind: "selection",
-      to: 18,
-    });
-    expect(response.status).toBe(400);
-  });
-
-  test("regenerating a selection with no draft is invalid_input, not a crash", async () => {
-    const response = await post(`/api/sessions/${sessionId}/regenerate`, {
-      from: 0,
-      kind: "selection",
-      to: 10,
-    });
-    expect(response.status).toBe(400);
-  });
-
-  test("an empty selection is refused", async () => {
-    await seedDraft();
-    const response = await post(`/api/sessions/${sessionId}/regenerate`, {
-      from: 20,
-      kind: "selection",
-      to: 20,
-    });
-    expect(response.status).toBe(400);
-  });
-
-  test("it enqueues revise, not a second pipeline", async () => {
-    // §6.9: a selection is `revise` with a span instead of findings.
-    await seedDraft();
-    const response = await post(`/api/sessions/${sessionId}/regenerate`, {
-      from: STORY.indexOf("His father"),
-      kind: "selection",
-      to: STORY.indexOf("come back") + 9,
-    });
-    expect(
-      ROUTES.regenerate.response.parse(await response.json()).enqueued,
-    ).toEqual(["revise"]);
-    const queue = await listQueueForSession(harness.db, sessionId);
-    expect(queue.map((entry) => entry.stageId)).toEqual(["revise"]);
-  });
-});
-
-describe("regenerating the outline", () => {
-  test("it enqueues outline and needs no draft", async () => {
-    const response = await post(`/api/sessions/${sessionId}/regenerate`, {
-      kind: "outline",
+      stageId: "outline",
     });
     expect(response.status).toBe(200);
     expect(
@@ -265,9 +149,21 @@ describe("regenerating the outline", () => {
     ).toEqual(["outline"]);
   });
 
-  test("an unknown kind is refused rather than defaulted", async () => {
+  test("a stage nothing revises is refused rather than defaulted", async () => {
     const response = await post(`/api/sessions/${sessionId}/regenerate`, {
-      kind: "everything",
+      stageId: "style-extract",
+    });
+    expect(response.status).toBe(400);
+  });
+
+  test("the old selection body is refused rather than ignored", async () => {
+    // Replacing one span was `revise` with a span instead of findings, and
+    // `revise` is gone. A client still sending it must fail rather than
+    // regenerate something it did not name.
+    const response = await post(`/api/sessions/${sessionId}/regenerate`, {
+      from: 0,
+      kind: "selection",
+      to: 100,
     });
     expect(response.status).toBe(400);
   });
@@ -279,23 +175,18 @@ describe("regenerating the outline", () => {
     // stale, and the reader keeps the story written from the beat sheet they
     // just discarded, permanently. A finished stage no longer chains past the
     // step, so this route is where the tail is named.
-    for (const stageId of ["outline", "draft", "critique", "revise"]) {
+    for (const stageId of ["outline", "story"]) {
       await recordStageKey(harness.db, sessionId, stageId, `${stageId}-key`);
     }
     const response = await post(`/api/sessions/${sessionId}/regenerate`, {
-      kind: "outline",
+      stageId: "outline",
     });
 
     expect(
       ROUTES.regenerate.response.parse(await response.json()).enqueued,
-    ).toEqual(["outline", "draft", "critique", "revise"]);
+    ).toEqual(["outline", "story"]);
     const queue = await listQueueForSession(harness.db, sessionId);
-    expect(queue.map((entry) => entry.stageId)).toEqual([
-      "outline",
-      "draft",
-      "critique",
-      "revise",
-    ]);
+    expect(queue.map((entry) => entry.stageId)).toEqual(["outline", "story"]);
   });
 
   test("a stage that never ran is not started by regenerating its input", async () => {
@@ -304,7 +195,7 @@ describe("regenerating the outline", () => {
     // charged for a story they have not asked for.
     await recordStageKey(harness.db, sessionId, "outline", "outline-key");
     const response = await post(`/api/sessions/${sessionId}/regenerate`, {
-      kind: "outline",
+      stageId: "outline",
     });
     expect(
       ROUTES.regenerate.response.parse(await response.json()).enqueued,
