@@ -1,6 +1,4 @@
-import { DEFAULT_PIPELINE, STAGE_IDS } from "@auteur/config/stages";
 import type { SessionEvent } from "@auteur/core/events";
-import type { Step } from "@auteur/core/session";
 import type { Db } from "@auteur/db/db";
 import { AuteurError } from "@auteur/errors/auteur-error";
 import { detailLine } from "@auteur/errors/detail-line";
@@ -14,7 +12,8 @@ import {
   enqueueForRun,
   failStage,
 } from "@auteur/stage-queue/queue";
-import { LAST_STAGE_FOR_STEP, stalenessInputFor } from "../_routes/advance.ts";
+import { successorsWithin } from "../_graph.ts";
+import { stalenessInputFor } from "../_routes/advance.ts";
 import { inputKeys } from "../_staleness.ts";
 
 /**
@@ -77,37 +76,6 @@ export type ClaimedStage = {
 export type StageOutcome = {
   readonly outcome: "done" | "error";
   readonly enqueued: readonly string[];
-};
-
-/** The stages the pipeline would run after this one, in graph order. */
-export const successorsOf = (stageId: string): string[] =>
-  DEFAULT_PIPELINE.stages
-    .filter((stage) => stage.reads.includes(stageId))
-    .map((stage) => stage.id);
-
-/**
- * The successors the session has actually asked for, in graph order.
- *
- * §7.1 says `advance` is the only route that *starts* work, and on the
- * serverless path that was true by accident: a finished stage enqueued its
- * successors, one invocation was asked for, and the rest sat in the queue until
- * the reader pressed a button. The worker drains the queue, so the accident
- * ended — `clarify` wrote its questions and `outline` started in the same
- * second, read an empty answer set, and built the beat sheet from the idea
- * alone. The reader's answers were never read by anything.
- *
- * So the bound is stated rather than inherited, and it is the same bound
- * `enqueueStaleUpTo` uses: nothing past the last stage the current step needs.
- * A step that needs no stage (`idea`, `author`) enqueues nothing at all.
- */
-export const successorsWithin = (stageId: string, step: Step): string[] => {
-  const limit = LAST_STAGE_FOR_STEP[step];
-  if (limit === undefined) return [];
-  const bound = STAGE_IDS.indexOf(limit);
-  return successorsOf(stageId).filter((id) => {
-    const at = STAGE_IDS.indexOf(id);
-    return at !== -1 && at <= bound;
-  });
 };
 
 export const runClaimedStage = async (

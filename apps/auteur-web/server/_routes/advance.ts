@@ -13,6 +13,7 @@ import { requireSession, updateSession } from "@auteur/session-store/sessions";
 import { readStageKeys } from "@auteur/session-store/stage-keys";
 import { enqueueForRun } from "@auteur/stage-queue/queue";
 import { Hono } from "hono";
+import { LAST_STAGE_FOR_STEP } from "../_graph.ts";
 import { type StalenessInput, staleUpTo } from "../_staleness.ts";
 import { idOf } from "./_id.ts";
 
@@ -28,24 +29,6 @@ import { idOf } from "./_id.ts";
  * else: the queue is the pipeline's control flow, and a second opinion about
  * ordering held in a route would be a second thing to keep correct.
  */
-
-/**
- * The last stage each wizard step needs finished.
- *
- * §3.2's seven steps and §6.2's ten stages are different lists on purpose: a
- * step is a screen and a stage is a unit of work. `idea` and `author` need no
- * stage — reaching them runs nothing, which is why they map to `undefined`
- * rather than to the first stage.
- */
-export const LAST_STAGE_FOR_STEP: Readonly<Record<Step, string | undefined>> = {
-  author: undefined,
-  clarify: "clarify",
-  draft: "draft",
-  idea: undefined,
-  outline: "outline",
-  research: "style-extract",
-  result: "style-fit",
-};
 
 export type AdvanceDeps = {
   readonly db: Db;

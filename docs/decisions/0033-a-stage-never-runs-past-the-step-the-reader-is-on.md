@@ -74,6 +74,20 @@ did. Between the enqueue and the update there was a window in which a stage
 could complete against the step the reader had just left, and stop the chain one
 stage in.
 
+**`regenerate` names its own tail.** §7.5 cannot see a regenerate: it changes no
+input, so after the new beat sheet upserts over the old one, `draft`'s input key
+— built from `outline`'s *key* rather than from its output — is the same key.
+Nothing downstream is stale and the reader keeps the story written from the beat
+sheet they just discarded, permanently. While a finished stage chained
+unconditionally this was hidden; now the route enqueues the stage and every
+descendant that **has already run**. Regenerating an outline before there is a
+story starts no story.
+
+The graph itself moved to `server/_graph.ts`. `run-stage.ts` already imported
+`advance.ts` for the staleness input, and `regenerate.ts` needing the same graph
+would have made an edge back the other way — a cycle between a route and the
+thing routes invoke, over knowledge that belongs to neither.
+
 **`runDraft` reads the passages it cites and the bands it will be scored
 against.** `attachPassageText` resolves each exemplar's passage by id and drops
 any whose passage is missing or empty — a heading with no body is not weaker

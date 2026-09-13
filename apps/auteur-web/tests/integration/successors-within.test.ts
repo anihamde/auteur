@@ -2,10 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { STAGE_IDS } from "@auteur/config/stages";
 import { STEPS } from "@auteur/core/session";
 import {
+  descendantsOf,
+  LAST_STAGE_FOR_STEP,
   successorsOf,
   successorsWithin,
-} from "../../server/_internal/run-stage.ts";
-import { LAST_STAGE_FOR_STEP } from "../../server/_routes/advance.ts";
+} from "../../server/_graph.ts";
 
 /**
  * What a finished stage is allowed to start.
@@ -66,5 +67,39 @@ describe("the bound is the same one advance uses", () => {
       if (limit === undefined) continue;
       expect(STAGE_IDS).toContain(limit);
     }
+  });
+});
+
+describe("a regenerate replaces everything built on what it replaces", () => {
+  test("the outline's descendants are the whole tail, transitively", () => {
+    // Two hops matter: `style-fit` reads `revise`, which reads `draft`, which
+    // reads the outline. A one-hop answer would leave the report scoring a
+    // story that no longer exists.
+    expect(descendantsOf("outline")).toEqual([
+      "draft",
+      "critique",
+      "revise",
+      "style-fit",
+    ]);
+  });
+
+  test("the last stage has none, which is how a regenerate of it ends", () => {
+    expect(descendantsOf("style-fit")).toEqual([]);
+  });
+
+  test("a stage is not its own descendant", () => {
+    // `reads` has no cycles, and the walk must not invent one: a stage that
+    // enqueued itself as its own descendant would run twice per regenerate.
+    for (const id of STAGE_IDS) {
+      expect(descendantsOf(id)).not.toContain(id);
+    }
+  });
+
+  test("descendants come back in graph order, not discovery order", () => {
+    // They are enqueued in this order and the worker takes the oldest row, so
+    // discovery order would run `revise` before the draft it revises.
+    const tail = descendantsOf("clarify");
+    const positions = tail.map((id) => STAGE_IDS.indexOf(id));
+    expect(positions).toEqual(positions.toSorted((a, b) => a - b));
   });
 });
