@@ -276,3 +276,59 @@ describe("a same-origin url is a url", () => {
     ).toBe("https://preview.auteur.test/api/sessions/a/events?cursor=2");
   });
 });
+
+describe("a quiet pipeline is not a broken stream", () => {
+  test("a connection that held open and delivered nothing does not count", async () => {
+    // The defect, at the numbers it happened at. Vercel ends the response at
+    // the function ceiling, so a run that says nothing for five minutes — most
+    // of a research stage — reconnected five times into silence and the client
+    // gave up for good. `onFatal` was a no-op in the app, so nothing said why;
+    // every screen from then on needed a manual reload.
+    let calls = 0;
+    let clock = 0;
+    let fatal: AuteurError | undefined;
+    const stream = connectStream({
+      fetch: () => {
+        calls += 1;
+        // Each connection lasts a minute and carries nothing.
+        clock += 60_000;
+        return Promise.resolve(sse(calls > 8 ? frame(1) : ""));
+      },
+      maxEmptyReconnects: 2,
+      now: () => clock,
+      onEvent: () => undefined,
+      onFatal: (error) => {
+        fatal = error;
+      },
+      sleep: async () => undefined,
+      url: "https://auteur.test/api/sessions/x/events",
+    });
+    // The ninth connection delivers, and the stream was still alive to take it.
+    while (calls < 9) await Promise.resolve();
+    stream.close();
+    await stream.done;
+
+    expect(fatal).toBeUndefined();
+    expect(calls).toBeGreaterThan(5);
+  });
+
+  test("an endpoint that answers at once with nothing still ends the stream", async () => {
+    // The condition the budget is actually for: reconnecting into something
+    // that is not there. A client that kept trying would never tell anyone.
+    let fatal: AuteurError | undefined;
+    const stream = connectStream({
+      fetch: () => Promise.resolve(sse("")),
+      maxEmptyReconnects: 2,
+      // The clock does not move: every connection returns immediately.
+      now: () => 0,
+      onEvent: () => undefined,
+      onFatal: (error) => {
+        fatal = error;
+      },
+      sleep: async () => undefined,
+      url: "https://auteur.test/api/sessions/x/events",
+    });
+    await stream.done;
+    expect(fatal?.message).toContain("delivered nothing");
+  });
+});

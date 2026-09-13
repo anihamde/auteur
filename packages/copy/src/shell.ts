@@ -36,6 +36,13 @@ export const shell = {
     result: "Result",
     story: "Story",
   },
+  /**
+   * Before the reason the stream gave, which is the client's own sentence.
+   *
+   * The reader's move is to reload, and saying so is the whole of what this
+   * line is for: the page looks identical whether it is waiting or dead.
+   */
+  streamLost: "Live updates stopped. Reload to see where the run got to.",
   wordmark: "auteur",
   /** On a button while the request it started is in flight. A label. */
   working: "Working",

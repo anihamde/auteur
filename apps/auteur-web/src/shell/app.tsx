@@ -1,6 +1,7 @@
 import { WizardRail } from "@auteur/component-library/pipeline";
 import {
   createThemeController,
+  type ThemeController,
   type ThemeMode,
   ThemeToggle,
 } from "@auteur/component-library/theme";
@@ -71,6 +72,16 @@ export const App = ({
   const [state, setState] = useState<SessionState>(initial);
   const [mode, setMode] = useState<ThemeMode>("auto");
   const [overlay, setOverlay] = useState(false);
+  /**
+   * The controller, kept.
+   *
+   * It is what writes `data-theme` on the root element, and every token the
+   * interface renders resolves against that attribute. Choosing Light moved
+   * this component's `mode` and nothing else — the button highlighted, the page
+   * stayed dark, and the one control that changes how the product looks did
+   * nothing at all.
+   */
+  const theme = useRef<ThemeController | undefined>(undefined);
 
   /**
    * The session this app is driving.
@@ -86,8 +97,12 @@ export const App = ({
     const controller = createThemeController({
       root: document.documentElement,
     });
+    theme.current = controller;
     setMode(controller.get());
-    return controller.stop;
+    return () => {
+      theme.current = undefined;
+      controller.stop();
+    };
   }, []);
 
   // Resume the stored session on first mount. `GET /api/sessions/:id` carries
@@ -133,21 +148,31 @@ export const App = ({
   // change.
   useEffect(() => {
     if (sessionId === undefined) return;
-    const stream = transport.openStream(sessionId, cursor.current, (event) => {
-      setState((previous) => ({
-        ...previous,
-        events: [...previous.events, event],
-      }));
-      if (event.event.type !== "stage_end") return;
-      void transport.client
-        .call("session", { params: { id: sessionId } })
-        .then((view) => {
-          setState((previous) => ({ ...previous, view }));
-        })
-        // A refetch that fails leaves the screen as it was, which is what it
-        // would have been anyway. The next stage's end tries again.
-        .catch(() => undefined);
-    });
+    const stream = transport.openStream(
+      sessionId,
+      cursor.current,
+      (event) => {
+        setState((previous) => ({
+          ...previous,
+          events: [...previous.events, event],
+        }));
+        if (event.event.type !== "stage_end") return;
+        void transport.client
+          .call("session", { params: { id: sessionId } })
+          .then((view) => {
+            setState((previous) => ({ ...previous, view }));
+          })
+          // A refetch that fails leaves the screen as it was, which is what it
+          // would have been anyway. The next stage's end tries again.
+          .catch(() => undefined);
+      },
+      (message) => {
+        // Said rather than swallowed. A dead stream leaves every screen frozen
+        // with no way to find out but a reload, and the reader has no reason to
+        // suspect one: the page looks exactly as it does while waiting.
+        setState((previous) => ({ ...previous, error: message }));
+      },
+    );
     return () => {
       stream.close();
     };
@@ -193,7 +218,18 @@ export const App = ({
         // print stylesheet hides rather than on a wrapper that would become the
         // flex child in its place.
         data-print="chrome"
-        footer={<ThemeToggle mode={mode} onChange={setMode} size="sm" />}
+        footer={
+          <ThemeToggle
+            mode={mode}
+            onChange={(next) => {
+              // The controller first: it writes the attribute and remembers the
+              // choice. `setMode` only moves which button reads as chosen.
+              theme.current?.set(next);
+              setMode(next);
+            }}
+            size="sm"
+          />
+        }
         header={
           <div>
             <div
@@ -226,6 +262,14 @@ export const App = ({
           padding: token("gutter-screen"),
         }}
       >
+        {/* A live region rather than a banner that only exists on this render:
+            the failure it reports arrives minutes after the reader stopped
+            looking at the page. */}
+        {state.error === undefined ? undefined : (
+          <p data-print="chrome" role="alert">
+            {COPY.shell.streamLost} {state.error}
+          </p>
+        )}
         <Screen
           onOpenModels={() => {
             setOverlay(true);

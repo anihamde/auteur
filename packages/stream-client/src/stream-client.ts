@@ -25,6 +25,8 @@ export type StreamConfig = {
   /** Injected so a test does not wait through the backoff. */
   readonly sleep?: (ms: number) => Promise<void>;
   readonly maxEmptyReconnects?: number;
+  /** Injected so a test can make a connection long-lived without waiting. */
+  readonly now?: () => number;
   /**
    * Where to resume from. Defaults to 0 — the beginning.
    *
@@ -37,15 +39,35 @@ export type StreamConfig = {
 };
 
 /**
- * How many consecutive reconnects that deliver nothing before giving up.
+ * How many consecutive **short** reconnects that deliver nothing before giving
+ * up.
  *
- * Bounded on *empty* reconnects rather than on total attempts, because a stream
- * that reconnects every four minutes and delivers a stage each time is working
- * — that is the ordinary case now, not the exceptional one, since the function
- * ceiling ends every long run's stream. What is not working is reconnecting
- * into silence.
+ * Bounded on empty reconnects rather than on total attempts, because a stream
+ * that reconnects every minute and delivers a stage each time is working — that
+ * is the ordinary case, not the exceptional one, since the function ceiling
+ * ends every long run's stream.
+ *
+ * And bounded on **short** ones, which is the half that was missing. A
+ * connection that stayed open for its whole budget and delivered nothing is an
+ * idle stream over a quiet pipeline, which is most of a research stage: the
+ * card took three and a half minutes on the deployment and said nothing for
+ * most of it. Counting those, five of them ended the stream for good — after
+ * which every screen needed a manual reload, and `onFatal` was a no-op so
+ * nothing said why.
+ *
+ * What is not working is reconnecting into an endpoint that answers at once
+ * with nothing, five times over.
  */
 export const MAX_EMPTY_RECONNECTS = 5;
+
+/**
+ * How long a connection must last to count as healthy rather than empty.
+ *
+ * Well under the stream's own budget and well above the round trip that opens
+ * it: anything shorter than this delivered nothing because there was nothing
+ * there, not because nothing happened.
+ */
+export const HEALTHY_CONNECTION_MS = 5000;
 
 const BACKOFF_MS = [250, 500, 1000, 2000, 4000] as const;
 
@@ -135,7 +157,13 @@ export const connectStream = (config: StreamConfig): Stream => {
     config.onFatal(error);
   };
 
-  const readOnce = async (): Promise<number> => {
+  const now = config.now ?? (() => Date.now());
+
+  const readOnce = async (): Promise<{
+    readonly delivered: number;
+    readonly elapsedMs: number;
+  }> => {
+    const openedAt = now();
     controller = new AbortController();
     const response = await call(withCursor(config.url, cursor), {
       signal: controller.signal,
@@ -182,16 +210,19 @@ export const connectStream = (config: StreamConfig): Stream => {
         config.onEvent(event);
       }
     }
-    return delivered;
+    return { delivered, elapsedMs: now() - openedAt };
   };
 
   const done = (async (): Promise<void> => {
     let empty = 0;
     while (!closed) {
       try {
-        const delivered = await readOnce();
+        const { delivered, elapsedMs } = await readOnce();
         if (closed) return;
-        empty = delivered > 0 ? 0 : empty + 1;
+        // A connection that held open and delivered nothing is a quiet
+        // pipeline, not a broken endpoint.
+        empty =
+          delivered > 0 || elapsedMs >= HEALTHY_CONNECTION_MS ? 0 : empty + 1;
         if (empty > maxEmpty) {
           fatal(
             new AuteurError(

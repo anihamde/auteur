@@ -33,8 +33,12 @@ import { idOf } from "./_id.ts";
  * Under the platform's ceiling on purpose. Ending the response ourselves gives
  * the client a clean close to reconnect from; being killed at the ceiling gives
  * it a torn connection, and the two look different to every proxy in between.
+ *
+ * It was four minutes against a sixty-second ceiling, so it never fired and
+ * every stream ended torn. `deploy-readiness.test.ts` holds it under
+ * `build-vercel.ts`'s `MAX_DURATION` so the two cannot drift apart again.
  */
-export const STREAM_BUDGET_MS = 240_000;
+export const STREAM_BUDGET_MS = 50_000;
 
 /** How often the reader re-checks the table without a notification. */
 export const POLL_INTERVAL_MS = 1000;
