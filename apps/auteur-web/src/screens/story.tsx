@@ -7,6 +7,7 @@ import { WORD_TARGET } from "@auteur/core/session";
 import type { ReactElement } from "react";
 import type { ScreenProps } from "../shell/app.tsx";
 import { NotePanel } from "./note-panel.tsx";
+import { Waiting } from "./waiting.tsx";
 
 /**
  * Screen 6 — the prose streams on paper, the drift reads on ink.
@@ -111,11 +112,17 @@ export const StoryScreen = ({
     <>
       <CardHeader meta={COPY.shell.steps.story} title={COPY.story.title} />
       <div style={{ display: "flex", gap: "var(--gutter-panel)" }}>
-        <Card ground="paper" padding="lg" style={{ flex: "1" }}>
-          <Markdown ground="paper" streaming={streamed !== ""}>
-            {text}
-          </Markdown>
-        </Card>
+        {text === "" ? (
+          <div style={{ flex: "1" }}>
+            <Waiting events={state.events} stageId="story" />
+          </div>
+        ) : (
+          <Card ground="paper" padding="lg" style={{ flex: "1" }}>
+            <Markdown ground="paper" streaming={streamed !== ""}>
+              {text}
+            </Markdown>
+          </Card>
+        )}
         {/* Ink: a measurement is the instrument, never the artifact. */}
         <Card ground="ink" padding="md" style={{ width: "var(--rail-width)" }}>
           <h3>{COPY.story.driftLabel}</h3>

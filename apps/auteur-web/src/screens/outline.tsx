@@ -4,6 +4,7 @@ import { COPY } from "@auteur/copy/index";
 import type { ReactElement } from "react";
 import type { ScreenProps } from "../shell/app.tsx";
 import { NotePanel } from "./note-panel.tsx";
+import { Waiting } from "./waiting.tsx";
 
 /**
  * Screen 5 — the beat sheet, on paper, until you approve it.
@@ -56,19 +57,23 @@ export const OutlineScreen = ({
     <>
       <CardHeader meta={COPY.shell.steps.outline} title={COPY.outline.title} />
       <p>{COPY.outline.subtitle}</p>
-      {/* The artifact ground: a beat sheet is the thing being made. */}
-      <Card ground="paper" padding="lg">
-        <Markdown ground="paper">
-          {outline === undefined
-            ? ""
-            : [
-                `# ${outline.title}`,
-                ...outline.beats.map(
-                  (beat) => `${beat.index.toString()}. ${beat.text}`,
-                ),
-              ].join("\n\n")}
-        </Markdown>
-      </Card>
+      {/* An empty paper card and a finished one look the same, and so does a
+          stage that failed. The row says which. */}
+      {outline === undefined ? (
+        <Waiting events={state.events} stageId="outline" />
+      ) : (
+        /* The artifact ground: a beat sheet is the thing being made. */
+        <Card ground="paper" padding="lg">
+          <Markdown ground="paper">
+            {[
+              `# ${outline.title}`,
+              ...outline.beats.map(
+                (beat) => `${beat.index.toString()}. ${beat.text}`,
+              ),
+            ].join("\n\n")}
+          </Markdown>
+        </Card>
+      )}
 
       <NotePanel
         copy={{

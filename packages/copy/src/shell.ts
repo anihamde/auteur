@@ -25,6 +25,16 @@ export const shell = {
     themeLabel: "theme",
     themeLight: "Light",
   },
+  /**
+   * What a screen says while its stage has not produced anything yet.
+   *
+   * Three states and three sentences, because they call for different things:
+   * wait, wait, and look at what went wrong. A single "Loading" would be the
+   * same word over a stage that has failed.
+   */
+  stageFailed: "This step did not finish. The reason is in the row above.",
+  stageQueued: "Queued. It starts when the step before it finishes.",
+  stageRunning: "Running. This page updates itself when it finishes.",
   stepOf: "Step",
   /** The seven steps, rail order. Sentence case, no terminal period. */
   steps: {
