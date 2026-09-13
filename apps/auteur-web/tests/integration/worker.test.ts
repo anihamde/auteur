@@ -178,8 +178,17 @@ describe("stopping waits for the stage in flight", () => {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
+    // The stage says when it has started, rather than the test guessing with a
+    // timer. Twenty milliseconds is enough on this machine and was not enough
+    // on the CI runner, where the row was still `queued` when the assertion
+    // read it — a failure about scheduling, reported as a failure about `stop`.
+    let started: (() => void) | undefined;
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
     const worker = startWorker({
       ...deps(async () => {
+        started?.();
         await held;
         return undefined;
       }),
@@ -187,9 +196,7 @@ describe("stopping waits for the stage in flight", () => {
       sleep: async () => undefined,
     });
 
-    await new Promise((resolve) => {
-      setTimeout(resolve, 20);
-    });
+    await running;
     const stopping = worker.stop();
     // Still claimed: the stage is mid-flight and `stop` has not resolved.
     expect((await findQueueEntry(harness.db, id))?.status).toBe("claimed");
