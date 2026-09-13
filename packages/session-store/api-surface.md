@@ -32,6 +32,14 @@ export const listQuestions = async (
 export const putQuestionRound = async (
 ```
 
+## `@auteur/session-store/revision-notes`
+
+```ts
+export const addRevisionNote = async (
+export const listRevisionNotes = async (
+export const revisionNotesFor = async (
+```
+
 ## `@auteur/session-store/sessions`
 
 ```ts

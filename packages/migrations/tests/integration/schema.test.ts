@@ -25,6 +25,10 @@ const TABLES = [
   "events",
   "passages",
   "questions",
+  // Not in §3.2: what the reader wrote about a beat sheet or a draft. §6 has
+  // the model ask closed questions, which `questions` holds; a note is about
+  // the document that exists and nothing anticipated it.
+  "revision_notes",
   "session_runs",
   "sessions",
   // Not in §3.2: added by decision 0006, because only four of ten stages
