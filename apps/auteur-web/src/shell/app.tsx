@@ -171,6 +171,11 @@ export const App = ({
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <WizardRail
         current={current}
+        // The result screen prints the story, and the rail is not part of it.
+        // `...rest` reaches the `<nav>`, so the attribute is on the element the
+        // print stylesheet hides rather than on a wrapper that would become the
+        // flex child in its place.
+        data-print="chrome"
         footer={<ThemeToggle mode={mode} onChange={setMode} size="sm" />}
         header={
           <div>
