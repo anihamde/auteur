@@ -9,13 +9,14 @@ import {
 } from "./contract.ts";
 import { ROUTE_NAMES, specOf } from "./routes.ts";
 
-describe("the seventeen routes", () => {
-  test("seventeen, counted from the object rather than written down", () => {
+describe("the eighteen routes", () => {
+  test("eighteen, counted from the object rather than written down", () => {
     // §7.1 says "fourteen" and lists seventeen — fourteen browser routes, the
     // SSE route, and the internal one. `docs/decisions/0005` works through it.
+    // Eighteen since `notes`, which is a browser route §7.1 does not list.
     // Counting from the object is what makes the number a property of the
     // contract rather than a comment that goes stale the same way.
-    expect(ROUTE_NAMES).toHaveLength(17);
+    expect(ROUTE_NAMES).toHaveLength(18);
   });
 
   test("every §7.1 path is present, exactly once", () => {
@@ -34,6 +35,7 @@ describe("the seventeen routes", () => {
         "GET /api/authors",
         "POST /api/sessions/:id/author",
         "POST /api/sessions/:id/answers",
+        "POST /api/sessions/:id/notes",
         "POST /api/sessions/:id/advance",
         "POST /api/sessions/:id/regenerate",
         "POST /api/sessions/:id/cancel",

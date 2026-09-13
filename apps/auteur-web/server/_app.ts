@@ -20,6 +20,7 @@ import { type EventRoutesDeps, eventRoutes } from "./_routes/events.ts";
 import { exportRoutes } from "./_routes/export.ts";
 import { healthRoutes } from "./_routes/health.ts";
 import { modelRoutes } from "./_routes/models.ts";
+import { noteRoutes } from "./_routes/notes.ts";
 import { pinRoutes } from "./_routes/pins.ts";
 import { type RegenerateDeps, regenerateRoutes } from "./_routes/regenerate.ts";
 import { selectAuthorRoutes } from "./_routes/select-author.ts";
@@ -228,6 +229,7 @@ export const createApp = (deps: AppDeps): Hono => {
   app.route("/", exportRoutes({ db: deps.db }));
   app.route("/", healthRoutes());
   app.route("/", modelRoutes());
+  app.route("/", noteRoutes({ db: deps.db }));
   if (deps.cron !== undefined) {
     app.route(
       "/",

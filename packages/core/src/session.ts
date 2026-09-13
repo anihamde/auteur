@@ -105,6 +105,41 @@ export const decisionEntrySchema = z.object({
 });
 export type DecisionEntry = z.infer<typeof decisionEntrySchema>;
 
+/**
+ * The stages a reader may write a note about.
+ *
+ * Not every stage: a note is about something the reader has read, and the
+ * research stages produce a card rather than a document. Narrow so that a
+ * typo in a request body is a 400 rather than a note filed against a stage id
+ * that will never look for one.
+ */
+export const REVISABLE_STAGES = ["outline", "draft"] as const;
+export const revisableStageSchema = z.enum(REVISABLE_STAGES);
+export type RevisableStage = z.infer<typeof revisableStageSchema>;
+
+/**
+ * A note the reader wrote about a stage's output.
+ *
+ * Free text, and deliberately: `PRD.md` §6 has the model ask closed questions
+ * because a closed question is answerable before the thing exists. A note is
+ * about the thing that exists, and nothing anticipated it — so there is no
+ * schema for what it may say, and the whole of its structure is which stage it
+ * is about and when it was written.
+ *
+ * Notes accumulate and are never edited. "Shorter in the middle", then "and
+ * give the ending more room", is two notes rather than a replacement, and the
+ * stage reads them in order.
+ */
+export const NOTE_LONGEST = 2000;
+export const revisionNoteSchema = z.object({
+  createdAt: z.coerce.date(),
+  id: z.uuid(),
+  note: z.string().trim().min(1).max(NOTE_LONGEST),
+  sessionId: z.uuid(),
+  stageId: revisableStageSchema,
+});
+export type RevisionNote = z.infer<typeof revisionNoteSchema>;
+
 /** The four artifact kinds `artifacts.kind` admits. */
 export const ARTIFACT_KINDS = [
   "outline",

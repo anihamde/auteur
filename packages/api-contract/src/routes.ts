@@ -6,6 +6,8 @@ import {
   lengthPresetSchema,
   outlineSchema,
   questionSchema,
+  revisableStageSchema,
+  revisionNoteSchema,
   sessionSchema,
   stepSchema,
   storySchema,
@@ -14,7 +16,7 @@ import { styleCardSchema } from "@auteur/core/style-card";
 import { z } from "zod";
 
 /**
- * The seventeen routes, described once (decisions 0005 and 0010).
+ * The eighteen routes, described once (decisions 0005 and 0010).
  *
  * `api-client` is generated from this same object, so a contract change breaks
  * both sides' compile together rather than one side at run time. That is the
@@ -230,6 +232,29 @@ export const ROUTES = {
       models: z.array(modelRowSchema),
       stages: z.array(stageRowSchema),
     }),
+  },
+  /**
+   * `POST /api/sessions/:id/notes` — say what is wrong with what you read.
+   *
+   * It does not re-run anything, and that is the same arrangement `answers`
+   * has: filing a note changes the note set, which changes the stage's input
+   * key, which is what `POST /advance` reads. The consequences are §7.5's
+   * rather than this route's, so there is no second opinion anywhere about
+   * what a note invalidates.
+   *
+   * The response is the whole list for that stage, not the row just written.
+   * The screen renders the notes so far, and a client that had to append the
+   * new one itself would be a second place the order is decided.
+   */
+  notes: {
+    body: z.object({
+      note: z.string().trim().min(1).max(2000),
+      stageId: revisableStageSchema,
+    }),
+    method: "POST",
+    params: idParam,
+    path: "/api/sessions/:id/notes",
+    response: z.object({ notes: z.array(revisionNoteSchema) }),
   },
   patchSession: {
     body: z.object({

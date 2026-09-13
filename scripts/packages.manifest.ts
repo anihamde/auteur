@@ -332,6 +332,7 @@ export const PACKAGES: readonly PackageSpec[] = [
       artifacts: src("artifacts.ts"),
       pins: src("pins.ts"),
       questions: src("questions.ts"),
+      "revision-notes": src("revision-notes.ts"),
       sessions: src("sessions.ts"),
       "stage-keys": src("stage-keys.ts"),
     },
